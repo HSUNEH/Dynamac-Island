@@ -50,7 +50,13 @@ const fakeIpcMain = {
   }
 };
 
-const fakeFs = {};
+const fakeFs = {
+  existsSync() {
+    return true;
+  },
+  mkdirSync() {},
+  copyFileSync() {}
+};
 
 const fakeWindow = {
   destroyed: false,

@@ -74,6 +74,7 @@ Run the automated Electron launch smoke test:
 
 ```sh
 npm run smoke:launch
+npm run package:mac
 ```
 
 Validate the default watched status file:
@@ -82,6 +83,7 @@ Validate the default watched status file:
 npm run check
 npm run check-readme
 npm run test:install-macbook-script
+npm run test:package-mac-script
 npm run test:status-loader
 npm run check-status
 ```
@@ -95,6 +97,26 @@ npm run check-status:malformed
 ```
 
 `check-status:invalid` is expected to exit non-zero and print validation errors. `check-status:malformed` is expected to exit non-zero and print a JSON parse error.
+
+
+## Build a macOS `.app`
+
+To create a local unsigned macOS app bundle:
+
+```sh
+cd ~/projects/dynamac-island
+npm install
+npm run package:mac
+open dist
+```
+
+The packaged app is written to `dist/Dynamac Island-darwin-<arch>/Dynamac Island.app`. On Apple Silicon Macs this is usually:
+
+```sh
+open "dist/Dynamac Island-darwin-arm64/Dynamac Island.app"
+```
+
+Because this MVP is not signed or notarized yet, macOS Gatekeeper may warn when opening the `.app` outside the development machine. For local testing, use right-click → Open, or launch from Terminal with the `open` command above.
 
 ## MacBook Smoke Test
 
@@ -203,4 +225,4 @@ Expected results:
 
 - Add a small fixture switcher in dev mode.
 - Add Hermes/Snuffles/Codex file adapters once their local status formats are stable.
-- Add a packaged macOS build target after the MVP UI and status schema settle.
+- Add signed/notarized DMG distribution after the unsigned local `.app` package flow settles.

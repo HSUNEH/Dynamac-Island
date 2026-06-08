@@ -122,7 +122,9 @@ async function run() {
   };
 
   const fakeFs = {
+    existsSync: fs.existsSync,
     mkdirSync: fs.mkdirSync,
+    copyFileSync: fs.copyFileSync,
     watchFile(filePath, options, callback) {
       watchedFiles.set(filePath, { options, callback });
     },

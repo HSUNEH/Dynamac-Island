@@ -4,6 +4,34 @@ const { loadStatusFile } = require("./status-loader");
 const { createDynamacIslandWindow } = require("./app-composition");
 const { createJsonStatusWatcher } = require("./status-watcher");
 
+function isPackagedAsarPath(appPath) {
+  return path.basename(appPath) === "app.asar";
+}
+
+function resolveDefaultStatusFile(electronApp, appPath) {
+  if (isPackagedAsarPath(appPath)) {
+    return path.join(electronApp.getPath("userData"), "status", "status.json");
+  }
+
+  return path.join(appPath, "status", "status.json");
+}
+
+function ensureWritableStatusFile(options) {
+  const statusFile = options.statusFile;
+  const bundledStatusFile = options.bundledStatusFile;
+  const fileSystem = options.fs || fs;
+
+  if (fileSystem.existsSync(statusFile)) {
+    return;
+  }
+
+  fileSystem.mkdirSync(path.dirname(statusFile), { recursive: true });
+
+  if (bundledStatusFile && fileSystem.existsSync(bundledStatusFile)) {
+    fileSystem.copyFileSync(bundledStatusFile, statusFile);
+  }
+}
+
 function createDynamacIslandMainProcess(dependencies) {
   const electronApp = dependencies.app;
   const BrowserWindow = dependencies.BrowserWindow;
@@ -12,7 +40,8 @@ function createDynamacIslandMainProcess(dependencies) {
   const env = dependencies.env || process.env;
   const baseDir = dependencies.baseDir || __dirname;
   const appPath = dependencies.appPath || electronApp.getAppPath();
-  const statusFile = dependencies.statusFile || path.join(appPath, "status", "status.json");
+  const bundledStatusFile = dependencies.bundledStatusFile || path.join(appPath, "status", "status.json");
+  const statusFile = dependencies.statusFile || resolveDefaultStatusFile(electronApp, appPath);
   const fileSystem = dependencies.fs || fs;
   const loadStatus = dependencies.loadStatusFile || loadStatusFile;
   const createStatusWatcher = dependencies.createJsonStatusWatcher || createJsonStatusWatcher;
@@ -25,6 +54,11 @@ function createDynamacIslandMainProcess(dependencies) {
   const statusSubscribers = new Set();
 
   function readStatusFile() {
+    ensureWritableStatusFile({
+      statusFile,
+      bundledStatusFile,
+      fs: fileSystem
+    });
     currentStatus = loadStatus(statusFile);
     return currentStatus;
   }
@@ -63,6 +97,11 @@ function createDynamacIslandMainProcess(dependencies) {
   }
 
   function watchStatusFile() {
+    ensureWritableStatusFile({
+      statusFile,
+      bundledStatusFile,
+      fs: fileSystem
+    });
     statusWatcher = createStatusWatcher({
       statusPath: statusFile,
       onReload: reloadChangedStatusFile,
@@ -127,5 +166,7 @@ function createDynamacIslandMainProcess(dependencies) {
 }
 
 module.exports = {
-  createDynamacIslandMainProcess
+  createDynamacIslandMainProcess,
+  resolveDefaultStatusFile,
+  ensureWritableStatusFile
 };
