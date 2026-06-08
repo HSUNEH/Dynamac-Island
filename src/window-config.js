@@ -1,7 +1,16 @@
 const path = require("node:path");
 
-const DEFAULT_WINDOW_WIDTH = 520;
-const DEFAULT_WINDOW_HEIGHT = 210;
+const WINDOW_MODES = {
+  collapsed: { width: 286, height: 58 },
+  expanded: { width: 520, height: 210 }
+};
+
+const DEFAULT_WINDOW_WIDTH = WINDOW_MODES.collapsed.width;
+const DEFAULT_WINDOW_HEIGHT = WINDOW_MODES.collapsed.height;
+
+function windowOptionsForMode(mode) {
+  return WINDOW_MODES[mode] || WINDOW_MODES.collapsed;
+}
 
 function buildWindowOptions(preloadPath) {
   return {
@@ -42,6 +51,12 @@ function anchorWindowToNotch(window, screen, windowOptions) {
   window.setPosition(position.x, position.y);
 }
 
+function setWindowMode(window, screen, mode) {
+  const modeOptions = windowOptionsForMode(mode);
+  window.setSize(modeOptions.width, modeOptions.height);
+  anchorWindowToNotch(window, screen, modeOptions);
+}
+
 function createIslandWindow(BrowserWindow, options = {}) {
   const preloadPath = options.preloadPath || path.join(__dirname, "preload.js");
   const indexPath = options.indexPath || path.join(__dirname, "index.html");
@@ -62,5 +77,7 @@ module.exports = {
   buildWindowOptions,
   calculateNotchAnchoredPosition,
   anchorWindowToNotch,
+  setWindowMode,
+  windowOptionsForMode,
   createIslandWindow
 };

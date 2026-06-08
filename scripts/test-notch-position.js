@@ -17,7 +17,7 @@ const position = calculateNotchAnchoredPosition(display, windowOptions);
 
 assert.deepEqual(
   position,
-  { x: 496, y: 0 },
+  { x: 613, y: 0 },
   "island should be horizontally centered and pinned to the physical top edge near the notch, not placed like a normal app window"
 );
 
@@ -61,7 +61,7 @@ assert.ok(
   "island should use a high always-on-top level suitable for a notch overlay"
 );
 assert.ok(
-  calls.some((call) => call[0] === "setPosition" && call[1] === 496 && call[2] === 0),
+  calls.some((call) => call[0] === "setPosition" && call[1] === 613 && call[2] === 0),
   "created island window should be moved to the notch-anchored position"
 );
 

@@ -5,21 +5,21 @@
       "state": "warning",
       "task": "Hermes runtime not sampled yet",
       "updatedAt": "2026-06-08T00:00:00.000Z",
-      "detail": "Launch Dynamac Island to generate a local Hermes runtime snapshot on this Mac."
+      "detail": "Launch Dynamac Island on a Mac with Hermes installed to generate local runtime status."
     },
     {
       "agent": "Hermes Gateway",
       "state": "warning",
       "task": "Gateway status pending",
       "updatedAt": "2026-06-08T00:00:00.000Z",
-      "detail": "No bundled mock success is used; runtime status is generated locally."
+      "detail": "Gateway details are summarized locally and avoid exposing full process commands."
     },
     {
       "agent": "Active Session",
-      "state": "idle",
+      "state": "warning",
       "task": "Waiting for local session index",
       "updatedAt": "2026-06-08T00:00:00.000Z",
-      "detail": "The app reads ~/.hermes/sessions/sessions.json when available."
+      "detail": "Session title, token count, cost, and full paths are hidden on the overlay."
     }
   ]
 }

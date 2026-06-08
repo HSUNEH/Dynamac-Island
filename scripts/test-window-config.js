@@ -2,14 +2,14 @@
 
 const assert = require("node:assert");
 const path = require("node:path");
-const { buildWindowOptions, createIslandWindow } = require("../src/window-config");
+const { buildWindowOptions, createIslandWindow, setWindowMode } = require("../src/window-config");
 
 const preloadPath = path.resolve("src/preload.js");
 const indexPath = path.resolve("src/index.html");
 const windowOptions = buildWindowOptions(preloadPath);
 
-assert.equal(windowOptions.width, 520, "window width should match the MVP pill layout");
-assert.equal(windowOptions.height, 210, "window height should match the MVP pill layout");
+assert.equal(windowOptions.width, 286, "window width should default to the notch-attached collapsed capsule");
+assert.equal(windowOptions.height, 58, "window height should stay close to the menu bar notch height");
 assert.equal(windowOptions.frame, false, "window should be borderless");
 assert.equal(windowOptions.transparent, true, "window should allow the pill shape to float visually");
 assert.equal(windowOptions.resizable, false, "window should keep a stable island shape");
@@ -54,5 +54,30 @@ assert.deepEqual(calls, [
   ["setVisibleOnAllWorkspaces", true, { visibleOnFullScreen: true }],
   ["loadFile", indexPath]
 ]);
+
+const resizeCalls = [];
+const modeWindow = {
+  setSize(width, height) {
+    resizeCalls.push(["setSize", width, height]);
+  },
+  setPosition(x, y) {
+    resizeCalls.push(["setPosition", x, y]);
+  }
+};
+const fakeScreen = {
+  getPrimaryDisplay() {
+    return { bounds: { x: 0, y: 0, width: 1512, height: 982 } };
+  }
+};
+
+setWindowMode(modeWindow, fakeScreen, "expanded");
+assert.deepEqual(
+  resizeCalls,
+  [
+    ["setSize", 520, 210],
+    ["setPosition", 496, 0]
+  ],
+  "expanded mode should resize the Electron surface and re-anchor it to the notch center"
+);
 
 console.log("Window configuration test passed.");

@@ -1,6 +1,10 @@
 :root {
-  --island-width: 496px;
-  --island-min-height: 152px;
+  --island-collapsed-width: 286px;
+  --island-collapsed-height: 52px;
+  --island-expanded-width: 496px;
+  --island-expanded-min-height: 152px;
+  --island-width: var(--island-expanded-width);
+  --island-min-height: var(--island-expanded-min-height);
   --island-radius: 42px;
   color-scheme: dark;
   font-family:
@@ -24,7 +28,7 @@ body {
 body {
   display: grid;
   place-items: start center;
-  padding-top: 14px;
+  padding-top: 0;
   color: #f7f7f2;
   -webkit-app-region: drag;
 }
@@ -41,6 +45,43 @@ body {
   box-shadow:
     0 22px 60px rgba(0, 0, 0, 0.42),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transition:
+    width 160ms ease,
+    min-height 160ms ease,
+    padding 160ms ease,
+    border-radius 160ms ease;
+}
+
+.island[data-mode="collapsed"] {
+  width: var(--island-collapsed-width);
+  min-height: var(--island-collapsed-height);
+  height: var(--island-collapsed-height);
+  padding: 6px 10px;
+  border-radius: 0 0 26px 26px;
+}
+
+.island[data-mode="expanded"] {
+  width: min(var(--island-expanded-width), calc(100vw - 24px));
+  min-height: var(--island-expanded-min-height);
+  padding: 18px;
+  border-radius: var(--island-radius);
+}
+
+.island[data-mode="collapsed"] .expanded-title,
+.island[data-mode="collapsed"] .icon-button,
+.island[data-mode="collapsed"] .status-grid,
+.island[data-mode="collapsed"] .source {
+  display: none;
+}
+
+.island[data-mode="expanded"] .expanded-title,
+.island[data-mode="expanded"] .icon-button,
+.island[data-mode="expanded"] .source {
+  display: block;
+}
+
+.island[data-mode="expanded"] .status-grid {
+  display: grid;
 }
 
 .island-header {
@@ -49,6 +90,66 @@ body {
   justify-content: space-between;
   gap: 14px;
   margin-bottom: 12px;
+}
+
+.island[data-mode="collapsed"] .island-header {
+  height: 100%;
+  margin-bottom: 0;
+  justify-content: center;
+}
+
+.mode-toggle {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr);
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  gap: 8px;
+  border: 0;
+  border-radius: 999px;
+  color: #f7f7f2;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.island[data-mode="expanded"] .mode-toggle {
+  max-width: 190px;
+}
+
+.compact-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #54c6ff;
+  box-shadow: 0 0 16px rgba(84, 198, 255, 0.72);
+}
+
+.compact-status {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.compact-status strong,
+.compact-status span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compact-status strong {
+  font-size: 13px;
+  line-height: 1.1;
+}
+
+.compact-status span {
+  color: #aeb4be;
+  font-size: 10px;
+  line-height: 1.1;
 }
 
 .eyebrow,

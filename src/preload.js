@@ -8,3 +8,7 @@ contextBridge.exposeInMainWorld("dynamacStatus", {
     return () => ipcRenderer.removeListener("status:update", listener);
   }
 });
+
+contextBridge.exposeInMainWorld("dynamacWindow", {
+  setMode: (mode) => ipcRenderer.invoke("window:set-mode", mode)
+});

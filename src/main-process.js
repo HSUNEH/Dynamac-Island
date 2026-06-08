@@ -4,6 +4,7 @@ const { loadStatusFile } = require("./status-loader");
 const { createDynamacIslandWindow } = require("./app-composition");
 const { createJsonStatusWatcher } = require("./status-watcher");
 const { writeHermesStatusSnapshot } = require("./hermes-status");
+const { setWindowMode } = require("./window-config");
 
 function isPackagedAsarPath(appPath) {
   return path.basename(appPath) === "app.asar";
@@ -48,6 +49,7 @@ function createDynamacIslandMainProcess(dependencies) {
   const loadStatus = dependencies.loadStatusFile || loadStatusFile;
   const createStatusWatcher = dependencies.createJsonStatusWatcher || createJsonStatusWatcher;
   const refreshStatusFile = dependencies.refreshStatusFile || writeHermesStatusSnapshot;
+  const resizeWindowForMode = dependencies.setWindowMode || setWindowMode;
   const createWindowFromComposition =
     dependencies.createDynamacIslandWindow || createDynamacIslandWindow;
 
@@ -128,9 +130,19 @@ function createDynamacIslandMainProcess(dependencies) {
     return appWindow;
   }
 
+  function setIslandMode(mode) {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      return { ok: false, mode };
+    }
+
+    resizeWindowForMode(mainWindow, screen, mode);
+    return { ok: true, mode };
+  }
+
   function start() {
     electronApp.whenReady().then(() => {
       ipcMain.handle("status:read", readStatusFile);
+      ipcMain.handle("window:set-mode", (_event, mode) => setIslandMode(mode));
       createWindow();
       watchStatusFile();
 
@@ -159,6 +171,7 @@ function createDynamacIslandMainProcess(dependencies) {
     readStatusFile,
     broadcastStatus,
     reloadChangedStatusFile,
+    setIslandMode,
     createWindow,
     watchStatusFile,
     subscribeStatusUpdates

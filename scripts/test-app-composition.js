@@ -21,7 +21,7 @@ assert.equal(composition.contentRoot.shellClass, "island", "content root should 
 assert.equal(composition.contentRoot.html, renderPillView(), "content root should render the pill view");
 assert.match(
   composition.contentRoot.html,
-  /<main class="island" aria-live="polite" data-view="dynamac-pill">/,
+  /<main class="island" aria-live="polite" data-view="dynamac-pill" data-mode="collapsed">/,
   "content root should be the pill main element"
 );
 
