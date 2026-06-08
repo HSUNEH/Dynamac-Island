@@ -43,49 +43,17 @@ function createStatusViews(statuses) {
 }
 
 function createStatusViewModels(statuses) {
-  const snufflesViewModel = snufflesUi.createSnufflesViewModel(statuses);
-  const codexViewModel = codexUi.createCodexViewModel(statuses);
-  const ouroborosViewModel = ouroborosUi.createOuroborosViewModel(statuses);
-  const viewModels = [];
-  let renderedSnuffles = false;
-  let renderedCodex = false;
-  let renderedOuroboros = false;
-
-  statuses.forEach((status) => {
-    if (status.agent.trim().toLowerCase() === snufflesUi.SNUFFLES_AGENT.toLowerCase()) {
-      viewModels.push(snufflesViewModel);
-      renderedSnuffles = true;
-      return;
-    }
-
+  return statuses.map((status) => {
     if (status.agent.trim().toLowerCase() === codexUi.CODEX_AGENT.toLowerCase()) {
-      viewModels.push(codexViewModel);
-      renderedCodex = true;
-      return;
+      return codexUi.createCodexViewModel([status]);
     }
 
     if (status.agent.trim().toLowerCase() === ouroborosUi.OUROBOROS_AGENT.toLowerCase()) {
-      viewModels.push(ouroborosViewModel);
-      renderedOuroboros = true;
-      return;
+      return ouroborosUi.createOuroborosViewModel([status]);
     }
 
-    viewModels.push(snufflesUi.toStatusViewModel(status));
+    return snufflesUi.toStatusViewModel(status);
   });
-
-  if (!renderedSnuffles) {
-    viewModels.unshift(snufflesViewModel);
-  }
-
-  if (!renderedCodex) {
-    viewModels.splice(1, 0, codexViewModel);
-  }
-
-  if (!renderedOuroboros) {
-    viewModels.splice(2, 0, ouroborosViewModel);
-  }
-
-  return viewModels;
 }
 
 function escapeHtml(value) {

@@ -13,6 +13,8 @@ assert.equal(windowOptions.height, 210, "window height should match the MVP pill
 assert.equal(windowOptions.frame, false, "window should be borderless");
 assert.equal(windowOptions.transparent, true, "window should allow the pill shape to float visually");
 assert.equal(windowOptions.resizable, false, "window should keep a stable island shape");
+assert.equal(windowOptions.movable, false, "window should stay attached to the notch instead of behaving like a normal movable app");
+assert.equal(windowOptions.fullscreenable, false, "window should behave like a compact overlay, not a normal fullscreenable app");
 assert.equal(windowOptions.alwaysOnTop, true, "window should float above normal app windows");
 assert.equal(windowOptions.skipTaskbar, true, "window should not appear as a normal app taskbar item");
 assert.equal(windowOptions.hasShadow, false, "window shadow is rendered by the app UI");

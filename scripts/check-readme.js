@@ -34,11 +34,15 @@ function hasShellCommandAfterHeading(heading, command) {
 }
 
 const requiredSnippets = [
-  ["MVP identity", "local Electron MVP"],
-  ["macOS-testable scope", "macOS-testable floating status pill"],
-  ["MacBook project path", "cd ~/projects/dynamac-island"],
-  ["mock agents", "mock Snuffles, Codex, and Ouroboros job states"],
-  ["watched status source", "Status source: `status/status.json`"],
+  ["product identity", "macOS notch-attached status island for Snuffles/Hermes"],
+  ["not normal app", "not a normal desktop app window"],
+  ["Dynamic Island concept", "compact live-activity surface around the camera/sensor area"],
+  ["notch anchored current state", "Notch-attached floating overlay, not a normal movable app window"],
+  ["physical display anchoring", "pins `y` to the physical top edge"],
+  ["Hermes status source", "generated Hermes snapshot"],
+  ["Hermes runtime model", "Snuffles runtime state, Hermes gateway process health, and the latest local Hermes session"],
+  ["fixtures only", "Fixture JSON files under `fixtures/` remain only for deterministic tests"],
+  ["watched status source", "status/status.json"],
   ["required fields", "`agent`, `state`, `task`, `updatedAt`, and `detail`"],
   ["allowed states", "`idle`, `running`, `success`, `warning`, `error`"],
   ["invalid input behavior", "Invalid JSON or invalid status fields are visible in the app as an error state"],
@@ -48,11 +52,11 @@ const requiredSnippets = [
   ["MacBook smoke test heading", "## MacBook Smoke Test"],
   ["MacBook smoke test intro", "Run these checks on the target MacBook after `npm install`:"],
   ["MacBook smoke test launch path", "Run `npm start` from `~/projects/dynamac-island`"],
-  ["floating pill verification", "Confirm a small floating black pill appears near the top of the screen"],
-  ["agent state verification", "Confirm the pill lists Snuffles, Codex, and Ouroboros mock job states"],
-  ["watched file verification", "Edit `status/status.json` and confirm the app updates without relaunching"],
-  ["invalid JSON launch verification", "Put invalid JSON in `status/status.json` and confirm the pill shows an error state"],
-  ["valid JSON restore step", "Restore valid JSON by copying the fixture back into the watched file"],
+  ["notch verification", "attached to the top-center notch area"],
+  ["Hermes state verification", "real local Hermes/Snuffles runtime signals"],
+  ["Hermes unavailable behavior", "warning state instead of fake success when Hermes data is unavailable"],
+  ["notch test command", "npm run test:notch-position"],
+  ["Hermes status test command", "npm run test:hermes-status"],
   ["README validation test description", "Run the README content validation test"],
   ["README validation coverage", "This test is runnable and fails if the README stops documenting"],
   ["manual update verification heading", "## Manual Update Verification"],
@@ -61,31 +65,13 @@ const requiredSnippets = [
     "Use this exact path when headless UI automation cannot prove that the live island updates on screen"
   ],
   ["manual update terminal 1 step", "Terminal 1: launch the app from the project directory"],
-  [
-    "manual update initial observation",
-    "Confirm the floating pill is visible and initially lists Snuffles, Codex, and Ouroboros."
-  ],
-  [
-    "manual update terminal 2 step",
-    "Terminal 2: replace the watched status file with a deterministic warning update"
-  ],
-  [
-    "manual update visible changed task",
-    "Observe the running app without relaunching and confirm the pill now shows `Manual watcher check`"
-  ],
-  [
-    "manual update visible changed detail",
-    "`Codex warning proves the renderer received the edited JSON.`"
-  ],
-  ["manual invalid JSON step", "Terminal 2: write malformed JSON to the watched file"],
+  ["manual update initial observation", "Confirm the floating pill is visible and attached to the notch/top-center area."],
+  ["manual status inspection", "inspect the generated runtime status file"],
+  ["manual real status observation", "Snuffles, Hermes Gateway, and Active Session instead of deterministic mock jobs"],
+  ["manual invalid JSON step", "write malformed JSON to the watched file"],
   [
     "manual invalid JSON observation",
     "Observe the running app without relaunching and confirm the pill shows an error state for the invalid status input."
-  ],
-  ["manual restore fixture step", "Terminal 2: restore the valid fixture"],
-  [
-    "manual restore observation",
-    "Observe the running app without relaunching and confirm Snuffles, Codex, and Ouroboros return to their valid mock states."
   ],
   ["status validation command", "npm run check-status"],
   ["valid fixture command", "npm run check-status:valid"],
@@ -118,11 +104,12 @@ if (!hasShellCommandAfterHeading("## Runbook", "npm start")) {
   missing.push(["runbook launch command block", "npm start in a Runbook shell code block"]);
 }
 
-if (!hasShellCommandAfterHeading("## MacBook Smoke Test", "cp fixtures/valid-status.json status/status.json")) {
-  missing.push([
-    "smoke test restore command block",
-    "cp fixtures/valid-status.json status/status.json in a MacBook Smoke Test shell code block"
-  ]);
+if (!hasShellCommandAfterHeading("## Runbook", "npm run test:notch-position")) {
+  missing.push(["runbook notch test command block", "npm run test:notch-position in a Runbook shell code block"]);
+}
+
+if (!hasShellCommandAfterHeading("## Runbook", "npm run test:hermes-status")) {
+  missing.push(["runbook Hermes status test command block", "npm run test:hermes-status in a Runbook shell code block"]);
 }
 
 if (!hasShellCommandAfterHeading("## MacBook Smoke Test", "npm run check-readme")) {
@@ -143,27 +130,14 @@ if (!hasShellCommandAfterHeading("## Manual Update Verification", "npm start")) 
   missing.push(["manual update launch command block", "npm start in a Manual Update Verification shell code block"]);
 }
 
-const manualUpdateSection = getSection("## Manual Update Verification");
-const manualShellBlocks = manualUpdateSection.match(/```(?:sh|bash)?\n[\s\S]*?\n```/g) || [];
-
-if (!manualShellBlocks.some((block) => block.includes("Manual watcher check"))) {
-  missing.push([
-    "manual deterministic update command",
-    "a Manual Update Verification shell command that writes Manual watcher check to status/status.json"
-  ]);
+if (!hasShellCommandAfterHeading("## Manual Update Verification", "npm run check-status")) {
+  missing.push(["manual status check command block", "npm run check-status in a Manual Update Verification shell code block"]);
 }
 
 if (!hasShellCommandAfterHeading("## Manual Update Verification", "printf '{ \"statuses\": [\\n' > status/status.json")) {
   missing.push([
     "manual malformed JSON command block",
     "printf '{ \"statuses\": [\\n' > status/status.json in a Manual Update Verification shell code block"
-  ]);
-}
-
-if (!hasShellCommandAfterHeading("## Manual Update Verification", "cp fixtures/valid-status.json status/status.json")) {
-  missing.push([
-    "manual restore command block",
-    "cp fixtures/valid-status.json status/status.json in a Manual Update Verification shell code block"
   ]);
 }
 

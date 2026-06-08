@@ -23,7 +23,10 @@ function createAppComposition(options = {}) {
 
 function createDynamacIslandWindow(BrowserWindow, options = {}) {
   const composition = createAppComposition(options);
-  const window = createIslandWindow(BrowserWindow, composition.assets);
+  const window = createIslandWindow(BrowserWindow, {
+    ...composition.assets,
+    screen: options.screen
+  });
 
   return {
     window,

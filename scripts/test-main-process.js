@@ -11,6 +11,7 @@ const watcher = { closed: false, close: () => { watcher.closed = true; } };
 const calls = [];
 const subscriberPayloads = [];
 let watcherReload;
+const fakeScreen = { getPrimaryDisplay() {} };
 const loadedPayloads = [
   { ok: true, statuses: [{ agent: "Codex", state: "idle" }] },
   { ok: false, statuses: [], errors: ["Status JSON is invalid: fixture error"] }
@@ -78,10 +79,14 @@ const mainProcess = createDynamacIslandMainProcess({
   app: fakeApp,
   BrowserWindow: FakeBrowserWindow,
   ipcMain: fakeIpcMain,
+  screen: fakeScreen,
   baseDir: path.resolve("src"),
   statusFile: path.resolve("status/status.json"),
   env: {},
   fs: fakeFs,
+  refreshStatusFile(options) {
+    calls.push(["refreshStatusFile", options.outputPath]);
+  },
   loadStatusFile(filePath) {
     calls.push(["loadStatusFile", filePath]);
     return loadedPayloads.shift();
@@ -126,7 +131,8 @@ assert.ok(launchCall, "app startup should invoke the app composition window fact
 assert.equal(launchCall[1], "FakeBrowserWindow");
 assert.deepEqual(launchCall[2], {
   preloadPath: path.resolve("src/preload.js"),
-  indexPath: path.resolve("src/index.html")
+  indexPath: path.resolve("src/index.html"),
+  screen: fakeScreen
 });
 
 assert.deepEqual(
@@ -152,6 +158,11 @@ assert.deepEqual(
 
 assert.equal(typeof watcherReload, "function", "status watcher should receive a reload callback");
 const changedPayload = watcherReload({ eventType: "change" });
+assert.equal(
+  calls.filter((call) => call[0] === "refreshStatusFile").length,
+  2,
+  "watcher reload should load the changed file as-is instead of overwriting it with a regenerated snapshot"
+);
 assert.deepEqual(
   changedPayload,
   { ok: false, statuses: [], errors: ["Status JSON is invalid: fixture error"] },

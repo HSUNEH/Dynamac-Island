@@ -141,6 +141,7 @@ async function run() {
     statusFile: statusPath,
     env: {},
     fs: fakeFs,
+    refreshStatusFile() {},
     createJsonStatusWatcher(options) {
       return createJsonStatusWatcher({
         ...options,

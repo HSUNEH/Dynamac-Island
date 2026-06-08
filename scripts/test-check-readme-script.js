@@ -33,34 +33,34 @@ assert.match(
   "check-readme should print a success message for the current README"
 );
 
-const missingManualPathResult = runChecker(
-  readme.replace("Use this exact path when headless UI automation cannot prove that the live island updates on screen", "")
+const missingNotchConceptResult = runChecker(
+  readme.replace("macOS notch-attached status island for Snuffles/Hermes", "")
 );
 
 assert.notEqual(
-  missingManualPathResult.status,
+  missingNotchConceptResult.status,
   0,
-  `check-readme should fail when the manual verification path is missing.\nstdout:\n${missingManualPathResult.stdout}\nstderr:\n${missingManualPathResult.stderr}`
+  `check-readme should fail when the notch island identity is missing.\nstdout:\n${missingNotchConceptResult.stdout}\nstderr:\n${missingNotchConceptResult.stderr}`
 );
 assert.match(
-  missingManualPathResult.stderr,
-  /Missing manual update verification purpose/,
-  "check-readme should report the missing manual verification path"
+  missingNotchConceptResult.stderr,
+  /Missing product identity/,
+  "check-readme should report the missing notch island identity"
 );
 
-const missingManualStepResult = runChecker(
-  readme.replace("Observe the running app without relaunching and confirm the pill shows an error state for the invalid status input.", "")
+const missingHermesStatusResult = runChecker(
+  readme.replace("Snuffles, Hermes Gateway, and Active Session instead of deterministic mock jobs", "")
 );
 
 assert.notEqual(
-  missingManualStepResult.status,
+  missingHermesStatusResult.status,
   0,
-  `check-readme should fail when a required manual verification step is missing.\nstdout:\n${missingManualStepResult.stdout}\nstderr:\n${missingManualStepResult.stderr}`
+  `check-readme should fail when real Hermes status verification is missing.\nstdout:\n${missingHermesStatusResult.stdout}\nstderr:\n${missingHermesStatusResult.stderr}`
 );
 assert.match(
-  missingManualStepResult.stderr,
-  /Missing manual invalid JSON observation/,
-  "check-readme should report the missing manual verification step"
+  missingHermesStatusResult.stderr,
+  /Missing manual real status observation/,
+  "check-readme should report the missing real status verification step"
 );
 
 const unsafeInstallerResult = runChecker(

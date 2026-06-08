@@ -3,6 +3,7 @@ const path = require("node:path");
 const { loadStatusFile } = require("./status-loader");
 const { createDynamacIslandWindow } = require("./app-composition");
 const { createJsonStatusWatcher } = require("./status-watcher");
+const { writeHermesStatusSnapshot } = require("./hermes-status");
 
 function isPackagedAsarPath(appPath) {
   return path.basename(appPath) === "app.asar";
@@ -36,6 +37,7 @@ function createDynamacIslandMainProcess(dependencies) {
   const electronApp = dependencies.app;
   const BrowserWindow = dependencies.BrowserWindow;
   const ipcMain = dependencies.ipcMain;
+  const screen = dependencies.screen;
   const platform = dependencies.platform || process.platform;
   const env = dependencies.env || process.env;
   const baseDir = dependencies.baseDir || __dirname;
@@ -45,6 +47,7 @@ function createDynamacIslandMainProcess(dependencies) {
   const fileSystem = dependencies.fs || fs;
   const loadStatus = dependencies.loadStatusFile || loadStatusFile;
   const createStatusWatcher = dependencies.createJsonStatusWatcher || createJsonStatusWatcher;
+  const refreshStatusFile = dependencies.refreshStatusFile || writeHermesStatusSnapshot;
   const createWindowFromComposition =
     dependencies.createDynamacIslandWindow || createDynamacIslandWindow;
 
@@ -53,14 +56,14 @@ function createDynamacIslandMainProcess(dependencies) {
   let currentStatus;
   const statusSubscribers = new Set();
 
-  function readStatusFile() {
-    ensureWritableStatusFile({
-      statusFile,
-      bundledStatusFile,
-      fs: fileSystem
-    });
+  function loadCurrentStatusFile() {
     currentStatus = loadStatus(statusFile);
     return currentStatus;
+  }
+
+  function readStatusFile() {
+    refreshStatusFile({ outputPath: statusFile });
+    return loadCurrentStatusFile();
   }
 
   function broadcastStatus(payload = currentStatus || readStatusFile()) {
@@ -91,17 +94,13 @@ function createDynamacIslandMainProcess(dependencies) {
   }
 
   function reloadChangedStatusFile() {
-    const payload = readStatusFile();
+    const payload = loadCurrentStatusFile();
     broadcastStatus(payload);
     return payload;
   }
 
   function watchStatusFile() {
-    ensureWritableStatusFile({
-      statusFile,
-      bundledStatusFile,
-      fs: fileSystem
-    });
+    refreshStatusFile({ outputPath: statusFile });
     statusWatcher = createStatusWatcher({
       statusPath: statusFile,
       onReload: reloadChangedStatusFile,
@@ -112,7 +111,8 @@ function createDynamacIslandMainProcess(dependencies) {
   function createWindow() {
     const appWindow = createWindowFromComposition(BrowserWindow, {
       preloadPath: path.join(baseDir, "preload.js"),
-      indexPath: path.join(baseDir, "index.html")
+      indexPath: path.join(baseDir, "index.html"),
+      screen
     });
     mainWindow = appWindow.window;
 
