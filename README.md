@@ -232,10 +232,15 @@ Expected results:
 - `check-status:invalid` fails for `fixtures/invalid-status.json`.
 - `check-status:malformed` fails for `fixtures/malformed-status.json` before schema validation because the JSON cannot be parsed.
 
+## Design References
+
+- `docs/dynamiclake-reference.md` captures DynamicLake/DynaMusic/DynaGlance/DynaCall/DynaClip/DynaDrop patterns to adapt for Dynamac Island without copying branding, assets, or implementation.
+
 ## Roadmap
 
 - Make the collapsed UI closer to Dynamic Island: smaller default pill, hover/click expansion, compact/live/activity modes.
 - Add source adapters for GitHub CI, Discord thread activity, cron jobs, Kanban workers, and active coding agents.
+- Add module types inspired by Mac notch workflows: glance, calls/meetings, file drop/shelf, and media controls.
 - Add action controls in the expanded view: open thread, open PR, pause/resume job, rerun failed task.
 - Improve notch behavior across display sizes: configurable top offset, external monitor fallback, multi-display selection.
 - Add signed/notarized DMG distribution after the unsigned local `.app` package flow settles.
