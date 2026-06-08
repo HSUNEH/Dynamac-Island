@@ -1,0 +1,25 @@
+{
+  "statuses": [
+    {
+      "agent": "Snuffles",
+      "state": "running",
+      "task": "Watching desktop context",
+      "updatedAt": "2026-06-08T12:00:00.000Z",
+      "detail": "Sampling local status events for the island preview."
+    },
+    {
+      "agent": "Codex",
+      "state": "success",
+      "task": "Built MVP shell",
+      "updatedAt": "2026-06-08T12:01:00.000Z",
+      "detail": "Renderer, preload, and status validation are wired."
+    },
+    {
+      "agent": "Ouroboros",
+      "state": "warning",
+      "task": "Waiting for handoff",
+      "updatedAt": "2026-06-08T12:02:00.000Z",
+      "detail": "Runbook is ready; external integrations are intentionally out of scope."
+    }
+  ]
+}

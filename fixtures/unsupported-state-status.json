@@ -1,0 +1,11 @@
+{
+  "statuses": [
+    {
+      "agent": "Codex",
+      "state": "blocked",
+      "task": "Unsupported state fixture",
+      "updatedAt": "2026-06-08T12:05:00.000Z",
+      "detail": "This fixture keeps every required field valid except state."
+    }
+  ]
+}

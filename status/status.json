@@ -1,0 +1,25 @@
+{
+  "statuses": [
+    {
+      "agent": "Snuffles",
+      "state": "running",
+      "task": "Monitoring local session",
+      "updatedAt": "2026-06-08T12:00:00.000Z",
+      "detail": "Watching mock signals from the local JSON status file."
+    },
+    {
+      "agent": "Codex",
+      "state": "idle",
+      "task": "Ready for edits",
+      "updatedAt": "2026-06-08T12:01:00.000Z",
+      "detail": "No active code operation is currently queued."
+    },
+    {
+      "agent": "Ouroboros",
+      "state": "success",
+      "task": "Seed accepted",
+      "updatedAt": "2026-06-08T12:02:00.000Z",
+      "detail": "MVP contract is represented by local deterministic fixtures."
+    }
+  ]
+}

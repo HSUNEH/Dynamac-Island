@@ -1,0 +1,10 @@
+{
+  "statuses": [
+    {
+      "agent": "Codex",
+      "state": "running",
+      "updatedAt": "2026-06-08T12:05:00.000Z",
+      "detail": "Task field is intentionally omitted for validation coverage."
+    }
+  ]
+}
