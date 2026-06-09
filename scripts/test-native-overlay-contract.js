@@ -20,8 +20,13 @@ assert.match(source, /auxiliaryTopRightArea/, "native overlay should read macOS 
 assert.match(source, /DYNAMAC_NATIVE_DIAG/, "native overlay should expose diagnostic output for real MacBook notch sizing");
 assert.match(source, /leftWingRect/, "compact native overlay should draw a left wing beside the notch");
 assert.match(source, /rightWingRect/, "compact native overlay should draw a right wing beside the notch");
-assert.match(source, /drawCompactNotchWings/, "compact native overlay should draw notch-adjacent wings instead of one centered pill");
+assert.match(source, /drawCompactNotchWings/, "notched MacBook display should draw notch-adjacent wings instead of one centered pill");
+assert.match(source, /drawCompactSinglePill/, "non-notch displays should draw one normal compact pill instead of split wings");
+assert.match(source, /usesHardwareNotchCutout/, "native overlay should switch layout based on detected hardware notch availability");
+assert.match(source, /safeAreaInsets\.top > 0/, "native overlay should use NSScreen safe-area data to detect notched displays");
+assert.match(source, /layout\.displayMode/, "native diagnostics should report notch-wings vs single-pill mode");
 assert.match(source, /The center is intentionally transparent/, "compact native overlay should document why the notch center is not painted");
+assert.match(source, /Non-notch displays have no hardware cutout/, "compact native overlay should document why regular displays use a single pill");
 assert.doesNotMatch(source, /let size = NSSize\(width: 286, height: 58\)/, "compact native overlay must not use a single centered pill that covers the notch");
 assert.match(source, /override func mouseDown/, "native overlay should provide a direct compact\/expanded toggle interaction");
 assert.match(source, /toggleExpanded\(\)/, "native overlay should expose a toggle path for expansion");

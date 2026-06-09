@@ -18,17 +18,20 @@ struct NotchWingLayout {
     let height: CGFloat
     let innerCornerRadius: CGFloat
     let outerCornerRadius: CGFloat
+    let usesHardwareNotchCutout: Bool
 
     static func compactFromEnvironment(screen: NSScreen? = nil) -> NotchWingLayout {
         let environment = ProcessInfo.processInfo.environment
         let measuredNotchWidth = screen.flatMap { measuredNotchCutoutWidth(screen: $0) }
-        let defaultNotchWidth = measuredNotchWidth ?? 260
+        let usesHardwareNotchCutout = measuredNotchWidth != nil || screen.map { $0.safeAreaInsets.top > 0 } == true
+        let defaultNotchWidth = usesHardwareNotchCutout ? (measuredNotchWidth ?? 260) : 0
         return NotchWingLayout(
             notchCutoutWidth: CGFloat(Double(environment["DYNAMAC_NOTCH_WIDTH"] ?? "\(Int(defaultNotchWidth))") ?? Double(defaultNotchWidth)),
             wingWidth: CGFloat(Double(environment["DYNAMAC_WING_WIDTH"] ?? "142") ?? 142),
             height: CGFloat(Double(environment["DYNAMAC_COMPACT_HEIGHT"] ?? "44") ?? 44),
             innerCornerRadius: CGFloat(Double(environment["DYNAMAC_INNER_RADIUS"] ?? "14") ?? 14),
-            outerCornerRadius: CGFloat(Double(environment["DYNAMAC_OUTER_RADIUS"] ?? "22") ?? 22)
+            outerCornerRadius: CGFloat(Double(environment["DYNAMAC_OUTER_RADIUS"] ?? "22") ?? 22),
+            usesHardwareNotchCutout: usesHardwareNotchCutout
         )
     }
 
@@ -47,7 +50,11 @@ struct NotchWingLayout {
     }
 
     var totalSize: NSSize {
-        NSSize(width: wingWidth * 2 + notchCutoutWidth, height: height)
+        NSSize(width: wingWidth * 2 + (usesHardwareNotchCutout ? notchCutoutWidth : 0), height: height)
+    }
+
+    var fullPillRect: NSRect {
+        NSRect(origin: .zero, size: totalSize)
     }
 
     func leftWingRect(in bounds: NSRect) -> NSRect {
@@ -74,7 +81,8 @@ struct NotchWingLayout {
             "screen.auxiliaryTopRightArea=\(right)",
             "layout.notchCutoutWidth=\(Int(notchCutoutWidth))",
             "layout.wingWidth=\(Int(wingWidth))",
-            "layout.height=\(Int(height))"
+            "layout.height=\(Int(height))",
+            "layout.displayMode=\(usesHardwareNotchCutout ? "notch-wings" : "single-pill")"
         ].joined(separator: "\n")
     }
 }
@@ -105,8 +113,10 @@ final class IslandView: NSView {
 
         if expanded {
             drawExpandedSurface()
-        } else {
+        } else if compactLayout.usesHardwareNotchCutout {
             drawCompactNotchWings()
+        } else {
+            drawCompactSinglePill()
         }
 
         drawContent()
@@ -145,6 +155,14 @@ final class IslandView: NSView {
         let rightWing = compactLayout.rightWingRect(in: bounds)
         compactWingPath(rect: leftWing, side: .left).fill()
         compactWingPath(rect: rightWing, side: .right).fill()
+    }
+
+    private func drawCompactSinglePill() {
+        // Non-notch displays have no hardware cutout, so a split surface looks broken.
+        // Draw one normal compact pill centered in the menu-bar area for external monitors and desktop Macs.
+        let path = NSBezierPath(roundedRect: bounds, xRadius: compactLayout.outerCornerRadius, yRadius: compactLayout.outerCornerRadius)
+        NSColor(calibratedRed: 0.035, green: 0.035, blue: 0.04, alpha: 0.98).setFill()
+        path.fill()
     }
 
     private enum WingSide {
@@ -254,8 +272,12 @@ final class IslandView: NSView {
                 NSString(string: status.task).draw(in: NSRect(x: card.minX + 10, y: card.minY + 30, width: card.width - 20, height: 28), withAttributes: titleAttrs)
             }
         } else {
-            let left = compactLayout.leftWingRect(in: bounds)
-            let right = compactLayout.rightWingRect(in: bounds)
+            let left = compactLayout.usesHardwareNotchCutout
+                ? compactLayout.leftWingRect(in: bounds)
+                : NSRect(x: 0, y: 0, width: bounds.width / 2, height: bounds.height)
+            let right = compactLayout.usesHardwareNotchCutout
+                ? compactLayout.rightWingRect(in: bounds)
+                : NSRect(x: bounds.width / 2, y: 0, width: bounds.width / 2, height: bounds.height)
             NSString(string: "●  \(primary)").draw(in: left.insetBy(dx: 16, dy: 8), withAttributes: titleAttrs)
             NSString(string: meta).draw(in: right.insetBy(dx: 12, dy: 7), withAttributes: titleAttrs)
             NSString(string: "\(statuses.count) total").draw(in: right.insetBy(dx: 12, dy: 25), withAttributes: metaAttrs)
