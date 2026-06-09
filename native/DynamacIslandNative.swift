@@ -27,10 +27,10 @@ struct NotchWingLayout {
         let defaultNotchWidth = usesHardwareNotchCutout ? (measuredNotchWidth ?? 260) : 0
         return NotchWingLayout(
             notchCutoutWidth: CGFloat(Double(environment["DYNAMAC_NOTCH_WIDTH"] ?? "\(Int(defaultNotchWidth))") ?? Double(defaultNotchWidth)),
-            wingWidth: CGFloat(Double(environment["DYNAMAC_WING_WIDTH"] ?? "142") ?? 142),
-            height: CGFloat(Double(environment["DYNAMAC_COMPACT_HEIGHT"] ?? "44") ?? 44),
-            innerCornerRadius: CGFloat(Double(environment["DYNAMAC_INNER_RADIUS"] ?? "14") ?? 14),
-            outerCornerRadius: CGFloat(Double(environment["DYNAMAC_OUTER_RADIUS"] ?? "22") ?? 22),
+            wingWidth: CGFloat(Double(environment["DYNAMAC_WING_WIDTH"] ?? "132") ?? 132),
+            height: CGFloat(Double(environment["DYNAMAC_COMPACT_HEIGHT"] ?? "38") ?? 38),
+            innerCornerRadius: CGFloat(Double(environment["DYNAMAC_INNER_RADIUS"] ?? "12") ?? 12),
+            outerCornerRadius: CGFloat(Double(environment["DYNAMAC_OUTER_RADIUS"] ?? "19") ?? 19),
             usesHardwareNotchCutout: usesHardwareNotchCutout
         )
     }
@@ -241,16 +241,16 @@ final class IslandView: NSView {
         let primary = statuses.first?.agent ?? "Snuffles"
         let warningCount = statuses.filter { $0.state == "warning" || $0.state == "error" }.count
         let runningCount = statuses.filter { $0.state == "running" }.count
-        let meta = "\(runningCount) active · \(warningCount) warning"
+        let meta = "\(runningCount) active · \(warningCount) warn"
 
         let titleAttrs: [NSAttributedString.Key: Any] = [
             .foregroundColor: NSColor.white,
-            .font: NSFont.systemFont(ofSize: expanded ? 26 : 13, weight: .bold),
+            .font: NSFont.systemFont(ofSize: expanded ? 26 : 12, weight: .bold),
             .paragraphStyle: paragraph
         ]
         let metaAttrs: [NSAttributedString.Key: Any] = [
             .foregroundColor: NSColor(calibratedWhite: 0.72, alpha: 1),
-            .font: NSFont.systemFont(ofSize: expanded ? 13 : 11, weight: .medium),
+            .font: NSFont.systemFont(ofSize: expanded ? 13 : 10, weight: .medium),
             .paragraphStyle: paragraph
         ]
 
@@ -278,9 +278,8 @@ final class IslandView: NSView {
             let right = compactLayout.usesHardwareNotchCutout
                 ? compactLayout.rightWingRect(in: bounds)
                 : NSRect(x: bounds.width / 2, y: 0, width: bounds.width / 2, height: bounds.height)
-            NSString(string: "●  \(primary)").draw(in: left.insetBy(dx: 16, dy: 8), withAttributes: titleAttrs)
-            NSString(string: meta).draw(in: right.insetBy(dx: 12, dy: 7), withAttributes: titleAttrs)
-            NSString(string: "\(statuses.count) total").draw(in: right.insetBy(dx: 12, dy: 25), withAttributes: metaAttrs)
+            NSString(string: "●  \(primary)").draw(in: left.insetBy(dx: 14, dy: 10), withAttributes: titleAttrs)
+            NSString(string: meta).draw(in: right.insetBy(dx: 12, dy: 10), withAttributes: titleAttrs)
         }
     }
 }
