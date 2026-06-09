@@ -23,14 +23,16 @@ struct NotchWingLayout {
     static func compactFromEnvironment(screen: NSScreen? = nil) -> NotchWingLayout {
         let environment = ProcessInfo.processInfo.environment
         let measuredNotchWidth = screen.flatMap { measuredNotchCutoutWidth(screen: $0) }
+        let measuredNotchHeightValue = screen.flatMap { measuredNotchHeight(screen: $0) }
         let usesHardwareNotchCutout = measuredNotchWidth != nil || screen.map { $0.safeAreaInsets.top > 0 } == true
         let defaultNotchWidth = usesHardwareNotchCutout ? (measuredNotchWidth ?? 206) : 0
+        let defaultHeight = usesHardwareNotchCutout ? (measuredNotchHeightValue ?? 34) : 38
         return NotchWingLayout(
             notchCutoutWidth: CGFloat(Double(environment["DYNAMAC_NOTCH_WIDTH"] ?? "\(Int(defaultNotchWidth))") ?? Double(defaultNotchWidth)),
             wingWidth: CGFloat(Double(environment["DYNAMAC_WING_WIDTH"] ?? "132") ?? 132),
-            height: CGFloat(Double(environment["DYNAMAC_COMPACT_HEIGHT"] ?? "38") ?? 38),
-            innerCornerRadius: CGFloat(Double(environment["DYNAMAC_INNER_RADIUS"] ?? "12") ?? 12),
-            outerCornerRadius: CGFloat(Double(environment["DYNAMAC_OUTER_RADIUS"] ?? "19") ?? 19),
+            height: CGFloat(Double(environment["DYNAMAC_COMPACT_HEIGHT"] ?? "\(Int(defaultHeight))") ?? Double(defaultHeight)),
+            innerCornerRadius: CGFloat(Double(environment["DYNAMAC_INNER_RADIUS"] ?? "11") ?? 11),
+            outerCornerRadius: CGFloat(Double(environment["DYNAMAC_OUTER_RADIUS"] ?? "17") ?? 17),
             usesHardwareNotchCutout: usesHardwareNotchCutout
         )
     }
@@ -51,6 +53,20 @@ struct NotchWingLayout {
         let environment = ProcessInfo.processInfo.environment
         let margin = CGFloat(Double(environment["DYNAMAC_NOTCH_MARGIN"] ?? "4") ?? 4)
         return max(160, gap + margin)
+    }
+
+    private static func measuredNotchHeight(screen: NSScreen) -> CGFloat? {
+        let safeTop = screen.safeAreaInsets.top
+        if safeTop >= 30 && safeTop <= 36 {
+            return safeTop
+        }
+
+        let topBand = screen.frame.maxY - screen.visibleFrame.maxY
+        if topBand >= 30 && topBand <= 36 {
+            return topBand
+        }
+
+        return nil
     }
 
     var totalSize: NSSize {
@@ -282,8 +298,8 @@ final class IslandView: NSView {
             let right = compactLayout.usesHardwareNotchCutout
                 ? compactLayout.rightWingRect(in: bounds)
                 : NSRect(x: bounds.width / 2, y: 0, width: bounds.width / 2, height: bounds.height)
-            NSString(string: "●  \(primary)").draw(in: left.insetBy(dx: 14, dy: 10), withAttributes: titleAttrs)
-            NSString(string: meta).draw(in: right.insetBy(dx: 12, dy: 10), withAttributes: titleAttrs)
+            NSString(string: "●  \(primary)").draw(in: left.insetBy(dx: 14, dy: 9), withAttributes: titleAttrs)
+            NSString(string: meta).draw(in: right.insetBy(dx: 12, dy: 9), withAttributes: titleAttrs)
         }
     }
 }
