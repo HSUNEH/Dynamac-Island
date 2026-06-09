@@ -31,8 +31,8 @@ struct NotchWingLayout {
             notchCutoutWidth: CGFloat(Double(environment["DYNAMAC_NOTCH_WIDTH"] ?? "\(Int(defaultNotchWidth))") ?? Double(defaultNotchWidth)),
             wingWidth: CGFloat(Double(environment["DYNAMAC_WING_WIDTH"] ?? "132") ?? 132),
             height: CGFloat(Double(environment["DYNAMAC_COMPACT_HEIGHT"] ?? "\(Int(defaultHeight))") ?? Double(defaultHeight)),
-            innerCornerRadius: CGFloat(Double(environment["DYNAMAC_INNER_RADIUS"] ?? "11") ?? 11),
-            outerCornerRadius: CGFloat(Double(environment["DYNAMAC_OUTER_RADIUS"] ?? "17") ?? 17),
+            innerCornerRadius: CGFloat(Double(environment["DYNAMAC_INNER_RADIUS"] ?? "8") ?? 8),
+            outerCornerRadius: CGFloat(Double(environment["DYNAMAC_OUTER_RADIUS"] ?? "12") ?? 12),
             usesHardwareNotchCutout: usesHardwareNotchCutout
         )
     }
