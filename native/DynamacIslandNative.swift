@@ -12,6 +12,41 @@ struct StatusItem: Decodable {
     let updatedAt: String?
 }
 
+struct NotchWingLayout {
+    let notchCutoutWidth: CGFloat
+    let wingWidth: CGFloat
+    let height: CGFloat
+    let innerCornerRadius: CGFloat
+    let outerCornerRadius: CGFloat
+
+    static func compactFromEnvironment() -> NotchWingLayout {
+        let environment = ProcessInfo.processInfo.environment
+        return NotchWingLayout(
+            notchCutoutWidth: CGFloat(Double(environment["DYNAMAC_NOTCH_WIDTH"] ?? "260") ?? 260),
+            wingWidth: CGFloat(Double(environment["DYNAMAC_WING_WIDTH"] ?? "142") ?? 142),
+            height: CGFloat(Double(environment["DYNAMAC_COMPACT_HEIGHT"] ?? "44") ?? 44),
+            innerCornerRadius: CGFloat(Double(environment["DYNAMAC_INNER_RADIUS"] ?? "14") ?? 14),
+            outerCornerRadius: CGFloat(Double(environment["DYNAMAC_OUTER_RADIUS"] ?? "22") ?? 22)
+        )
+    }
+
+    var totalSize: NSSize {
+        NSSize(width: wingWidth * 2 + notchCutoutWidth, height: height)
+    }
+
+    func leftWingRect(in bounds: NSRect) -> NSRect {
+        NSRect(x: 0, y: 0, width: wingWidth, height: bounds.height)
+    }
+
+    func rightWingRect(in bounds: NSRect) -> NSRect {
+        NSRect(x: wingWidth + notchCutoutWidth, y: 0, width: wingWidth, height: bounds.height)
+    }
+
+    func notchCutoutRect(in bounds: NSRect) -> NSRect {
+        NSRect(x: wingWidth, y: 0, width: notchCutoutWidth, height: bounds.height)
+    }
+}
+
 final class IslandView: NSView {
     var onToggle: (() -> Void)?
 
@@ -19,6 +54,9 @@ final class IslandView: NSView {
         didSet { needsDisplay = true }
     }
     var statuses: [StatusItem] = [] {
+        didSet { needsDisplay = true }
+    }
+    var compactLayout = NotchWingLayout.compactFromEnvironment() {
         didSet { needsDisplay = true }
     }
 
@@ -33,38 +71,118 @@ final class IslandView: NSView {
         NSColor.clear.setFill()
         dirtyRect.fill()
 
-        let radius: CGFloat = expanded ? 42 : 26
-        let path = NSBezierPath(
-            roundedRect: bounds,
-            xRadius: expanded ? 0 : radius,
-            yRadius: expanded ? 0 : radius
-        )
-
         if expanded {
-            // Native notch behavior: the top edge is flush with the physical screen top;
-            // only the lower corners round, so the surface grows down from the menu-bar notch.
-            path.removeAllPoints()
-            path.move(to: NSPoint(x: 0, y: 0))
-            path.line(to: NSPoint(x: bounds.maxX, y: 0))
-            path.line(to: NSPoint(x: bounds.maxX, y: bounds.maxY - radius))
-            path.curve(
-                to: NSPoint(x: bounds.maxX - radius, y: bounds.maxY),
-                controlPoint1: NSPoint(x: bounds.maxX, y: bounds.maxY - radius / 2),
-                controlPoint2: NSPoint(x: bounds.maxX - radius / 2, y: bounds.maxY)
-            )
-            path.line(to: NSPoint(x: radius, y: bounds.maxY))
-            path.curve(
-                to: NSPoint(x: 0, y: bounds.maxY - radius),
-                controlPoint1: NSPoint(x: radius / 2, y: bounds.maxY),
-                controlPoint2: NSPoint(x: 0, y: bounds.maxY - radius / 2)
-            )
-            path.close()
+            drawExpandedSurface()
+        } else {
+            drawCompactNotchWings()
         }
+
+        drawContent()
+    }
+
+    private func drawExpandedSurface() {
+        let radius: CGFloat = 42
+        let path = NSBezierPath()
+
+        // Expanded mode grows downward from the physical top edge.
+        // Top edge stays flush; only lower corners are rounded.
+        path.move(to: NSPoint(x: 0, y: 0))
+        path.line(to: NSPoint(x: bounds.maxX, y: 0))
+        path.line(to: NSPoint(x: bounds.maxX, y: bounds.maxY - radius))
+        path.curve(
+            to: NSPoint(x: bounds.maxX - radius, y: bounds.maxY),
+            controlPoint1: NSPoint(x: bounds.maxX, y: bounds.maxY - radius / 2),
+            controlPoint2: NSPoint(x: bounds.maxX - radius / 2, y: bounds.maxY)
+        )
+        path.line(to: NSPoint(x: radius, y: bounds.maxY))
+        path.curve(
+            to: NSPoint(x: 0, y: bounds.maxY - radius),
+            controlPoint1: NSPoint(x: radius / 2, y: bounds.maxY),
+            controlPoint2: NSPoint(x: 0, y: bounds.maxY - radius / 2)
+        )
+        path.close()
 
         NSColor(calibratedRed: 0.035, green: 0.035, blue: 0.04, alpha: 0.98).setFill()
         path.fill()
+    }
 
-        drawContent()
+    private func drawCompactNotchWings() {
+        // The center is intentionally transparent: the real hardware notch occupies that gap.
+        // Drawing only the side wings makes the UI feel attached to the occluded notch instead of covering it.
+        let leftWing = compactLayout.leftWingRect(in: bounds)
+        let rightWing = compactLayout.rightWingRect(in: bounds)
+        compactWingPath(rect: leftWing, side: .left).fill()
+        compactWingPath(rect: rightWing, side: .right).fill()
+    }
+
+    private enum WingSide {
+        case left
+        case right
+    }
+
+    private func compactWingPath(rect: NSRect, side: WingSide) -> NSBezierPath {
+        let outer = compactLayout.outerCornerRadius
+        let inner = compactLayout.innerCornerRadius
+        let path = NSBezierPath()
+
+        switch side {
+        case .left:
+            path.move(to: NSPoint(x: rect.minX + outer, y: rect.minY))
+            path.line(to: NSPoint(x: rect.maxX - inner, y: rect.minY))
+            path.curve(
+                to: NSPoint(x: rect.maxX, y: rect.minY + inner),
+                controlPoint1: NSPoint(x: rect.maxX - inner / 2, y: rect.minY),
+                controlPoint2: NSPoint(x: rect.maxX, y: rect.minY + inner / 2)
+            )
+            path.line(to: NSPoint(x: rect.maxX, y: rect.maxY - inner))
+            path.curve(
+                to: NSPoint(x: rect.maxX - inner, y: rect.maxY),
+                controlPoint1: NSPoint(x: rect.maxX, y: rect.maxY - inner / 2),
+                controlPoint2: NSPoint(x: rect.maxX - inner / 2, y: rect.maxY)
+            )
+            path.line(to: NSPoint(x: rect.minX + outer, y: rect.maxY))
+            path.curve(
+                to: NSPoint(x: rect.minX, y: rect.maxY - outer),
+                controlPoint1: NSPoint(x: rect.minX + outer / 2, y: rect.maxY),
+                controlPoint2: NSPoint(x: rect.minX, y: rect.maxY - outer / 2)
+            )
+            path.line(to: NSPoint(x: rect.minX, y: rect.minY + outer))
+            path.curve(
+                to: NSPoint(x: rect.minX + outer, y: rect.minY),
+                controlPoint1: NSPoint(x: rect.minX, y: rect.minY + outer / 2),
+                controlPoint2: NSPoint(x: rect.minX + outer / 2, y: rect.minY)
+            )
+        case .right:
+            path.move(to: NSPoint(x: rect.minX + inner, y: rect.minY))
+            path.line(to: NSPoint(x: rect.maxX - outer, y: rect.minY))
+            path.curve(
+                to: NSPoint(x: rect.maxX, y: rect.minY + outer),
+                controlPoint1: NSPoint(x: rect.maxX - outer / 2, y: rect.minY),
+                controlPoint2: NSPoint(x: rect.maxX, y: rect.minY + outer / 2)
+            )
+            path.line(to: NSPoint(x: rect.maxX, y: rect.maxY - outer))
+            path.curve(
+                to: NSPoint(x: rect.maxX - outer, y: rect.maxY),
+                controlPoint1: NSPoint(x: rect.maxX, y: rect.maxY - outer / 2),
+                controlPoint2: NSPoint(x: rect.maxX - outer / 2, y: rect.maxY)
+            )
+            path.line(to: NSPoint(x: rect.minX + inner, y: rect.maxY))
+            path.curve(
+                to: NSPoint(x: rect.minX, y: rect.maxY - inner),
+                controlPoint1: NSPoint(x: rect.minX + inner / 2, y: rect.maxY),
+                controlPoint2: NSPoint(x: rect.minX, y: rect.maxY - inner / 2)
+            )
+            path.line(to: NSPoint(x: rect.minX, y: rect.minY + inner))
+            path.curve(
+                to: NSPoint(x: rect.minX + inner, y: rect.minY),
+                controlPoint1: NSPoint(x: rect.minX, y: rect.minY + inner / 2),
+                controlPoint2: NSPoint(x: rect.minX + inner / 2, y: rect.minY)
+            )
+        }
+
+        path.close()
+        NSColor(calibratedRed: 0.035, green: 0.035, blue: 0.04, alpha: 0.98).setFill()
+        return path
     }
 
     private func drawContent() {
@@ -73,11 +191,11 @@ final class IslandView: NSView {
         let primary = statuses.first?.agent ?? "Snuffles"
         let warningCount = statuses.filter { $0.state == "warning" || $0.state == "error" }.count
         let runningCount = statuses.filter { $0.state == "running" }.count
-        let meta = "\(runningCount) active · \(warningCount) warning · \(statuses.count) total"
+        let meta = "\(runningCount) active · \(warningCount) warning"
 
         let titleAttrs: [NSAttributedString.Key: Any] = [
             .foregroundColor: NSColor.white,
-            .font: NSFont.systemFont(ofSize: expanded ? 26 : 14, weight: .bold),
+            .font: NSFont.systemFont(ofSize: expanded ? 26 : 13, weight: .bold),
             .paragraphStyle: paragraph
         ]
         let metaAttrs: [NSAttributedString.Key: Any] = [
@@ -104,8 +222,11 @@ final class IslandView: NSView {
                 NSString(string: status.task).draw(in: NSRect(x: card.minX + 10, y: card.minY + 30, width: card.width - 20, height: 28), withAttributes: titleAttrs)
             }
         } else {
-            NSString(string: "●  \(primary)").draw(in: NSRect(x: 18, y: 9, width: bounds.width - 36, height: 20), withAttributes: titleAttrs)
-            NSString(string: meta).draw(in: NSRect(x: 36, y: 29, width: bounds.width - 52, height: 16), withAttributes: metaAttrs)
+            let left = compactLayout.leftWingRect(in: bounds)
+            let right = compactLayout.rightWingRect(in: bounds)
+            NSString(string: "●  \(primary)").draw(in: left.insetBy(dx: 16, dy: 8), withAttributes: titleAttrs)
+            NSString(string: meta).draw(in: right.insetBy(dx: 12, dy: 7), withAttributes: titleAttrs)
+            NSString(string: "\(statuses.count) total").draw(in: right.insetBy(dx: 12, dy: 25), withAttributes: metaAttrs)
         }
     }
 }
@@ -114,6 +235,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var panel: NSPanel?
     private var islandView: IslandView?
     private var expanded = false
+    private let compactLayout = NotchWingLayout.compactFromEnvironment()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -128,7 +250,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func createPanel() {
         guard let screen = NSScreen.main else { return }
-        let size = NSSize(width: 286, height: 58)
+        let size = compactLayout.totalSize
         let rect = topCenteredRect(screen: screen, size: size)
         let panel = NSPanel(contentRect: rect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.isOpaque = false
@@ -139,6 +261,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.hidesOnDeactivate = false
 
         let view = IslandView(frame: NSRect(origin: .zero, size: size))
+        view.compactLayout = compactLayout
         view.onToggle = { [weak self] in self?.toggleExpanded() }
         panel.contentView = view
         panel.orderFrontRegardless()
@@ -150,7 +273,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func toggleExpanded() {
         guard let panel, let islandView, let screen = panel.screen ?? NSScreen.main else { return }
         expanded.toggle()
-        let size = expanded ? NSSize(width: 520, height: 210) : NSSize(width: 286, height: 58)
+        let size = expanded ? NSSize(width: 520, height: 210) : compactLayout.totalSize
         islandView.expanded = expanded
         islandView.frame = NSRect(origin: .zero, size: size)
         panel.setFrame(topCenteredRect(screen: screen, size: size), display: true, animate: true)

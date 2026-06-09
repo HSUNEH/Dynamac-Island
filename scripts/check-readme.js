@@ -53,7 +53,7 @@ const requiredSnippets = [
   ["MacBook smoke test intro", "Run these checks on the target MacBook after `npm install`:"],
   ["MacBook native smoke test launch path", "Run `npm run native:smoke` from `~/projects/dynamac-island`"],
   ["MacBook native overlay launch path", "Run `npm run native:start` from `~/projects/dynamac-island`"],
-  ["notch verification", "attached to the top-center notch area"],
+  ["notch wing verification", "leaves the hardware notch area uncovered and paints black wings beside the notch"],
   ["Hermes state verification", "real local Hermes/Snuffles runtime signals"],
   ["Hermes unavailable behavior", "warning state instead of fake success when Hermes data is unavailable"],
   ["notch test command", "npm run test:notch-position"],

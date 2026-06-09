@@ -8,7 +8,7 @@ Apple's Dynamic Island is a compact live-activity surface around the camera/sens
 
 Dynamac Island follows that pattern for this Mac:
 
-- **Small state:** collapsed pill near the notch for the current most important activity.
+- **Small state:** collapsed native wings beside the hardware notch for the current most important activity.
 - **Live activity:** Snuffles/Hermes runtime status, active sessions, gateway/process health, and later GitHub/Discord/cron/job progress.
 - **Quick expansion:** future hover/click expansion for detail and controls without opening a full app.
 - **Multiple activities:** future rotation/swipe-like switching between active signals.
@@ -19,6 +19,7 @@ Dynamac Island follows that pattern for this Mac:
 - Notch-attached floating overlay, not a normal movable app window.
 - Window source: `src/window-config.js` centers the island against `screen.getPrimaryDisplay().bounds` and pins `y` to the physical top edge.
 - Native overlay source: `native/DynamacIslandNative.swift` builds with `swiftc` through `npm run native:start`, avoiding the SwiftPM/Xcode path for quick MacBook CLT testing.
+- Native compact shape: the hardware notch area remains transparent; Dynamac paints only left/right wings beside the notch so it attaches to the occluded area instead of covering it.
 - Runtime status source: a generated Hermes snapshot written to `status/status.json` in development, or to the packaged app's userData status path in `.app` builds.
 - Hermes snapshot model: Snuffles runtime state, Hermes gateway process health, and the latest local Hermes session from `~/.hermes/sessions/sessions.json`.
 - Validation model: each status item needs `agent`, `state`, `task`, `updatedAt`, and `detail`.
@@ -143,7 +144,7 @@ Run these checks on the target MacBook after `npm install`:
 1. Run `npm run smoke:launch` from `~/projects/dynamac-island` and confirm it exits with "Smoke launch passed".
 2. Run `npm run native:smoke` from `~/projects/dynamac-island` and confirm it prints "DYNAMAC_NATIVE_READY".
 3. Run `npm run native:start` from `~/projects/dynamac-island` for the native AppKit notch overlay, or `npm start` for the Electron fallback.
-4. Confirm a small floating black pill appears attached to the top-center notch area, not in the middle of the desktop like a normal app.
+4. Confirm compact mode leaves the hardware notch area uncovered and paints black wings beside the notch, not one centered pill over it.
 5. Confirm the pill lists real local Hermes/Snuffles runtime signals when Hermes exists on the machine.
 6. Confirm the pill still shows a warning state instead of fake success when Hermes data is unavailable.
 7. Run `npm run test:notch-position` to verify the top-center anchoring contract.
