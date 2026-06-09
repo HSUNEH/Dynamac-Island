@@ -8,20 +8,13 @@
     error: "Error"
   });
 
-  const MOCK_SNUFFLES_STATE = Object.freeze({
-    agent: SNUFFLES_AGENT,
-    state: "idle",
-    task: "No Snuffles status",
-    updatedAt: "mock",
-    detail: "Snuffles is not present in the watched status file.",
-    isMock: true
-  });
-
   function createSnufflesViewModel(statuses) {
-    const snuffles = findSnufflesStatus(statuses) || MOCK_SNUFFLES_STATE;
-    const isMock = snuffles.isMock === true;
+    const snuffles = findSnufflesStatus(statuses);
+    if (!snuffles) {
+      return null;
+    }
     const stateLabel = STATE_LABELS[snuffles.state] || snuffles.state;
-    const task = isMock ? `${snuffles.task} (mock)` : snuffles.task;
+    const task = snuffles.task;
 
     return {
       agent: SNUFFLES_AGENT,
@@ -30,8 +23,8 @@
       task,
       detail: snuffles.detail,
       updatedAt: snuffles.updatedAt,
-      isMock,
-      cssClass: `status-card ${snuffles.state}${isMock ? " mock" : ""}`,
+      isMock: false,
+      cssClass: `status-card ${snuffles.state}`,
       dotClass: `state-dot ${snuffles.state}`,
       ariaLabel: `${SNUFFLES_AGENT} ${stateLabel}: ${task}`
     };
@@ -92,7 +85,6 @@
   }
 
   const api = {
-    MOCK_SNUFFLES_STATE,
     SNUFFLES_AGENT,
     createSnufflesViewModel,
     renderStatusCard,

@@ -18,7 +18,7 @@ const position = calculateNotchAnchoredPosition(display, windowOptions);
 assert.deepEqual(
   position,
   { x: 613, y: 0 },
-  "island should be horizontally centered and pinned to the physical top edge near the notch, not placed like a normal app window"
+  "Electron preview should request the physical top edge without inventing out-of-bounds coordinates; native NSPanel owns true notch overlay placement"
 );
 
 const calls = [];
@@ -62,7 +62,16 @@ assert.ok(
 );
 assert.ok(
   calls.some((call) => call[0] === "setPosition" && call[1] === 613 && call[2] === 0),
-  "created island window should be moved to the notch-anchored position"
+  "created Electron preview window should request top-center placement without moving outside display bounds"
+);
+
+assert.deepEqual(
+  calculateNotchAnchoredPosition(
+    { bounds: { x: 0, y: 0, width: 1512, height: 982 }, workArea: { x: 0, y: 0, width: 1512, height: 982 } },
+    windowOptions
+  ),
+  { x: 613, y: 0 },
+  "displays without a menu-bar work-area offset should not receive a negative y compensation"
 );
 
 console.log("Notch positioning test passed.");

@@ -49,7 +49,7 @@ assert.match(
 );
 
 const missingHermesStatusResult = runChecker(
-  readme.replace("Snuffles, Hermes Gateway, and Active Session instead of deterministic mock jobs", "")
+  readme.replace("Snuffles, Hermes Gateway, and Active Session instead of deterministic sample jobs", "")
 );
 
 assert.notEqual(

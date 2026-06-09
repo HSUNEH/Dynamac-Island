@@ -51,7 +51,7 @@ assert.equal(Array.isArray(payload.statuses), true, "snapshot should follow the 
 assert.deepEqual(
   payload.statuses.map((status) => status.agent),
   ["Snuffles", "Hermes Gateway", "Active Session"],
-  "snapshot should describe real local runtime signals instead of mock agents"
+  "snapshot should describe real local runtime signals instead of synthetic agents"
 );
 assert.equal(payload.statuses[0].state, "running");
 assert.match(payload.statuses[0].detail, /2 Hermes gateway process/);

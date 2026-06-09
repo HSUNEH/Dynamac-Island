@@ -18,6 +18,7 @@ function buildWindowOptions(preloadPath) {
     height: DEFAULT_WINDOW_HEIGHT,
     frame: false,
     transparent: true,
+    type: "panel",
     resizable: false,
     movable: false,
     fullscreenable: false,

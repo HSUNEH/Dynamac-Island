@@ -9,15 +9,6 @@ const STATE_LABELS = Object.freeze({
   error: "Error"
 });
 
-const MOCK_CODEX_STATE = Object.freeze({
-  agent: CODEX_AGENT,
-  state: "idle",
-  task: "No Codex status",
-  updatedAt: "mock",
-  detail: "Codex is not present in the watched status file.",
-  isMock: true
-});
-
 function parseCodexState(payload) {
   const validation = validateStatusPayload(payload);
 
@@ -36,7 +27,7 @@ function parseCodexState(payload) {
   if (!sourceStatus) {
     return {
       ok: true,
-      codex: { ...MOCK_CODEX_STATE },
+      codex: null,
       errors: []
     };
   }
@@ -80,7 +71,7 @@ function toCodexViewModel(parsedCodexState) {
 
   const codex = parsedCodexState.codex;
   const stateLabel = STATE_LABELS[codex.state] || codex.state;
-  const task = codex.isMock ? `${codex.task} (mock)` : codex.task;
+  const task = codex.task;
 
   return {
     ok: true,
@@ -91,8 +82,8 @@ function toCodexViewModel(parsedCodexState) {
     task,
     detail: codex.detail,
     updatedAt: codex.updatedAt,
-    isMock: codex.isMock,
-    cssClass: `status-card ${codex.state}${codex.isMock ? " mock" : ""}`,
+    isMock: false,
+    cssClass: `status-card ${codex.state}`,
     dotClass: `state-dot ${codex.state}`,
     summary: `${codex.agent} is ${stateLabel.toLowerCase()}`,
     ariaLabel: `${codex.agent} ${stateLabel}: ${task}`
@@ -110,7 +101,6 @@ function formatErrors(errors) {
 module.exports = {
   CODEX_AGENT,
   CODEX_STATES: STATES,
-  MOCK_CODEX_STATE,
   parseCodexState,
   toCodexViewModel
 };

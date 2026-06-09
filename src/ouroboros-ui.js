@@ -8,17 +8,9 @@
     error: "Error"
   });
 
-  const MOCK_OUROBOROS_UI_STATE = Object.freeze({
-    agent: OUROBOROS_AGENT,
-    state: "idle",
-    task: "No Ouroboros status",
-    updatedAt: "mock",
-    detail: "Ouroboros is not present in the watched status file.",
-    isMock: true
-  });
-
   function createOuroborosViewModel(statuses) {
-    return toOuroborosViewModel(findOuroborosStatus(statuses) || MOCK_OUROBOROS_UI_STATE);
+    const ouroboros = findOuroborosStatus(statuses);
+    return ouroboros ? toOuroborosViewModel(ouroboros) : null;
   }
 
   function findOuroborosStatus(statuses) {
@@ -35,9 +27,8 @@
   }
 
   function toOuroborosViewModel(status) {
-    const isMock = status.isMock === true;
     const stateLabel = STATE_LABELS[status.state] || status.state;
-    const task = isMock ? `${status.task} (mock)` : status.task;
+    const task = status.task;
 
     return {
       agent: OUROBOROS_AGENT,
@@ -46,8 +37,8 @@
       task,
       detail: status.detail,
       updatedAt: status.updatedAt,
-      isMock,
-      cssClass: `status-card ${status.state}${isMock ? " mock" : ""}`,
+      isMock: false,
+      cssClass: `status-card ${status.state}`,
       dotClass: `state-dot ${status.state}`,
       ariaLabel: `${OUROBOROS_AGENT} ${stateLabel}: ${task}`
     };
@@ -78,7 +69,6 @@
   }
 
   const api = {
-    MOCK_OUROBOROS_UI_STATE,
     OUROBOROS_AGENT,
     createOuroborosViewModel,
     renderOuroborosStateView,

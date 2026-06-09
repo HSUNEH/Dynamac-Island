@@ -75,6 +75,11 @@ assert.match(styles, /--island-expanded-min-height:\s*152px;/, "CSS should defin
 assert.match(styles, /--island-radius:\s*42px;/, "CSS should define the expected pill radius");
 assert.match(styles, /\.island\[data-mode="collapsed"\][\s\S]*width:\s*var\(--island-collapsed-width\)/, "collapsed pill should use the notch capsule width");
 assert.match(styles, /border-radius:\s*var\(--island-radius\);/, "pill should use the rounded island radius");
+assert.match(
+  styles,
+  /\.island\[data-mode="expanded"\][\s\S]*border-radius:\s*0 0 var\(--island-radius\) var\(--island-radius\);/,
+  "expanded island should grow down from the notch/menu bar instead of rendering as a detached rounded card"
+);
 assert.match(styles, /background:\s*[\s\S]*#0a0a0b;/, "pill should use a dark floating-panel background");
 assert.match(styles, /box-shadow:\s*[\s\S]*inset 0 1px 0 rgba\(255, 255, 255, 0\.1\);/, "pill should render floating depth");
 

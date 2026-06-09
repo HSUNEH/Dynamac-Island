@@ -4,7 +4,6 @@ const assert = require("node:assert");
 const fs = require("node:fs");
 const path = require("node:path");
 const {
-  MOCK_SNUFFLES_STATE,
   SNUFFLES_AGENT,
   parseSnufflesState
 } = require("../src/snuffles-state");
@@ -39,12 +38,12 @@ const missingSnufflesResult = parseSnufflesState({
 assert.equal(
   missingSnufflesResult.ok,
   true,
-  "a watched JSON file without Snuffles should still produce a mock state"
+  "a watched JSON file without Snuffles should parse without inventing a fallback state"
 );
 assert.deepEqual(
   missingSnufflesResult.snuffles,
-  MOCK_SNUFFLES_STATE,
-  "missing Snuffles should use the deterministic mock state"
+  null,
+  "missing Snuffles should not create synthetic status data"
 );
 
 const missingFieldsResult = parseSnufflesState({

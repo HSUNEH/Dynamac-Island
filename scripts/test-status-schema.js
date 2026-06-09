@@ -29,7 +29,7 @@ for (const [index, status] of result.statuses.entries()) {
 assert.deepEqual(
   result.statuses.map((status) => status.agent),
   ["Snuffles", "Codex", "Ouroboros"],
-  "fixture should include the MVP mock agents"
+  "fixture should include the MVP sample agents"
 );
 
 console.log(`Status schema test passed: ${validFixturePath}`);

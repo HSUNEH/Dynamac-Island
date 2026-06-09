@@ -33,7 +33,7 @@ function statusPayload(codexState) {
         state: "success",
         task: "Seed complete",
         updatedAt: "2026-06-08T12:02:00.000Z",
-        detail: "Ouroboros has a complete mock job state."
+        detail: "Ouroboros has a complete sample job state."
       }
     ]
   };

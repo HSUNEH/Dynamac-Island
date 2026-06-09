@@ -8,17 +8,9 @@
     error: "Error"
   });
 
-  const MOCK_CODEX_UI_STATE = Object.freeze({
-    agent: CODEX_AGENT,
-    state: "idle",
-    task: "No Codex status",
-    updatedAt: "mock",
-    detail: "Codex is not present in the watched status file.",
-    isMock: true
-  });
-
   function createCodexViewModel(statuses) {
-    return toCodexViewModel(findCodexStatus(statuses) || MOCK_CODEX_UI_STATE);
+    const codex = findCodexStatus(statuses);
+    return codex ? toCodexViewModel(codex) : null;
   }
 
   function findCodexStatus(statuses) {
@@ -35,9 +27,8 @@
   }
 
   function toCodexViewModel(status) {
-    const isMock = status.isMock === true;
     const stateLabel = STATE_LABELS[status.state] || status.state;
-    const task = isMock ? `${status.task} (mock)` : status.task;
+    const task = status.task;
 
     return {
       agent: CODEX_AGENT,
@@ -46,8 +37,8 @@
       task,
       detail: status.detail,
       updatedAt: status.updatedAt,
-      isMock,
-      cssClass: `status-card ${status.state}${isMock ? " mock" : ""}`,
+      isMock: false,
+      cssClass: `status-card ${status.state}`,
       dotClass: `state-dot ${status.state}`,
       ariaLabel: `${CODEX_AGENT} ${stateLabel}: ${task}`
     };
@@ -79,7 +70,6 @@
 
   const api = {
     CODEX_AGENT,
-    MOCK_CODEX_UI_STATE,
     createCodexViewModel,
     renderCodexStateView,
     toCodexViewModel

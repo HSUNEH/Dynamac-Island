@@ -4,7 +4,6 @@ const assert = require("node:assert");
 const fs = require("node:fs");
 const path = require("node:path");
 const {
-  MOCK_OUROBOROS_STATE,
   OUROBOROS_AGENT,
   parseOuroborosState
 } = require("../src/ouroboros-state");
@@ -39,12 +38,12 @@ const missingOuroborosResult = parseOuroborosState({
 assert.equal(
   missingOuroborosResult.ok,
   true,
-  "a watched JSON file without Ouroboros should still produce a mock state"
+  "a watched JSON file without Ouroboros should parse without inventing a fallback state"
 );
 assert.deepEqual(
   missingOuroborosResult.ouroboros,
-  MOCK_OUROBOROS_STATE,
-  "missing Ouroboros should use the deterministic mock state"
+  null,
+  "missing Ouroboros should not create synthetic status data"
 );
 
 const missingFieldsResult = parseOuroborosState({

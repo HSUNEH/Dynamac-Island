@@ -2,22 +2,22 @@
 
 const assert = require("node:assert");
 const {
-  MOCK_OUROBOROS_UI_STATE,
+  createOuroborosViewModel,
   OUROBOROS_AGENT,
   renderOuroborosStateView,
   toOuroborosViewModel
 } = require("../src/ouroboros-ui");
 
-const mockUiState = {
+const sampleUiState = {
   agent: OUROBOROS_AGENT,
   state: "warning",
   task: "Waiting for handoff",
   updatedAt: "2026-06-08T12:12:00.000Z",
-  detail: "Mock UI state from the watched local JSON file.",
+  detail: "Real status state from the watched local JSON file.",
   isMock: false
 };
 
-const viewModel = toOuroborosViewModel(mockUiState);
+const viewModel = toOuroborosViewModel(sampleUiState);
 const html = renderOuroborosStateView(viewModel);
 
 assert.equal(viewModel.agent, "Ouroboros");
@@ -36,7 +36,7 @@ assert.match(html, /<span>Warning<\/span>/, "visible card should show the Ourobo
 assert.match(html, /<h2>Waiting for handoff<\/h2>/, "visible card should show the Ouroboros task");
 assert.match(
   html,
-  /<p>Mock UI state from the watched local JSON file\.<\/p>/,
+  /<p>Real status state from the watched local JSON file\.<\/p>/,
   "visible card should show Ouroboros detail"
 );
 assert.match(
@@ -45,11 +45,10 @@ assert.match(
   "visible card should show Ouroboros update time"
 );
 
-const fallbackHtml = renderOuroborosStateView(toOuroborosViewModel(MOCK_OUROBOROS_UI_STATE));
-
-assert.match(fallbackHtml, /class="status-card idle mock"/, "mock input should render the mock card");
-assert.match(fallbackHtml, /<strong>Ouroboros<\/strong>/, "mock card should still identify Ouroboros");
-assert.match(fallbackHtml, /<span>Idle<\/span>/, "mock card should show a visible idle state");
-assert.match(fallbackHtml, /No Ouroboros status \(mock\)/, "mock card should label the mock task");
+assert.equal(
+  createOuroborosViewModel([]),
+  null,
+  "missing Ouroboros source state should not render synthetic status data"
+);
 
 console.log("Ouroboros UI view test passed.");

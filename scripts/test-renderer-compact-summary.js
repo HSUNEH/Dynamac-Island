@@ -125,6 +125,6 @@ setImmediate(() => {
   assert.equal(compactMeta.textContent, "2 active · 1 warning", "collapsed metadata should show live activity counts");
   assert.equal(modeToggle.attributes["aria-expanded"], "false", "island should remain collapsed after rendering status");
   assert.match(content.innerHTML, /data-agent="Snuffles"/);
-  assert.doesNotMatch(content.innerHTML, /No Codex status|No Ouroboros status|mock/i);
+  assert.doesNotMatch(content.innerHTML, /No Codex status|No Ouroboros status|synthetic fallback/i);
   console.log("Renderer compact summary test passed.");
 });

@@ -45,7 +45,7 @@ DynamicLake frames the Mac notch/top-center area as a compact system-level surfa
 
 5. **No fake success**
    - Dynamic activity surfaces must reflect real state.
-   - Mock/demo data belongs only in fixtures/tests, never as default production truth.
+   - Demo/sample data belongs only in fixtures/tests, never as default production truth.
 
 6. **Privacy by default**
    - A notch overlay is visible during screen share and across workspaces.
@@ -120,6 +120,6 @@ Lower priority for this project, but useful as UI pattern:
 
 - Do not turn the island into a full dashboard.
 - Do not display raw session titles, raw logs, full file paths, tokens, costs, or message content by default.
-- Do not auto-insert mock cards when real data is missing.
+- Do not auto-insert synthetic cards when real data is missing.
 - Do not copy DynamicLake assets or branding.
 - Keep the core value: top-center live activity surface for Snuffles/Hermes.

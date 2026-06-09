@@ -9,15 +9,6 @@ const STATE_LABELS = Object.freeze({
   error: "Error"
 });
 
-const MOCK_SNUFFLES_STATE = Object.freeze({
-  agent: SNUFFLES_AGENT,
-  state: "idle",
-  task: "No Snuffles status",
-  updatedAt: "mock",
-  detail: "Snuffles is not present in the watched status file.",
-  isMock: true
-});
-
 function parseSnufflesState(payload) {
   const validation = validateStatusPayload(payload);
 
@@ -36,7 +27,7 @@ function parseSnufflesState(payload) {
   if (!sourceStatus) {
     return {
       ok: true,
-      snuffles: { ...MOCK_SNUFFLES_STATE },
+      snuffles: null,
       errors: []
     };
   }
@@ -80,7 +71,7 @@ function toSnufflesViewModel(parsedSnufflesState) {
 
   const snuffles = parsedSnufflesState.snuffles;
   const stateLabel = STATE_LABELS[snuffles.state] || snuffles.state;
-  const task = snuffles.isMock ? `${snuffles.task} (mock)` : snuffles.task;
+  const task = snuffles.task;
 
   return {
     ok: true,
@@ -91,8 +82,8 @@ function toSnufflesViewModel(parsedSnufflesState) {
     task,
     detail: snuffles.detail,
     updatedAt: snuffles.updatedAt,
-    isMock: snuffles.isMock,
-    cssClass: `status-card ${snuffles.state}${snuffles.isMock ? " mock" : ""}`,
+    isMock: false,
+    cssClass: `status-card ${snuffles.state}`,
     dotClass: `state-dot ${snuffles.state}`,
     summary: `${snuffles.agent} is ${stateLabel.toLowerCase()}`,
     ariaLabel: `${snuffles.agent} ${stateLabel}: ${task}`
@@ -108,7 +99,6 @@ function formatErrors(errors) {
 }
 
 module.exports = {
-  MOCK_SNUFFLES_STATE,
   SNUFFLES_AGENT,
   SNUFFLES_STATES: STATES,
   parseSnufflesState,

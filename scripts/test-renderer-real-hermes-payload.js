@@ -111,7 +111,7 @@ setImmediate(() => {
   assert.match(content.innerHTML, /data-agent="Snuffles"/);
   assert.match(content.innerHTML, /data-agent="Hermes Gateway"/);
   assert.match(content.innerHTML, /data-agent="Active Session"/);
-  assert.doesNotMatch(content.innerHTML, /data-agent="Codex"|No Codex status|mock/i);
-  assert.doesNotMatch(content.innerHTML, /data-agent="Ouroboros"|No Ouroboros status|mock/i);
+  assert.doesNotMatch(content.innerHTML, /data-agent="Codex"|No Codex status|synthetic fallback/i);
+  assert.doesNotMatch(content.innerHTML, /data-agent="Ouroboros"|No Ouroboros status|synthetic fallback/i);
   console.log("Renderer real Hermes payload test passed.");
 });

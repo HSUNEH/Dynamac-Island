@@ -9,15 +9,6 @@ const STATE_LABELS = Object.freeze({
   error: "Error"
 });
 
-const MOCK_OUROBOROS_STATE = Object.freeze({
-  agent: OUROBOROS_AGENT,
-  state: "idle",
-  task: "No Ouroboros status",
-  updatedAt: "mock",
-  detail: "Ouroboros is not present in the watched status file.",
-  isMock: true
-});
-
 function parseOuroborosState(payload) {
   const validation = validateStatusPayload(payload);
 
@@ -36,7 +27,7 @@ function parseOuroborosState(payload) {
   if (!sourceStatus) {
     return {
       ok: true,
-      ouroboros: { ...MOCK_OUROBOROS_STATE },
+      ouroboros: null,
       errors: []
     };
   }
@@ -80,7 +71,7 @@ function toOuroborosViewModel(parsedOuroborosState) {
 
   const ouroboros = parsedOuroborosState.ouroboros;
   const stateLabel = STATE_LABELS[ouroboros.state] || ouroboros.state;
-  const task = ouroboros.isMock ? `${ouroboros.task} (mock)` : ouroboros.task;
+  const task = ouroboros.task;
 
   return {
     ok: true,
@@ -91,8 +82,8 @@ function toOuroborosViewModel(parsedOuroborosState) {
     task,
     detail: ouroboros.detail,
     updatedAt: ouroboros.updatedAt,
-    isMock: ouroboros.isMock,
-    cssClass: `status-card ${ouroboros.state}${ouroboros.isMock ? " mock" : ""}`,
+    isMock: false,
+    cssClass: `status-card ${ouroboros.state}`,
     dotClass: `state-dot ${ouroboros.state}`,
     summary: `${ouroboros.agent} is ${stateLabel.toLowerCase()}`,
     ariaLabel: `${ouroboros.agent} ${stateLabel}: ${task}`
@@ -108,7 +99,6 @@ function formatErrors(errors) {
 }
 
 module.exports = {
-  MOCK_OUROBOROS_STATE,
   OUROBOROS_AGENT,
   OUROBOROS_STATES: STATES,
   parseOuroborosState,

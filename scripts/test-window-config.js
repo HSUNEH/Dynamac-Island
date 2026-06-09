@@ -12,6 +12,7 @@ assert.equal(windowOptions.width, 286, "window width should default to the notch
 assert.equal(windowOptions.height, 58, "window height should stay close to the menu bar notch height");
 assert.equal(windowOptions.frame, false, "window should be borderless");
 assert.equal(windowOptions.transparent, true, "window should allow the pill shape to float visually");
+assert.equal(windowOptions.type, "panel", "macOS overlay should use a panel window type so it can integrate with the notch/menu bar area");
 assert.equal(windowOptions.resizable, false, "window should keep a stable island shape");
 assert.equal(windowOptions.movable, false, "window should stay attached to the notch instead of behaving like a normal movable app");
 assert.equal(windowOptions.fullscreenable, false, "window should behave like a compact overlay, not a normal fullscreenable app");
@@ -66,7 +67,10 @@ const modeWindow = {
 };
 const fakeScreen = {
   getPrimaryDisplay() {
-    return { bounds: { x: 0, y: 0, width: 1512, height: 982 } };
+    return {
+      bounds: { x: 0, y: 0, width: 1512, height: 982 },
+      workArea: { x: 0, y: 38, width: 1512, height: 944 }
+    };
   }
 };
 

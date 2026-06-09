@@ -5,7 +5,6 @@ const fs = require("node:fs");
 const path = require("node:path");
 const {
   CODEX_AGENT,
-  MOCK_CODEX_STATE,
   parseCodexState
 } = require("../src/codex-state");
 
@@ -39,12 +38,12 @@ const missingCodexResult = parseCodexState({
 assert.equal(
   missingCodexResult.ok,
   true,
-  "a watched JSON file without Codex should still produce a mock state"
+  "a watched JSON file without Codex should parse without inventing a fallback state"
 );
 assert.deepEqual(
   missingCodexResult.codex,
-  MOCK_CODEX_STATE,
-  "missing Codex should use the deterministic mock state"
+  null,
+  "missing Codex should not create synthetic status data"
 );
 
 const missingFieldsResult = parseCodexState({

@@ -64,7 +64,7 @@ body {
   width: min(var(--island-expanded-width), calc(100vw - 24px));
   min-height: var(--island-expanded-min-height);
   padding: 18px;
-  border-radius: var(--island-radius);
+  border-radius: 0 0 var(--island-radius) var(--island-radius);
 }
 
 .island[data-mode="collapsed"] .expanded-title,

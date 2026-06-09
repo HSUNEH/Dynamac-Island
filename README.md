@@ -1,6 +1,6 @@
 # Dynamac Island
 
-Dynamac Island is a macOS notch-attached status island for Snuffles/Hermes. It is not a normal desktop app window: the Electron window is frameless, transparent, non-movable, always-on-top, and anchored to the physical top-center edge of the primary display so it visually attaches to the MacBook notch.
+Dynamac Island is a macOS notch-attached status island for Snuffles/Hermes. It is not a normal desktop app window: the Electron window is frameless, transparent, non-movable, always-on-top, and anchored to the physical top-center edge of the primary display so it visually attaches to the MacBook notch. A native AppKit overlay is also available for notch-accurate testing when Electron is clamped by macOS windowing behavior.
 
 ## Concept
 
@@ -18,6 +18,7 @@ Dynamac Island follows that pattern for this Mac:
 - Greenfield Node/npm + Electron app.
 - Notch-attached floating overlay, not a normal movable app window.
 - Window source: `src/window-config.js` centers the island against `screen.getPrimaryDisplay().bounds` and pins `y` to the physical top edge.
+- Native overlay source: `native/DynamacIslandNative.swift` builds with `swiftc` through `npm run native:start`, avoiding the SwiftPM/Xcode path for quick MacBook CLT testing.
 - Runtime status source: a generated Hermes snapshot written to `status/status.json` in development, or to the packaged app's userData status path in `.app` builds.
 - Hermes snapshot model: Snuffles runtime state, Hermes gateway process health, and the latest local Hermes session from `~/.hermes/sessions/sessions.json`.
 - Validation model: each status item needs `agent`, `state`, `task`, `updatedAt`, and `detail`.
@@ -29,6 +30,7 @@ Dynamac Island follows that pattern for this Mac:
 ## Dependencies
 
 - macOS with Node.js and npm for source runs.
+- Native overlay smoke tests require Apple Command Line Tools with `swiftc`; full Xcode is not required for `npm run native:start`.
 - Runtime shell scripts use only Node.js built-in modules.
 - The app UI dependency is Electron, declared as the sole npm dev dependency in `package.json`: `electron@^42.3.3`.
 - `npm install` downloads Electron from `registry.npmjs.org`.
@@ -83,6 +85,20 @@ Launch the notch-attached Electron island:
 npm start
 ```
 
+Launch the native AppKit notch overlay for physical MacBook notch testing:
+
+```sh
+npm run native:start
+```
+
+Run a fast native build/smoke test without leaving the overlay open:
+
+```sh
+npm run native:smoke
+```
+
+Prefer `npm run native:start` for the current native overlay. `swift run Dynamac-Island` exercises the older SwiftPM MVP target, not the AppKit overlay path.
+
 Run the automated Electron launch smoke test and packaging flow:
 
 ```sh
@@ -125,12 +141,13 @@ Because this MVP is not signed or notarized yet, macOS Gatekeeper may warn when 
 Run these checks on the target MacBook after `npm install`:
 
 1. Run `npm run smoke:launch` from `~/projects/dynamac-island` and confirm it exits with "Smoke launch passed".
-2. Run `npm start` from `~/projects/dynamac-island`.
-3. Confirm a small floating black pill appears attached to the top-center notch area, not in the middle of the desktop like a normal app.
-4. Confirm the pill lists real local Hermes/Snuffles runtime signals when Hermes exists on the machine.
-5. Confirm the pill still shows a warning state instead of fake success when Hermes data is unavailable.
-6. Run `npm run test:notch-position` to verify the top-center anchoring contract.
-7. Run `npm run test:hermes-status` to verify local runtime snapshot generation.
+2. Run `npm run native:smoke` from `~/projects/dynamac-island` and confirm it prints "DYNAMAC_NATIVE_READY".
+3. Run `npm run native:start` from `~/projects/dynamac-island` for the native AppKit notch overlay, or `npm start` for the Electron fallback.
+4. Confirm a small floating black pill appears attached to the top-center notch area, not in the middle of the desktop like a normal app.
+5. Confirm the pill lists real local Hermes/Snuffles runtime signals when Hermes exists on the machine.
+6. Confirm the pill still shows a warning state instead of fake success when Hermes data is unavailable.
+7. Run `npm run test:notch-position` to verify the top-center anchoring contract.
+8. Run `npm run test:hermes-status` to verify local runtime snapshot generation.
 
 Run the README content validation test:
 
@@ -159,7 +176,7 @@ cd ~/projects/dynamac-island
 npm run check-status
 ```
 
-4. Observe that status entries describe Snuffles, Hermes Gateway, and Active Session instead of deterministic mock jobs.
+4. Observe that status entries describe Snuffles, Hermes Gateway, and Active Session instead of deterministic sample jobs.
 5. For fixture-only development tests, validate deterministic fixture input separately:
 
 ```sh

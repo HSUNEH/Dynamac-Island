@@ -40,11 +40,10 @@ assert.match(
   "visible card should show Snuffles update time"
 );
 
-const mockHtml = renderStatusCard(createSnufflesViewModel([]));
-
-assert.match(mockHtml, /class="status-card idle mock"/, "missing source state should render the mock card");
-assert.match(mockHtml, /<strong>Snuffles<\/strong>/, "mock card should still identify Snuffles");
-assert.match(mockHtml, /<span>Idle<\/span>/, "mock card should show a visible idle state");
-assert.match(mockHtml, /No Snuffles status \(mock\)/, "mock card should label the mock task");
+assert.equal(
+  createSnufflesViewModel([]),
+  null,
+  "missing Snuffles source state should not render synthetic status data"
+);
 
 console.log("Snuffles UI view test passed.");

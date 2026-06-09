@@ -51,7 +51,8 @@ const requiredSnippets = [
   ["launch command", "npm start"],
   ["MacBook smoke test heading", "## MacBook Smoke Test"],
   ["MacBook smoke test intro", "Run these checks on the target MacBook after `npm install`:"],
-  ["MacBook smoke test launch path", "Run `npm start` from `~/projects/dynamac-island`"],
+  ["MacBook native smoke test launch path", "Run `npm run native:smoke` from `~/projects/dynamac-island`"],
+  ["MacBook native overlay launch path", "Run `npm run native:start` from `~/projects/dynamac-island`"],
   ["notch verification", "attached to the top-center notch area"],
   ["Hermes state verification", "real local Hermes/Snuffles runtime signals"],
   ["Hermes unavailable behavior", "warning state instead of fake success when Hermes data is unavailable"],
@@ -67,7 +68,7 @@ const requiredSnippets = [
   ["manual update terminal 1 step", "Terminal 1: launch the app from the project directory"],
   ["manual update initial observation", "Confirm the floating pill is visible and attached to the notch/top-center area."],
   ["manual status inspection", "inspect the generated runtime status file"],
-  ["manual real status observation", "Snuffles, Hermes Gateway, and Active Session instead of deterministic mock jobs"],
+  ["manual real status observation", "Snuffles, Hermes Gateway, and Active Session instead of deterministic sample jobs"],
   ["manual invalid JSON step", "write malformed JSON to the watched file"],
   [
     "manual invalid JSON observation",
@@ -102,6 +103,14 @@ if (!hasShellCommandAfterHeading("## Runbook", "cd ~/projects/dynamac-island")) 
 
 if (!hasShellCommandAfterHeading("## Runbook", "npm start")) {
   missing.push(["runbook launch command block", "npm start in a Runbook shell code block"]);
+}
+
+if (!hasShellCommandAfterHeading("## Runbook", "npm run native:start")) {
+  missing.push(["runbook native launch command block", "npm run native:start in a Runbook shell code block"]);
+}
+
+if (!hasShellCommandAfterHeading("## Runbook", "npm run native:smoke")) {
+  missing.push(["runbook native smoke command block", "npm run native:smoke in a Runbook shell code block"]);
 }
 
 if (!hasShellCommandAfterHeading("## Runbook", "npm run test:notch-position")) {

@@ -6,62 +6,33 @@ const {
   toSnufflesViewModel
 } = require("../src/snuffles-state");
 
-const mockParsedSnuffles = {
+const sampleParsedSnuffles = {
   ok: true,
   snuffles: {
     agent: SNUFFLES_AGENT,
     state: "running",
     task: "Collecting local signals",
     updatedAt: "2026-06-08T12:10:00.000Z",
-    detail: "Mock parsed data from the watched status file.",
+    detail: "Real status data from the watched status file.",
     isMock: false
   },
   errors: []
 };
 
-assert.deepEqual(toSnufflesViewModel(mockParsedSnuffles), {
+assert.deepEqual(toSnufflesViewModel(sampleParsedSnuffles), {
   ok: true,
   agent: SNUFFLES_AGENT,
   title: SNUFFLES_AGENT,
   state: "running",
   stateLabel: "Running",
   task: "Collecting local signals",
-  detail: "Mock parsed data from the watched status file.",
+  detail: "Real status data from the watched status file.",
   updatedAt: "2026-06-08T12:10:00.000Z",
   isMock: false,
   cssClass: "status-card running",
   dotClass: "state-dot running",
   summary: "Snuffles is running",
   ariaLabel: "Snuffles Running: Collecting local signals"
-});
-
-const mockFallbackSnuffles = {
-  ok: true,
-  snuffles: {
-    agent: SNUFFLES_AGENT,
-    state: "idle",
-    task: "No Snuffles status",
-    updatedAt: "mock",
-    detail: "Snuffles is not present in the watched status file.",
-    isMock: true
-  },
-  errors: []
-};
-
-assert.deepEqual(toSnufflesViewModel(mockFallbackSnuffles), {
-  ok: true,
-  agent: SNUFFLES_AGENT,
-  title: SNUFFLES_AGENT,
-  state: "idle",
-  stateLabel: "Idle",
-  task: "No Snuffles status (mock)",
-  detail: "Snuffles is not present in the watched status file.",
-  updatedAt: "mock",
-  isMock: true,
-  cssClass: "status-card idle mock",
-  dotClass: "state-dot idle",
-  summary: "Snuffles is idle",
-  ariaLabel: "Snuffles Idle: No Snuffles status (mock)"
 });
 
 assert.deepEqual(toSnufflesViewModel({
