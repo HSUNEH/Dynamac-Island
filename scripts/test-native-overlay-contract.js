@@ -15,6 +15,9 @@ assert.match(source, /screen\.frame\.maxY - size\.height/, "native overlay shoul
 assert.doesNotMatch(source, /visibleFrame\.maxY - size\.height/, "native overlay must not anchor to visibleFrame because that starts below the menu bar");
 assert.match(source, /DYNAMAC_NATIVE_SMOKE_TEST/, "native overlay should expose a smoke-test readiness path");
 assert.match(source, /notchCutoutWidth/, "compact native overlay should reserve a transparent center cutout for the hardware notch");
+assert.match(source, /auxiliaryTopLeftArea/, "native overlay should read macOS notch-adjacent auxiliary areas when available");
+assert.match(source, /auxiliaryTopRightArea/, "native overlay should read macOS notch-adjacent auxiliary areas when available");
+assert.match(source, /DYNAMAC_NATIVE_DIAG/, "native overlay should expose diagnostic output for real MacBook notch sizing");
 assert.match(source, /leftWingRect/, "compact native overlay should draw a left wing beside the notch");
 assert.match(source, /rightWingRect/, "compact native overlay should draw a right wing beside the notch");
 assert.match(source, /drawCompactNotchWings/, "compact native overlay should draw notch-adjacent wings instead of one centered pill");

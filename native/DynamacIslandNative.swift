@@ -19,15 +19,30 @@ struct NotchWingLayout {
     let innerCornerRadius: CGFloat
     let outerCornerRadius: CGFloat
 
-    static func compactFromEnvironment() -> NotchWingLayout {
+    static func compactFromEnvironment(screen: NSScreen? = nil) -> NotchWingLayout {
         let environment = ProcessInfo.processInfo.environment
+        let measuredNotchWidth = screen.flatMap { measuredNotchCutoutWidth(screen: $0) }
+        let defaultNotchWidth = measuredNotchWidth ?? 260
         return NotchWingLayout(
-            notchCutoutWidth: CGFloat(Double(environment["DYNAMAC_NOTCH_WIDTH"] ?? "260") ?? 260),
+            notchCutoutWidth: CGFloat(Double(environment["DYNAMAC_NOTCH_WIDTH"] ?? "\(Int(defaultNotchWidth))") ?? Double(defaultNotchWidth)),
             wingWidth: CGFloat(Double(environment["DYNAMAC_WING_WIDTH"] ?? "142") ?? 142),
             height: CGFloat(Double(environment["DYNAMAC_COMPACT_HEIGHT"] ?? "44") ?? 44),
             innerCornerRadius: CGFloat(Double(environment["DYNAMAC_INNER_RADIUS"] ?? "14") ?? 14),
             outerCornerRadius: CGFloat(Double(environment["DYNAMAC_OUTER_RADIUS"] ?? "22") ?? 22)
         )
+    }
+
+    private static func measuredNotchCutoutWidth(screen: NSScreen) -> CGFloat? {
+        guard let leftArea = screen.auxiliaryTopLeftArea,
+              let rightArea = screen.auxiliaryTopRightArea else {
+            return nil
+        }
+
+        let gap = rightArea.minX - leftArea.maxX
+        guard gap > 0 else { return nil }
+
+        // Add a small safety margin so the wings do not visually invade the hardware notch edge.
+        return gap + 16
     }
 
     var totalSize: NSSize {
@@ -44,6 +59,22 @@ struct NotchWingLayout {
 
     func notchCutoutRect(in bounds: NSRect) -> NSRect {
         NSRect(x: wingWidth, y: 0, width: notchCutoutWidth, height: bounds.height)
+    }
+
+    func diagnosticDescription(screen: NSScreen) -> String {
+        let left = screen.auxiliaryTopLeftArea.map { "\($0)" } ?? "nil"
+        let right = screen.auxiliaryTopRightArea.map { "\($0)" } ?? "nil"
+        return [
+            "DYNAMAC_NATIVE_DIAG",
+            "screen.frame=\(screen.frame)",
+            "screen.visibleFrame=\(screen.visibleFrame)",
+            "screen.safeAreaInsets=\(screen.safeAreaInsets)",
+            "screen.auxiliaryTopLeftArea=\(left)",
+            "screen.auxiliaryTopRightArea=\(right)",
+            "layout.notchCutoutWidth=\(Int(notchCutoutWidth))",
+            "layout.wingWidth=\(Int(wingWidth))",
+            "layout.height=\(Int(height))"
+        ].joined(separator: "\n")
     }
 }
 
@@ -235,7 +266,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var panel: NSPanel?
     private var islandView: IslandView?
     private var expanded = false
-    private let compactLayout = NotchWingLayout.compactFromEnvironment()
+    private var compactLayout = NotchWingLayout.compactFromEnvironment()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -250,6 +281,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func createPanel() {
         guard let screen = NSScreen.main else { return }
+        compactLayout = NotchWingLayout.compactFromEnvironment(screen: screen)
+        if ProcessInfo.processInfo.environment["DYNAMAC_NATIVE_DIAG"] == "1" {
+            print(compactLayout.diagnosticDescription(screen: screen))
+        }
         let size = compactLayout.totalSize
         let rect = topCenteredRect(screen: screen, size: size)
         let panel = NSPanel(contentRect: rect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)

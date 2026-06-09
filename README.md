@@ -98,6 +98,14 @@ Run a fast native build/smoke test without leaving the overlay open:
 npm run native:smoke
 ```
 
+Print real MacBook screen/notch diagnostics before launching the native overlay:
+
+```sh
+DYNAMAC_NATIVE_DIAG=1 npm run native:start
+```
+
+On notched MacBooks, macOS may expose `auxiliaryTopLeftArea` and `auxiliaryTopRightArea`; Dynamac uses the gap between them plus a small safety margin as the native cutout width. If those values are unavailable, it falls back to `DYNAMAC_NOTCH_WIDTH=260` and should be tuned on the physical MacBook.
+
 Prefer `npm run native:start` for the current native overlay. `swift run Dynamac-Island` exercises the older SwiftPM MVP target, not the AppKit overlay path.
 
 Run the automated Electron launch smoke test and packaging flow:
@@ -145,10 +153,11 @@ Run these checks on the target MacBook after `npm install`:
 2. Run `npm run native:smoke` from `~/projects/dynamac-island` and confirm it prints "DYNAMAC_NATIVE_READY".
 3. Run `npm run native:start` from `~/projects/dynamac-island` for the native AppKit notch overlay, or `npm start` for the Electron fallback.
 4. Confirm compact mode leaves the hardware notch area uncovered and paints black wings beside the notch, not one centered pill over it.
-5. Confirm the pill lists real local Hermes/Snuffles runtime signals when Hermes exists on the machine.
-6. Confirm the pill still shows a warning state instead of fake success when Hermes data is unavailable.
-7. Run `npm run test:notch-position` to verify the top-center anchoring contract.
-8. Run `npm run test:hermes-status` to verify local runtime snapshot generation.
+5. If the cutout does not match the notch, run `DYNAMAC_NATIVE_DIAG=1 npm run native:start` and tune `DYNAMAC_NOTCH_WIDTH` from the printed `layout.notchCutoutWidth` value.
+6. Confirm the pill lists real local Hermes/Snuffles runtime signals when Hermes exists on the machine.
+7. Confirm the pill still shows a warning state instead of fake success when Hermes data is unavailable.
+8. Run `npm run test:notch-position` to verify the top-center anchoring contract.
+9. Run `npm run test:hermes-status` to verify local runtime snapshot generation.
 
 Run the README content validation test:
 
