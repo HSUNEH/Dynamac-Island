@@ -38,9 +38,10 @@ struct NotchWingLayout {
             return nil
         }
 
-        let gap = rightArea.minX - leftArea.maxX
+        let gap = screen.frame.width - leftArea.width - rightArea.width
         guard gap > 0 else { return nil }
 
+        // Boring Notch uses the same NSScreen auxiliary-area approach and adds a tiny inset.
         // Add a small safety margin so the wings do not visually invade the hardware notch edge.
         return gap + 16
     }
