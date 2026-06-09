@@ -24,7 +24,7 @@ struct NotchWingLayout {
         let environment = ProcessInfo.processInfo.environment
         let measuredNotchWidth = screen.flatMap { measuredNotchCutoutWidth(screen: $0) }
         let usesHardwareNotchCutout = measuredNotchWidth != nil || screen.map { $0.safeAreaInsets.top > 0 } == true
-        let defaultNotchWidth = usesHardwareNotchCutout ? (measuredNotchWidth ?? 260) : 0
+        let defaultNotchWidth = usesHardwareNotchCutout ? (measuredNotchWidth ?? 206) : 0
         return NotchWingLayout(
             notchCutoutWidth: CGFloat(Double(environment["DYNAMAC_NOTCH_WIDTH"] ?? "\(Int(defaultNotchWidth))") ?? Double(defaultNotchWidth)),
             wingWidth: CGFloat(Double(environment["DYNAMAC_WING_WIDTH"] ?? "132") ?? 132),
@@ -41,12 +41,16 @@ struct NotchWingLayout {
             return nil
         }
 
-        let gap = screen.frame.width - leftArea.width - rightArea.width
+        let widthGap = screen.frame.width - leftArea.width - rightArea.width
+        let positionGap = rightArea.minX - leftArea.maxX
+        let gap = min(widthGap, positionGap)
         guard gap > 0 else { return nil }
 
         // Boring Notch uses the same NSScreen auxiliary-area approach and adds a tiny inset.
-        // Add a small safety margin so the wings do not visually invade the hardware notch edge.
-        return gap + 16
+        // Keep the measured cutout tunable because auxiliary areas can be wider than the visual notch on some display modes.
+        let environment = ProcessInfo.processInfo.environment
+        let margin = CGFloat(Double(environment["DYNAMAC_NOTCH_MARGIN"] ?? "4") ?? 4)
+        return max(160, gap + margin)
     }
 
     var totalSize: NSSize {

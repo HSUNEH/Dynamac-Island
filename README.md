@@ -104,7 +104,7 @@ Print real MacBook screen/notch diagnostics before launching the native overlay:
 DYNAMAC_NATIVE_DIAG=1 npm run native:start
 ```
 
-On notched MacBooks, macOS may expose `auxiliaryTopLeftArea` and `auxiliaryTopRightArea`; Dynamac uses the gap between them plus a small safety margin as the native cutout width. On non-notch or external displays, those notch areas are unavailable and Dynamac automatically switches to a single compact pill instead of leaving an empty center gap. If notch values are unavailable on a physical MacBook, it falls back to `DYNAMAC_NOTCH_WIDTH=260` and should be tuned on that MacBook.
+On notched MacBooks, macOS may expose `auxiliaryTopLeftArea` and `auxiliaryTopRightArea`; Dynamac uses the smaller of the position gap and width-derived gap between them plus a small `DYNAMAC_NOTCH_MARGIN` as the native cutout width. On non-notch or external displays, those notch areas are unavailable and Dynamac automatically switches to a single compact pill instead of leaving an empty center gap. If notch values are unavailable on a physical MacBook, it falls back to `DYNAMAC_NOTCH_WIDTH=206` and can be tuned on that MacBook.
 
 Prefer `npm run native:start` for the current native overlay. `swift run Dynamac-Island` exercises the older SwiftPM MVP target, not the AppKit overlay path.
 
