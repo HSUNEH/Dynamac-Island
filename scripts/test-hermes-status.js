@@ -9,7 +9,11 @@ const { writeHermesStatusSnapshot } = require("../src/hermes-status");
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "dynamac-hermes-status-"));
 const hermesHome = path.join(tempDir, ".hermes");
 const sessionsDir = path.join(hermesHome, "sessions");
+const profilesDir = path.join(hermesHome, "profiles");
 fs.mkdirSync(sessionsDir, { recursive: true });
+fs.mkdirSync(path.join(profilesDir, "build"), { recursive: true });
+fs.mkdirSync(path.join(profilesDir, "youtube"), { recursive: true });
+fs.mkdirSync(path.join(profilesDir, "migam-cc", "sessions"), { recursive: true });
 
 fs.writeFileSync(
   path.join(sessionsDir, "sessions.json"),
@@ -17,15 +21,24 @@ fs.writeFileSync(
     "agent:main:discord:thread:1:1": {
       display_name: "build / dynamac island",
       updated_at: "2026-06-08T14:00:00.000Z",
+      platform: "discord",
       total_tokens: 12345,
       estimated_cost_usd: 0.42,
       suspended: false,
       resume_pending: false
-    },
-    "agent:main:discord:thread:2:2": {
-      display_name: "older thread",
-      updated_at: "2026-06-07T14:00:00.000Z",
-      total_tokens: 10,
+    }
+  })
+);
+
+fs.writeFileSync(
+  path.join(profilesDir, "migam-cc", "sessions", "sessions.json"),
+  JSON.stringify({
+    "agent:migam:discord:thread:1:1": {
+      display_name: "private customer channel",
+      updated_at: "2026-06-08T14:03:00.000Z",
+      platform: "discord",
+      total_tokens: 99999,
+      estimated_cost_usd: 8.88,
       suspended: true,
       resume_pending: true
     }
@@ -50,17 +63,20 @@ const payload = JSON.parse(fs.readFileSync(outputPath, "utf8"));
 assert.equal(Array.isArray(payload.statuses), true, "snapshot should follow the status schema");
 assert.deepEqual(
   payload.statuses.map((status) => status.agent),
-  ["Snuffles", "Hermes Gateway", "Active Session"],
-  "snapshot should describe real local runtime signals instead of synthetic agents"
+  ["Hermes Runtime", "Installed Profiles", "Latest Session"],
+  "snapshot should describe the installed Hermes environment instead of synthetic agents"
 );
 assert.equal(payload.statuses[0].state, "running");
-assert.match(payload.statuses[0].detail, /2 Hermes gateway process/);
-assert.equal(payload.statuses[1].state, "running");
-assert.equal(payload.statuses[1].detail, "Profiles: build, default.");
-assert.doesNotMatch(payload.statuses[1].detail, /\/Users\/|python -m hermes_cli/, "gateway detail should not expose full process paths or commands");
-assert.equal(payload.statuses[2].task, "Latest Hermes session");
-assert.match(payload.statuses[2].detail, /Session state: active/);
-assert.doesNotMatch(payload.statuses[2].task, /build \/ dynamac island/, "session title should be hidden on the overlay");
-assert.doesNotMatch(payload.statuses[2].detail, /12,345|\$0\.4200/, "token counts and costs should be hidden on the overlay");
+assert.equal(payload.statuses[0].task, "2/4 profiles online");
+assert.match(payload.statuses[0].detail, /Active gateway profiles: build, default/);
+assert.match(payload.statuses[0].detail, /Installed profiles: build, default, migam-cc, youtube/);
+assert.doesNotMatch(payload.statuses[0].detail, /\/Users\/|python -m hermes_cli/, "runtime detail should not expose full process paths or commands");
+assert.equal(payload.statuses[1].task, "4 profiles installed");
+assert.equal(payload.statuses[1].detail, "Profiles: build, default, migam-cc, youtube.");
+assert.equal(payload.statuses[2].agent, "Latest Session");
+assert.equal(payload.statuses[2].task, "migam-cc session suspended");
+assert.match(payload.statuses[2].detail, /Latest local session is suspended, resume pending on discord/);
+assert.doesNotMatch(payload.statuses[2].task, /private customer channel|build \/ dynamac island/, "session titles should be hidden on the overlay");
+assert.doesNotMatch(payload.statuses[2].detail, /99,999|99999|\$8\.88|\/Users\//, "token counts, costs, and paths should be hidden on the overlay");
 
 console.log("Hermes status snapshot test passed.");

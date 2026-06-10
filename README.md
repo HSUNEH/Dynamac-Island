@@ -21,7 +21,7 @@ Dynamac Island follows that pattern for this Mac:
 - Native overlay source: `native/DynamacIslandNative.swift` builds with `swiftc` through `npm run native:start`, avoiding the SwiftPM/Xcode path for quick MacBook CLT testing.
 - Native compact shape: on notched MacBook displays, the hardware notch area remains transparent and Dynamac paints only left/right wings beside the notch so it attaches to the occluded area instead of covering it; on non-notch/external displays, Dynamac uses one normal compact pill instead of leaving an empty center gap.
 - Runtime status source: Electron development runs generate Hermes snapshots in `status/status.json`; native `npm run native:start` writes a fresh local snapshot to `.build/status.json` before launching so it does not show the bundled placeholder data.
-- Hermes snapshot model: Snuffles runtime state, Hermes gateway process health, and the latest local Hermes session from `~/.hermes/sessions/sessions.json`.
+- Hermes snapshot model: installed Hermes profiles, active gateway profile health, and the latest local Hermes session from `~/.hermes/sessions/sessions.json` or profile-local session indexes.
 - Validation model: each status item needs `agent`, `state`, `task`, `updatedAt`, and `detail`.
 - Allowed states: `idle`, `running`, `success`, `warning`, `error`.
 - Invalid JSON or invalid status fields are visible in the app as an error state.

@@ -40,7 +40,7 @@ const requiredSnippets = [
   ["notch anchored current state", "Notch-attached floating overlay, not a normal movable app window"],
   ["physical display anchoring", "pins `y` to the physical top edge"],
   ["Hermes status source", "native `npm run native:start` writes a fresh local snapshot to `.build/status.json`"],
-  ["Hermes runtime model", "Snuffles runtime state, Hermes gateway process health, and the latest local Hermes session"],
+  ["Hermes runtime model", "installed Hermes profiles, active gateway profile health, and the latest local Hermes session"],
   ["fixtures only", "Fixture JSON files under `fixtures/` remain only for deterministic tests"],
   ["watched status source", "status/status.json"],
   ["required fields", "`agent`, `state`, `task`, `updatedAt`, and `detail`"],

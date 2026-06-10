@@ -24,25 +24,25 @@ const payload = {
   source: "status/status.json",
   statuses: [
     {
-      agent: "Snuffles",
+      agent: "Hermes Runtime",
       state: "running",
-      task: "Watching Hermes runtime",
+      task: "2/4 profiles online",
       updatedAt: "2026-06-08T14:05:00.000Z",
-      detail: "2 Hermes gateway processes active on this Mac."
+      detail: "Active gateway profiles: build, default. Installed profiles: build, default, migam-cc, youtube."
     },
     {
-      agent: "Hermes Gateway",
+      agent: "Installed Profiles",
       state: "running",
-      task: "Gateway online",
+      task: "4 profiles installed",
       updatedAt: "2026-06-08T14:05:00.000Z",
-      detail: "Profiles: build, default."
+      detail: "Profiles: build, default, migam-cc, youtube."
     },
     {
-      agent: "Active Session",
+      agent: "Latest Session",
       state: "running",
-      task: "Latest Hermes session",
+      task: "default session active",
       updatedAt: "2026-06-08T14:00:00.000Z",
-      detail: "Session state: active. Title, token count, and cost are hidden on the overlay."
+      detail: "Latest local session is active on discord. Title, token count, cost, paths, and raw IDs are hidden on the overlay."
     }
   ]
 };
@@ -108,9 +108,9 @@ vm.createContext(context);
 vm.runInContext(fs.readFileSync(path.resolve("src/renderer.js"), "utf8"), context);
 
 setImmediate(() => {
-  assert.match(content.innerHTML, /data-agent="Snuffles"/);
-  assert.match(content.innerHTML, /data-agent="Hermes Gateway"/);
-  assert.match(content.innerHTML, /data-agent="Active Session"/);
+  assert.match(content.innerHTML, /data-agent="Hermes Runtime"/);
+  assert.match(content.innerHTML, /data-agent="Installed Profiles"/);
+  assert.match(content.innerHTML, /data-agent="Latest Session"/);
   assert.doesNotMatch(content.innerHTML, /data-agent="Codex"|No Codex status|synthetic fallback/i);
   assert.doesNotMatch(content.innerHTML, /data-agent="Ouroboros"|No Ouroboros status|synthetic fallback/i);
   console.log("Renderer real Hermes payload test passed.");
