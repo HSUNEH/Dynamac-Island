@@ -21,6 +21,15 @@ function truncate(value, maxLength) {
   return `${text.slice(0, Math.max(0, maxLength - 1))}…`;
 }
 
+function formatDuration(seconds) {
+  const value = Number(seconds);
+  if (!Number.isFinite(value) || value < 0) return "--:--";
+  const whole = Math.floor(value);
+  const minutes = Math.floor(whole / 60);
+  const remainingSeconds = String(whole % 60).padStart(2, "0");
+  return `${minutes}:${remainingSeconds}`;
+}
+
 function parsePmsetBattery(output) {
   const percentMatch = output.match(/(\d+)%/);
   const stateMatch = output.match(/;\s*([^;]+);/);
@@ -80,34 +89,126 @@ function collectClipboardStatus(options = {}) {
 }
 
 function spotifyScript() {
-  return 'if application "Spotify" is running then tell application "Spotify" to if player state is playing then return name of current track & " — " & artist of current track';
+  return [
+    'if application "Spotify" is running then',
+    'tell application "Spotify"',
+    'if player state is playing or player state is paused then',
+    'set t to current track',
+    'return "spotify||" & name of t & "||" & artist of t & "||" & album of t & "||" & artwork url of t & "||" & (duration of t as string) & "||" & (player position as string) & "||" & (player state as string)',
+    'end if',
+    'end tell',
+    'end if'
+  ].join("\n");
 }
 
 function musicScript() {
-  return 'if application "Music" is running then tell application "Music" to if player state is playing then return name of current track & " — " & artist of current track';
+  return [
+    'if application "Music" is running then',
+    'tell application "Music"',
+    'if player state is playing or player state is paused then',
+    'set t to current track',
+    'return "music||" & name of t & "||" & artist of t & "||" & album of t & "||||" & ((duration of t) as string) & "||" & (player position as string) & "||" & (player state as string)',
+    'end if',
+    'end tell',
+    'end if'
+  ].join("\n");
 }
 
-function collectMediaStatus(options = {}) {
-  const mediaText = options.mediaText !== undefined
-    ? options.mediaText
-    : (runCommand("osascript", ["-e", spotifyScript()]) || runCommand("osascript", ["-e", musicScript()]));
+function browserYouTubeScript(browserName) {
+  return [
+    `if application "${browserName}" is running then`,
+    `tell application "${browserName}"`,
+    'set tabTitle to ""',
+    'set tabUrl to ""',
+    browserName === "Safari" ? 'if (count of windows) > 0 then set tabTitle to name of current tab of front window' : 'if (count of windows) > 0 then set tabTitle to title of active tab of front window',
+    browserName === "Safari" ? 'if (count of windows) > 0 then set tabUrl to URL of current tab of front window' : 'if (count of windows) > 0 then set tabUrl to URL of active tab of front window',
+    'if tabUrl contains "youtube.com/watch" or tabUrl contains "youtu.be/" then return "youtube||" & tabTitle & "||||YouTube||||0||0||unknown||" & tabUrl',
+    'end tell',
+    'end if'
+  ].join("\n");
+}
 
-  if (!mediaText) {
+function parseDelimitedMedia(raw) {
+  const parts = String(raw || "").split("||");
+  if (parts.length < 8) return null;
+  const [source, title, artist, album, artworkUrl, durationRaw, positionRaw, playbackState, pageUrl] = parts;
+  const durationSeconds = source === "spotify" ? Number(durationRaw) / 1000 : Number(durationRaw);
+  const positionSeconds = Number(positionRaw);
+  return {
+    source: source || "unknown",
+    title: title || "Unknown title",
+    artist: artist || "",
+    album: album || "",
+    artworkUrl: artworkUrl || youtubeThumbnailUrl(pageUrl || artworkUrl || "") || "",
+    durationSeconds: Number.isFinite(durationSeconds) ? durationSeconds : 0,
+    positionSeconds: Number.isFinite(positionSeconds) ? positionSeconds : 0,
+    playbackState: playbackState || "unknown",
+    pageUrl: pageUrl || ""
+  };
+}
+
+function youtubeVideoId(url) {
+  const text = String(url || "");
+  const watchMatch = text.match(/[?&]v=([A-Za-z0-9_-]{6,})/);
+  if (watchMatch) return watchMatch[1];
+  const shortMatch = text.match(/youtu\.be\/([A-Za-z0-9_-]{6,})/);
+  return shortMatch ? shortMatch[1] : "";
+}
+
+function youtubeThumbnailUrl(url) {
+  const id = youtubeVideoId(url);
+  return id ? `https://img.youtube.com/vi/${id}/hqdefault.jpg` : "";
+}
+
+function mediaStatusFromInfo(info) {
+  if (!info) {
     return {
       agent: "Now Playing",
       state: "idle",
       task: "Nothing playing",
-      detail: "No active Spotify or Music playback was detected."
+      detail: "No active Spotify, Music, or YouTube playback surface was detected.",
+      media: {
+        source: "none",
+        title: "Nothing playing",
+        artist: "",
+        album: "",
+        artworkUrl: "",
+        durationSeconds: 0,
+        positionSeconds: 0,
+        playbackState: "idle"
+      }
     };
   }
 
-  const [title, artist] = mediaText.split(" — ");
   return {
     agent: "Now Playing",
-    state: "running",
-    task: truncate(title || mediaText, 48),
-    detail: artist ? truncate(artist, 80) : truncate(mediaText, 80)
+    state: info.playbackState === "paused" ? "idle" : "running",
+    task: truncate(info.title, 48),
+    detail: info.artist ? truncate(info.artist, 80) : (info.source === "youtube" ? "YouTube" : truncate(info.album, 80)),
+    media: {
+      source: info.source,
+      title: info.title,
+      artist: info.artist || (info.source === "youtube" ? "YouTube" : ""),
+      album: info.album || "",
+      artworkUrl: info.artworkUrl || "",
+      durationSeconds: info.durationSeconds || 0,
+      positionSeconds: info.positionSeconds || 0,
+      playbackState: info.playbackState || "unknown",
+      elapsedLabel: formatDuration(info.positionSeconds),
+      durationLabel: formatDuration(info.durationSeconds)
+    }
   };
+}
+
+function collectMediaStatus(options = {}) {
+  if (options.mediaInfo !== undefined) return mediaStatusFromInfo(options.mediaInfo);
+  if (options.mediaText !== undefined) return mediaStatusFromInfo(parseDelimitedMedia(options.mediaText));
+
+  const raw = runCommand("osascript", ["-e", spotifyScript()])
+    || runCommand("osascript", ["-e", musicScript()])
+    || runCommand("osascript", ["-e", browserYouTubeScript("Google Chrome")])
+    || runCommand("osascript", ["-e", browserYouTubeScript("Safari")]);
+  return mediaStatusFromInfo(parseDelimitedMedia(raw));
 }
 
 function buildMacActivityStatusPayload(options = {}) {
@@ -139,6 +240,10 @@ module.exports = {
   collectBatteryStatus,
   collectClipboardStatus,
   collectMediaStatus,
+  formatDuration,
+  parseDelimitedMedia,
   parsePmsetBattery,
+  youtubeThumbnailUrl,
+  youtubeVideoId,
   writeMacActivityStatusSnapshot
 };

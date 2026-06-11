@@ -37,4 +37,11 @@ assert.match(source, /toggleExpanded\(\)/, "native overlay should expose a toggl
 assert.match(source, /let targetFrame = topCenteredRect\(screen: screen, size: size\)/, "native overlay should compute a centered target frame when the mode changes");
 assert.match(source, /panel\.animator\(\)\.setFrame\(targetFrame, display: true\)/, "native overlay should resize and re-anchor the panel with the centered target frame when the mode changes");
 
+assert.match(source, /drawCompactNowPlaying/, "compact notch mode should render a dedicated Now Playing surface");
+assert.match(source, /artwork alone is the live activity/, "compact notch mode should show album art only, not title and artist text");
+assert.match(source, /drawExpandedNowPlaying/, "expanded mode should render cover, metadata, play time, and controls");
+assert.match(source, /drawMediaControls/, "expanded Now Playing mode should draw previous, play\/pause, and next controls");
+assert.match(source, /performMediaControl/, "native overlay should wire media control buttons to playback actions");
+assert.match(source, /artworkImage/, "native overlay should render album art or fall back to a music note");
+
 console.log("Native overlay contract test passed.");

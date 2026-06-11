@@ -11,6 +11,20 @@ struct StatusItem: Decodable {
     let task: String
     let detail: String?
     let updatedAt: String?
+    let media: MediaInfo?
+}
+
+struct MediaInfo: Decodable {
+    let source: String?
+    let title: String?
+    let artist: String?
+    let album: String?
+    let artworkUrl: String?
+    let durationSeconds: Double?
+    let positionSeconds: Double?
+    let playbackState: String?
+    let elapsedLabel: String?
+    let durationLabel: String?
 }
 
 struct NotchWingLayout {
@@ -131,6 +145,7 @@ struct NotchWingLayout {
 
 final class IslandView: NSView {
     var onToggle: (() -> Void)?
+    var onMediaControl: ((String, String) -> Void)?
 
     var expanded = false {
         didSet { needsDisplay = true }
@@ -145,6 +160,11 @@ final class IslandView: NSView {
     override var isFlipped: Bool { true }
 
     override func mouseDown(with event: NSEvent) {
+        let location = convert(event.locationInWindow, from: nil)
+        if expanded, let action = mediaControlAction(at: location), let media = nowPlayingMedia() {
+            onMediaControl?(action, media.source ?? "")
+            return
+        }
         onToggle?()
     }
 
@@ -296,46 +316,168 @@ final class IslandView: NSView {
     }
 
     private func drawContent() {
-        let paragraph = NSMutableParagraphStyle()
-        paragraph.lineBreakMode = .byTruncatingTail
-        let primary = statuses.first?.agent ?? "Snuffles"
-        let warningCount = statuses.filter { $0.state == "warning" || $0.state == "error" }.count
-        let runningCount = statuses.filter { $0.state == "running" }.count
-        let meta = "\(runningCount) active · \(warningCount) warn"
+        guard let media = nowPlayingMedia() else {
+            drawFallbackStatusContent()
+            return
+        }
+
+        if expanded {
+            drawExpandedNowPlaying(media)
+        } else {
+            drawCompactNowPlaying(media)
+        }
+    }
+
+    private func nowPlayingMedia() -> MediaInfo? {
+        statuses.first { $0.agent == "Now Playing" }?.media
+    }
+
+    private func drawCompactNowPlaying(_ media: MediaInfo) {
+        let artSize = min(bounds.height - 8, 28)
+        let y = (bounds.height - artSize) / 2
+        let x: CGFloat
+        if compactLayout.usesHardwareNotchCutout {
+            // Notch mode intentionally avoids title/artist text; the artwork alone is the live activity.
+            x = max(4, compactLayout.wingWidth - artSize - 5)
+        } else {
+            x = 8
+        }
+        drawArtwork(media: media, in: NSRect(x: x, y: y, width: artSize, height: artSize), cornerRadius: 7, fallbackFontSize: 17)
+    }
+
+    private func drawExpandedNowPlaying(_ media: MediaInfo) {
+        NSString(string: "NOW PLAYING").draw(
+            in: NSRect(x: 28, y: 20, width: bounds.width - 56, height: 18),
+            withAttributes: [.foregroundColor: NSColor(calibratedWhite: 0.70, alpha: 1), .font: NSFont.systemFont(ofSize: 12, weight: .bold)]
+        )
+
+        let cover = NSRect(x: 28, y: 52, width: 112, height: 112)
+        drawArtwork(media: media, in: cover, cornerRadius: 22, fallbackFontSize: 42)
 
         let titleAttrs: [NSAttributedString.Key: Any] = [
             .foregroundColor: NSColor.white,
-            .font: NSFont.systemFont(ofSize: expanded ? 26 : 12, weight: .bold),
-            .paragraphStyle: paragraph
+            .font: NSFont.systemFont(ofSize: 24, weight: .bold)
         ]
-        let metaAttrs: [NSAttributedString.Key: Any] = [
-            .foregroundColor: NSColor(calibratedWhite: 0.72, alpha: 1),
-            .font: NSFont.systemFont(ofSize: expanded ? 13 : 10, weight: .medium),
-            .paragraphStyle: paragraph
+        let artistAttrs: [NSAttributedString.Key: Any] = [
+            .foregroundColor: NSColor(calibratedWhite: 0.74, alpha: 1),
+            .font: NSFont.systemFont(ofSize: 14, weight: .medium)
+        ]
+        let timeAttrs: [NSAttributedString.Key: Any] = [
+            .foregroundColor: NSColor(calibratedWhite: 0.64, alpha: 1),
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
         ]
 
+        let textX: CGFloat = 160
+        NSString(string: media.title ?? "Nothing playing").draw(in: NSRect(x: textX, y: 56, width: bounds.width - textX - 28, height: 34), withAttributes: titleAttrs)
+        NSString(string: media.artist?.isEmpty == false ? media.artist! : displaySourceName(media.source)).draw(in: NSRect(x: textX, y: 92, width: bounds.width - textX - 28, height: 22), withAttributes: artistAttrs)
+
+        let elapsed = media.elapsedLabel ?? formatSeconds(media.positionSeconds)
+        let duration = media.durationLabel ?? formatSeconds(media.durationSeconds)
+        NSString(string: "\(elapsed) / \(duration)").draw(in: NSRect(x: textX, y: 124, width: 180, height: 18), withAttributes: timeAttrs)
+        drawProgressBar(media: media, rect: NSRect(x: textX, y: 148, width: bounds.width - textX - 40, height: 5))
+        drawMediaControls(media: media)
+    }
+
+    private func drawArtwork(media: MediaInfo, in rect: NSRect, cornerRadius: CGFloat, fallbackFontSize: CGFloat) {
+        let path = NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius)
+        NSGraphicsContext.saveGraphicsState()
+        path.addClip()
+        if let image = artworkImage(media.artworkUrl) {
+            image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1)
+        } else {
+            NSColor(calibratedWhite: 1, alpha: 0.10).setFill()
+            rect.fill()
+            let attrs: [NSAttributedString.Key: Any] = [
+                .foregroundColor: NSColor(calibratedWhite: 0.88, alpha: 1),
+                .font: NSFont.systemFont(ofSize: fallbackFontSize, weight: .semibold)
+            ]
+            let note = "♪" as NSString
+            let size = note.size(withAttributes: attrs)
+            note.draw(at: NSPoint(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2), withAttributes: attrs)
+        }
+        NSGraphicsContext.restoreGraphicsState()
+    }
+
+    private func artworkImage(_ value: String?) -> NSImage? {
+        guard let value, !value.isEmpty else { return nil }
+        if value.hasPrefix("http://") || value.hasPrefix("https://"), let url = URL(string: value), let data = try? Data(contentsOf: url, options: [.mappedIfSafe]) {
+            return NSImage(data: data)
+        }
+        let url = value.hasPrefix("file://") ? URL(string: value) : URL(fileURLWithPath: value)
+        guard let url else { return nil }
+        return NSImage(contentsOf: url)
+    }
+
+    private func drawProgressBar(media: MediaInfo, rect: NSRect) {
+        NSColor(calibratedWhite: 1, alpha: 0.14).setFill()
+        NSBezierPath(roundedRect: rect, xRadius: rect.height / 2, yRadius: rect.height / 2).fill()
+        let duration = max(media.durationSeconds ?? 0, 0)
+        let position = max(media.positionSeconds ?? 0, 0)
+        guard duration > 0 else { return }
+        let ratio = min(max(position / duration, 0), 1)
+        let fill = NSRect(x: rect.minX, y: rect.minY, width: rect.width * CGFloat(ratio), height: rect.height)
+        NSColor.systemPink.withAlphaComponent(0.92).setFill()
+        NSBezierPath(roundedRect: fill, xRadius: rect.height / 2, yRadius: rect.height / 2).fill()
+    }
+
+    private func drawMediaControls(media: MediaInfo) {
+        for (action, symbol) in [("previous", "􀊊"), ("playpause", media.playbackState == "playing" ? "􀊆" : "􀊄"), ("next", "􀊌")] {
+            let rect = mediaControlRect(action: action)
+            NSColor(calibratedWhite: 1, alpha: action == "playpause" ? 0.18 : 0.10).setFill()
+            NSBezierPath(roundedRect: rect, xRadius: rect.height / 2, yRadius: rect.height / 2).fill()
+            let attrs: [NSAttributedString.Key: Any] = [.foregroundColor: NSColor.white, .font: NSFont.systemFont(ofSize: action == "playpause" ? 20 : 16, weight: .bold)]
+            let text = symbol as NSString
+            let size = text.size(withAttributes: attrs)
+            text.draw(at: NSPoint(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2), withAttributes: attrs)
+        }
+    }
+
+    private func mediaControlRect(action: String) -> NSRect {
+        let baseX: CGFloat = 160
+        let y: CGFloat = 170
+        let size: CGFloat = action == "playpause" ? 36 : 30
+        switch action {
+        case "previous": return NSRect(x: baseX, y: y + 3, width: size, height: size)
+        case "playpause": return NSRect(x: baseX + 44, y: y, width: size, height: size)
+        default: return NSRect(x: baseX + 92, y: y + 3, width: size, height: size)
+        }
+    }
+
+    private func mediaControlAction(at point: NSPoint) -> String? {
+        for action in ["previous", "playpause", "next"] {
+            if mediaControlRect(action: action).contains(point) { return action }
+        }
+        return nil
+    }
+
+    private func formatSeconds(_ value: Double?) -> String {
+        guard let value, value.isFinite, value >= 0 else { return "--:--" }
+        let whole = Int(value)
+        return "\(whole / 60):\(String(format: "%02d", whole % 60))"
+    }
+
+    private func displaySourceName(_ source: String?) -> String {
+        switch source {
+        case "spotify": return "Spotify"
+        case "music": return "Music"
+        case "youtube": return "YouTube"
+        default: return "Now Playing"
+        }
+    }
+
+    private func drawFallbackStatusContent() {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineBreakMode = .byTruncatingTail
+        let primary = statuses.first?.agent ?? "Dynamac"
+        let titleAttrs: [NSAttributedString.Key: Any] = [
+            .foregroundColor: NSColor.white,
+            .font: NSFont.systemFont(ofSize: expanded ? 24 : 12, weight: .bold),
+            .paragraphStyle: paragraph
+        ]
         if expanded {
-            NSString(string: "DYNAMAC ISLAND").draw(
-                in: NSRect(x: 28, y: 20, width: bounds.width - 56, height: 18),
-                withAttributes: [.foregroundColor: NSColor(calibratedWhite: 0.72, alpha: 1), .font: NSFont.systemFont(ofSize: 12, weight: .bold)]
-            )
-            NSString(string: statuses.isEmpty ? "Loading local status" : "All systems settled").draw(
-                in: NSRect(x: 28, y: 44, width: bounds.width - 56, height: 70),
-                withAttributes: titleAttrs
-            )
-            for (index, status) in statuses.prefix(3).enumerated() {
-                let x = 28 + CGFloat(index) * ((bounds.width - 64) / 3)
-                let card = NSRect(x: x, y: 120, width: (bounds.width - 84) / 3, height: 70)
-                NSColor(calibratedWhite: 1, alpha: 0.08).setFill()
-                NSBezierPath(roundedRect: card, xRadius: 16, yRadius: 16).fill()
-                NSString(string: status.agent).draw(in: card.insetBy(dx: 10, dy: 8), withAttributes: metaAttrs)
-                NSString(string: status.task).draw(in: NSRect(x: card.minX + 10, y: card.minY + 30, width: card.width - 20, height: 28), withAttributes: titleAttrs)
-            }
+            NSString(string: primary).draw(in: NSRect(x: 28, y: 44, width: bounds.width - 56, height: 70), withAttributes: titleAttrs)
         } else if !compactLayout.usesHardwareNotchCutout {
-            let left = NSRect(x: 0, y: 0, width: bounds.width / 2, height: bounds.height)
-            let right = NSRect(x: bounds.width / 2, y: 0, width: bounds.width / 2, height: bounds.height)
-            NSString(string: "●  \(primary)").draw(in: left.insetBy(dx: 14, dy: 9), withAttributes: titleAttrs)
-            NSString(string: meta).draw(in: right.insetBy(dx: 12, dy: 9), withAttributes: titleAttrs)
+            NSString(string: "♪").draw(in: bounds.insetBy(dx: 14, dy: 7), withAttributes: titleAttrs)
         }
     }
 }
@@ -380,6 +522,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let view = IslandView(frame: NSRect(origin: .zero, size: size))
         view.compactLayout = compactLayout
         view.onToggle = { [weak self] in self?.toggleExpanded() }
+        view.onMediaControl = { [weak self] action, source in self?.performMediaControl(action: action, source: source) }
         panel.contentView = view
         panel.orderFrontRegardless()
 
@@ -429,6 +572,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             width: size.width,
             height: size.height
         )
+    }
+
+    private func performMediaControl(action: String, source: String) {
+        let appName: String
+        switch source {
+        case "spotify": appName = "Spotify"
+        case "music": appName = "Music"
+        default: return
+        }
+
+        let command: String
+        switch action {
+        case "previous": command = "previous track"
+        case "next": command = "next track"
+        default: command = "playpause"
+        }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        process.arguments = ["-e", "if application \"\(appName)\" is running then tell application \"\(appName)\" to \(command)"]
+        try? process.run()
     }
 
     private func loadStatus() {

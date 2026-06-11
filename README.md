@@ -10,7 +10,7 @@ Dynamac Island follows that pattern for this Mac:
 
 - **Small state:** collapsed native wings beside the hardware notch for the current most important activity.
 - **Live activity:** general Mac utility signals that work without Hermes: Now Playing, clipboard, battery/charging, and later shelf/drop, volume/brightness HUD, calendar, and reminders.
-- **Quick expansion:** future hover/click expansion for detail and controls without opening a full app.
+- **Quick expansion:** click expansion for Now Playing detail and playback controls without opening a full app.
 - **Multiple activities:** future rotation/swipe-like switching between active signals.
 
 ## Current State
@@ -21,7 +21,8 @@ Dynamac Island follows that pattern for this Mac:
 - Native overlay source: `native/DynamacIslandNative.swift` builds with `swiftc` through `npm run native:start`, avoiding the SwiftPM/Xcode path for quick MacBook CLT testing.
 - Native compact shape: on notched MacBook displays, the hardware notch area remains transparent and Dynamac paints only left/right wings beside the notch so it attaches to the occluded area instead of covering it; on non-notch/external displays, Dynamac uses one normal compact pill instead of leaving an empty center gap.
 - Runtime status source: Electron development watches `status/status.json`; native `npm run native:start` writes a fresh local Mac activity snapshot to `.build/status.json` before launching so it does not show bundled placeholder data.
-- Mac activity snapshot model: `Now Playing` from Spotify/Music best-effort AppleScript, `Clipboard` from local text clipboard, and `Battery` from `pmset -g batt`. Hermes runtime status remains an optional/dev provider, not the default product surface.
+- Mac activity snapshot model: `Now Playing` from Spotify/Music best-effort AppleScript plus YouTube tab thumbnail detection, `Clipboard` from local text clipboard, and `Battery` from `pmset -g batt`. Hermes runtime status remains an optional/dev provider, not the default product surface.
+- Now Playing native UI: notch mode shows only album art/YouTube thumbnail/music-note fallback; expanded mode shows the cover on the left, title, artist/source, play time/progress, and previous/play-pause/next controls.
 - Validation model: each status item needs `agent`, `state`, `task`, `updatedAt`, and `detail`.
 - Allowed states: `idle`, `running`, `success`, `warning`, `error`.
 - Invalid JSON or invalid status fields are visible in the app as an error state.
@@ -257,10 +258,22 @@ Example generated shape:
   "statuses": [
     {
       "agent": "Now Playing",
-      "state": "idle",
-      "task": "Nothing playing",
+      "state": "running",
+      "task": "Song Title",
       "updatedAt": "2026-06-11T09:00:00.000Z",
-      "detail": "No active Spotify or Music playback was detected."
+      "detail": "Artist Name",
+      "media": {
+        "source": "spotify",
+        "title": "Song Title",
+        "artist": "Artist Name",
+        "album": "Album Name",
+        "artworkUrl": "https://i.scdn.co/image/example",
+        "durationSeconds": 240,
+        "positionSeconds": 42,
+        "playbackState": "playing",
+        "elapsedLabel": "0:42",
+        "durationLabel": "4:00"
+      }
     },
     {
       "agent": "Clipboard",
