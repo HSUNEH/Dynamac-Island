@@ -126,7 +126,7 @@ function printHelp() {
   setwing N               set exact wing width
   save                    save to .dynamac-calibration.json
   q                       quit
-\nLook at the real MacBook screen, not a screenshot. Match the QA silhouette to the physical notch, then save.\n`);
+\nLook at the real MacBook screen, not a screenshot. Match the QA outline to the physical notch, then save.\n`);
 }
 
 run("npm", ["run", "native:build"]);

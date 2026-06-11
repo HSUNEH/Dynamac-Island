@@ -114,7 +114,7 @@ For geometry QA, do not rely on screenshots alone: physical MacBook notches do n
 npm run native:calibrate
 ```
 
-The calibration loop launches a QA silhouette on top of the real display and lets you adjust the geometry while looking at the physical notch:
+The calibration loop launches a transparent QA outline on top of the real display and lets you adjust the geometry while looking at the physical notch:
 
 ```text
 w+ / w-       widen or narrow the notch cutout

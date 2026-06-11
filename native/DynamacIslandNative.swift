@@ -190,8 +190,8 @@ final class IslandView: NSView {
         let rect = compactLayout.notchCutoutRect(in: bounds)
         let radius = min(max(6, rect.height * 0.32), 10)
         let path = NSBezierPath()
-        // QA silhouette mirrors the measured native cutout: exact width, exact compact height,
-        // attached to the top edge like the physical camera notch. Only bottom corners are rounded.
+        // QA guide mirrors the measured native cutout without filling it. A filled fake notch
+        // hides the real hardware notch in camera photos, so calibration uses an outline only.
         path.move(to: NSPoint(x: rect.minX, y: rect.minY))
         path.line(to: NSPoint(x: rect.maxX, y: rect.minY))
         path.line(to: NSPoint(x: rect.maxX, y: rect.maxY - radius))
@@ -207,8 +207,21 @@ final class IslandView: NSView {
             controlPoint2: NSPoint(x: rect.minX, y: rect.maxY - radius * 0.45)
         )
         path.close()
-        NSColor(calibratedRed: 0.0, green: 0.0, blue: 0.0, alpha: 1.0).setFill()
-        path.fill()
+        NSColor.systemPink.withAlphaComponent(0.95).setStroke()
+        path.lineWidth = 2
+        path.stroke()
+
+        NSColor.systemYellow.withAlphaComponent(0.85).setStroke()
+        let leftEdge = NSBezierPath()
+        leftEdge.move(to: NSPoint(x: rect.minX, y: rect.minY))
+        leftEdge.line(to: NSPoint(x: rect.minX, y: rect.maxY))
+        leftEdge.lineWidth = 1
+        leftEdge.stroke()
+        let rightEdge = NSBezierPath()
+        rightEdge.move(to: NSPoint(x: rect.maxX, y: rect.minY))
+        rightEdge.line(to: NSPoint(x: rect.maxX, y: rect.maxY))
+        rightEdge.lineWidth = 1
+        rightEdge.stroke()
     }
 
     private func drawCompactSinglePill() {
