@@ -10,7 +10,8 @@ const source = fs.readFileSync(sourcePath, "utf8");
 assert.match(source, /NSPanel\(/, "native overlay should use NSPanel instead of an Electron BrowserWindow");
 assert.match(source, /styleMask:\s*\[\.borderless, \.nonactivatingPanel\]/, "native panel should be borderless and non-activating");
 assert.match(source, /panel\.level\s*=\s*\.screenSaver/, "native panel should use a high overlay level");
-assert.match(source, /collectionBehavior\s*=\s*\[[^\]]*\.canJoinAllSpaces[^\]]*\.fullScreenAuxiliary/s, "native panel should join spaces and fullscreen auxiliary contexts");
+assert.match(source, /collectionBehavior\s*=\s*\[[^\]]*\.fullScreenAuxiliary[^\]]*\.ignoresCycle/s, "native panel should support fullscreen auxiliary contexts without pinning across every Space");
+assert.doesNotMatch(source, /collectionBehavior\s*=\s*\[[^\]]*\.canJoinAllSpaces/s, "native panel should not use canJoinAllSpaces because it appears pinned during Space transitions");
 assert.match(source, /screen\.frame\.maxY - size\.height/, "native overlay should position against NSScreen.frame, not visibleFrame/workArea");
 assert.doesNotMatch(source, /visibleFrame\.maxY - size\.height/, "native overlay must not anchor to visibleFrame because that starts below the menu bar");
 assert.match(source, /DYNAMAC_NATIVE_SMOKE_TEST/, "native overlay should expose a smoke-test readiness path");
@@ -56,5 +57,12 @@ assert.match(source, /startDisplayRefresh/, "native overlay should redraw freque
 assert.match(source, /DYNAMAC_DISPLAY_REFRESH_MS/, "native overlay should allow tuning the display refresh interval");
 assert.match(source, /drawPlayingBars/, "compact notch mode should show a simple right-wing playing animation");
 assert.match(source, /rightWingRect\(in: bounds\)/, "compact playing animation should live in the right notch wing");
+
+assert.match(source, /onMediaSeek/, "expanded progress bar should expose media seek callbacks");
+assert.match(source, /mouseDragged/, "expanded progress bar should support dragging to seek");
+assert.match(source, /mediaSeekSecond/, "expanded progress bar clicks should map x-position to playback seconds");
+assert.match(source, /performMediaSeek/, "native overlay should wire progress seeking to Spotify, Music, and YouTube");
+assert.match(source, /performYouTubeJavaScript/, "native overlay should control YouTube playback through browser JavaScript best-effort");
+assert.match(source, /chromiumYouTubeScript/, "native overlay should scan Chromium browser tabs for YouTube control targets");
 
 console.log("Native overlay contract test passed.");

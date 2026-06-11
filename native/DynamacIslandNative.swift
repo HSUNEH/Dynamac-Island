@@ -25,6 +25,7 @@ struct MediaInfo: Decodable {
     let playbackState: String?
     let elapsedLabel: String?
     let durationLabel: String?
+    let pageUrl: String?
 }
 
 struct NotchWingLayout {
@@ -154,6 +155,8 @@ struct NotchWingLayout {
 final class IslandView: NSView {
     var onToggle: (() -> Void)?
     var onMediaControl: ((String, String) -> Void)?
+    var onMediaSeek: ((String, Double) -> Void)?
+    private var isDraggingProgress = false
 
     var expanded = false {
         didSet { needsDisplay = true }
@@ -174,11 +177,30 @@ final class IslandView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         let location = convert(event.locationInWindow, from: nil)
+        if expanded, let media = nowPlayingMedia(), let seekSeconds = mediaSeekSecond(at: location, media: media) {
+            isDraggingProgress = true
+            onMediaSeek?(media.source ?? "", seekSeconds)
+            return
+        }
         if expanded, let action = mediaControlAction(at: location), let media = nowPlayingMedia() {
             onMediaControl?(action, media.source ?? "")
             return
         }
         onToggle?()
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard isDraggingProgress, expanded, let media = nowPlayingMedia() else { return }
+        let location = convert(event.locationInWindow, from: nil)
+        if let seekSeconds = mediaSeekSecond(at: location, media: media) {
+            onMediaSeek?(media.source ?? "", seekSeconds)
+        }
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        if isDraggingProgress {
+            isDraggingProgress = false
+        }
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -393,7 +415,7 @@ final class IslandView: NSView {
         let elapsed = formatSeconds(elapsedSeconds)
         let duration = media.durationLabel ?? formatSeconds(media.durationSeconds)
         NSString(string: "\(elapsed) / \(duration)").draw(in: NSRect(x: textX, y: 124, width: 180, height: 18), withAttributes: timeAttrs)
-        drawProgressBar(media: media, positionSeconds: elapsedSeconds, rect: NSRect(x: textX, y: 148, width: bounds.width - textX - 40, height: 5))
+        drawProgressBar(media: media, positionSeconds: elapsedSeconds, rect: progressBarRect())
         drawMediaControls(media: media)
     }
 
@@ -539,6 +561,23 @@ final class IslandView: NSView {
         }
     }
 
+    private func progressBarRect() -> NSRect {
+        let textX: CGFloat = 160
+        return NSRect(x: textX, y: 148, width: bounds.width - textX - 40, height: 5)
+    }
+
+    private func progressHitRect() -> NSRect {
+        progressBarRect().insetBy(dx: 0, dy: -10)
+    }
+
+    private func mediaSeekSecond(at point: NSPoint, media: MediaInfo) -> Double? {
+        let duration = max(media.durationSeconds ?? 0, 0)
+        guard duration > 0, progressHitRect().contains(point) else { return nil }
+        let rect = progressBarRect()
+        let ratio = min(max((point.x - rect.minX) / rect.width, 0), 1)
+        return Double(ratio) * duration
+    }
+
     private func mediaControlAction(at point: NSPoint) -> String? {
         for action in ["previous", "playpause", "next"] {
             if mediaControlRect(action: action).contains(point) { return action }
@@ -631,6 +670,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         view.compactLayout = compactLayout
         view.onToggle = { [weak self] in self?.toggleExpanded() }
         view.onMediaControl = { [weak self] action, source in self?.performMediaControl(action: action, source: source) }
+        view.onMediaSeek = { [weak self] source, seconds in self?.performMediaSeek(source: source, seconds: seconds) }
         panel.contentView = view
         panel.orderFrontRegardless()
 
@@ -718,6 +758,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func performMediaControl(action: String, source: String) {
+        if source == "youtube" {
+            let js: String
+            switch action {
+            case "previous": js = "document.querySelector('video').currentTime = Math.max(0, document.querySelector('video').currentTime - 10)"
+            case "next": js = "document.querySelector('video').currentTime = Math.min(document.querySelector('video').duration || document.querySelector('video').currentTime + 10, document.querySelector('video').currentTime + 10)"
+            default: js = "document.querySelector('video').paused ? document.querySelector('video').play() : document.querySelector('video').pause()"
+            }
+            performYouTubeJavaScript(js)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in self?.loadStatus() }
+            return
+        }
+
         let appName: String
         switch source {
         case "spotify": appName = "Spotify"
@@ -732,11 +784,73 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         default: command = "playpause"
         }
 
+        runAppleScript("if application \"\(appName)\" is running then tell application \"\(appName)\" to \(command)")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in self?.loadStatus() }
+    }
+
+    private func performMediaSeek(source: String, seconds: Double) {
+        switch source {
+        case "spotify":
+            runAppleScript("if application \"Spotify\" is running then tell application \"Spotify\" to set player position to \(seconds)")
+        case "music":
+            runAppleScript("if application \"Music\" is running then tell application \"Music\" to set player position to \(seconds)")
+        case "youtube":
+            performYouTubeJavaScript("document.querySelector('video').currentTime = \(seconds)")
+        default:
+            return
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in self?.loadStatus() }
+    }
+
+    private func runAppleScript(_ script: String) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        process.arguments = ["-e", "if application \"\(appName)\" is running then tell application \"\(appName)\" to \(command)"]
+        process.arguments = ["-e", script]
         try? process.run()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in self?.loadStatus() }
+    }
+
+    private func performYouTubeJavaScript(_ js: String) {
+        let escapedJs = js.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+        for browserName in ["Google Chrome", "Arc", "Brave Browser", "Microsoft Edge"] {
+            runAppleScript(chromiumYouTubeScript(browserName: browserName, escapedJs: escapedJs))
+        }
+        runAppleScript(safariYouTubeScript(escapedJs: escapedJs))
+    }
+
+    private func chromiumYouTubeScript(browserName: String, escapedJs: String) -> String {
+        """
+        if application "\(browserName)" is running then
+          tell application "\(browserName)"
+            repeat with w in windows
+              repeat with t in tabs of w
+                set tabUrl to URL of t
+                if tabUrl contains "youtube.com/watch" or tabUrl contains "music.youtube.com/watch" or tabUrl contains "youtu.be/" or tabUrl contains "youtube.com/shorts/" then
+                  execute t javascript "\(escapedJs)"
+                  return
+                end if
+              end repeat
+            end repeat
+          end tell
+        end if
+        """
+    }
+
+    private func safariYouTubeScript(escapedJs: String) -> String {
+        """
+        if application "Safari" is running then
+          tell application "Safari"
+            repeat with w in windows
+              repeat with t in tabs of w
+                set tabUrl to URL of t
+                if tabUrl contains "youtube.com/watch" or tabUrl contains "music.youtube.com/watch" or tabUrl contains "youtu.be/" or tabUrl contains "youtube.com/shorts/" then
+                  do JavaScript "\(escapedJs)" in t
+                  return
+                end if
+              end repeat
+            end repeat
+          end tell
+        end if
+        """
     }
 
     private func startStatusRefresh() {

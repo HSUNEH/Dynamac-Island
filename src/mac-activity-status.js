@@ -7,7 +7,7 @@ function runCommand(command, args, options = {}) {
     return childProcess.execFileSync(command, args, {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
-      timeout: 1500,
+      timeout: 2200,
       ...options
     }).trim();
   } catch (_error) {
@@ -130,27 +130,91 @@ function musicScript() {
   ].join("\n");
 }
 
+function appleScriptString(value) {
+  return `"${String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+function youtubePageProbeJavaScript() {
+  return `(() => {
+    const video = document.querySelector('video');
+    const meta = (selector) => document.querySelector(selector)?.content || '';
+    const text = (selector) => document.querySelector(selector)?.textContent?.replace(/\\s+/g, ' ').trim() || '';
+    const title = text('h1 yt-formatted-string') || meta('meta[property="og:title"]') || document.title.replace(/ - YouTube$/, '').trim();
+    const artist = text('#owner #channel-name a') || text('#text.ytd-channel-name') || text('ytd-channel-name a') || 'YouTube';
+    const artworkUrl = meta('meta[property="og:image"]');
+    const durationSeconds = Number.isFinite(video?.duration) ? video.duration : 0;
+    const positionSeconds = Number.isFinite(video?.currentTime) ? video.currentTime : 0;
+    const playbackState = video ? (video.paused ? 'paused' : 'playing') : 'unknown';
+    return JSON.stringify({ title, artist, album: 'YouTube', artworkUrl, durationSeconds, positionSeconds, playbackState });
+  })()`;
+}
+
 function browserYouTubeScript(browserName) {
+  const js = appleScriptString(youtubePageProbeJavaScript());
+  const chromiumBrowsers = new Set(["Google Chrome", "Google Chrome Canary", "Brave Browser", "Microsoft Edge", "Arc"]);
+  if (browserName === "Safari") {
+    return [
+      `if application "${browserName}" is running then`,
+      `tell application "${browserName}"`,
+      'repeat with w in windows',
+      'repeat with t in tabs of w',
+      'set tabUrl to URL of t',
+      'if tabUrl contains "youtube.com/watch" or tabUrl contains "music.youtube.com/watch" or tabUrl contains "youtu.be/" or tabUrl contains "youtube.com/shorts/" then',
+      `set payload to do JavaScript ${js} in t`,
+      'return "youtube-json||" & payload & "||" & tabUrl',
+      'end if',
+      'end repeat',
+      'end repeat',
+      'end tell',
+      'end if'
+    ].join("\n");
+  }
+  if (!chromiumBrowsers.has(browserName)) return "";
   return [
     `if application "${browserName}" is running then`,
     `tell application "${browserName}"`,
-    'set tabTitle to ""',
-    'set tabUrl to ""',
-    browserName === "Safari" ? 'if (count of windows) > 0 then set tabTitle to name of current tab of front window' : 'if (count of windows) > 0 then set tabTitle to title of active tab of front window',
-    browserName === "Safari" ? 'if (count of windows) > 0 then set tabUrl to URL of current tab of front window' : 'if (count of windows) > 0 then set tabUrl to URL of active tab of front window',
-    'if tabUrl contains "youtube.com/watch" or tabUrl contains "youtu.be/" then return "youtube||" & tabTitle & "||||YouTube||||0||0||unknown||" & tabUrl',
+    'repeat with w in windows',
+    'repeat with t in tabs of w',
+    'set tabUrl to URL of t',
+    'if tabUrl contains "youtube.com/watch" or tabUrl contains "music.youtube.com/watch" or tabUrl contains "youtu.be/" or tabUrl contains "youtube.com/shorts/" then',
+    `set payload to execute t javascript ${js}`,
+    'return "youtube-json||" & payload & "||" & tabUrl',
+    'end if',
+    'end repeat',
+    'end repeat',
     'end tell',
     'end if'
   ].join("\n");
 }
 
 function parseDelimitedMedia(raw) {
-  const parts = String(raw || "").split("||");
+  const text = String(raw || "");
+  if (text.startsWith("youtube-json||")) {
+    const [, jsonText, pageUrl = ""] = text.split("||");
+    try {
+      const payload = JSON.parse(jsonText || "{}");
+      return normalizeMediaInfo({
+        source: "youtube",
+        title: payload.title || "YouTube",
+        artist: payload.artist || "YouTube",
+        album: payload.album || "YouTube",
+        artworkUrl: payload.artworkUrl || youtubeThumbnailUrl(pageUrl),
+        durationSeconds: Number(payload.durationSeconds),
+        positionSeconds: Number(payload.positionSeconds),
+        playbackState: payload.playbackState || "unknown",
+        pageUrl
+      });
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  const parts = text.split("||");
   if (parts.length < 8) return null;
   const [source, title, artist, album, artworkUrl, durationRaw, positionRaw, playbackState, pageUrl] = parts;
   const durationSeconds = source === "spotify" ? Number(durationRaw) / 1000 : Number(durationRaw);
   const positionSeconds = Number(positionRaw);
-  return {
+  return normalizeMediaInfo({
     source: source || "unknown",
     title: title || "Unknown title",
     artist: artist || "",
@@ -160,6 +224,21 @@ function parseDelimitedMedia(raw) {
     positionSeconds: Number.isFinite(positionSeconds) ? positionSeconds : 0,
     playbackState: playbackState || "unknown",
     pageUrl: pageUrl || ""
+  });
+}
+
+function normalizeMediaInfo(info) {
+  if (!info) return null;
+  return {
+    source: info.source || "unknown",
+    title: info.title || "Unknown title",
+    artist: info.artist || "",
+    album: info.album || "",
+    artworkUrl: info.artworkUrl || youtubeThumbnailUrl(info.pageUrl || "") || "",
+    durationSeconds: Number.isFinite(Number(info.durationSeconds)) ? Number(info.durationSeconds) : 0,
+    positionSeconds: Number.isFinite(Number(info.positionSeconds)) ? Number(info.positionSeconds) : 0,
+    playbackState: info.playbackState || "unknown",
+    pageUrl: info.pageUrl || ""
   };
 }
 
@@ -168,7 +247,9 @@ function youtubeVideoId(url) {
   const watchMatch = text.match(/[?&]v=([A-Za-z0-9_-]{6,})/);
   if (watchMatch) return watchMatch[1];
   const shortMatch = text.match(/youtu\.be\/([A-Za-z0-9_-]{6,})/);
-  return shortMatch ? shortMatch[1] : "";
+  if (shortMatch) return shortMatch[1];
+  const shortsMatch = text.match(/youtube\.com\/shorts\/([A-Za-z0-9_-]{6,})/);
+  return shortsMatch ? shortsMatch[1] : "";
 }
 
 function youtubeThumbnailUrl(url) {
@@ -191,7 +272,8 @@ function mediaStatusFromInfo(info) {
         artworkUrl: "",
         durationSeconds: 0,
         positionSeconds: 0,
-        playbackState: "idle"
+        playbackState: "idle",
+        pageUrl: ""
       }
     };
   }
@@ -211,19 +293,20 @@ function mediaStatusFromInfo(info) {
       positionSeconds: info.positionSeconds || 0,
       playbackState: info.playbackState || "unknown",
       elapsedLabel: formatDuration(info.positionSeconds),
-      durationLabel: formatDuration(info.durationSeconds)
+      durationLabel: formatDuration(info.durationSeconds),
+      pageUrl: info.pageUrl || ""
     }
   };
 }
 
 function collectMediaStatus(options = {}) {
-  if (options.mediaInfo !== undefined) return mediaStatusFromInfo(options.mediaInfo);
+  if (options.mediaInfo !== undefined) return mediaStatusFromInfo(normalizeMediaInfo(options.mediaInfo));
   if (options.mediaText !== undefined) return mediaStatusFromInfo(parseDelimitedMedia(options.mediaText));
 
   const raw = runCommand("osascript", ["-e", spotifyScript()])
     || runCommand("osascript", ["-e", musicScript()])
-    || runCommand("osascript", ["-e", browserYouTubeScript("Google Chrome")])
-    || runCommand("osascript", ["-e", browserYouTubeScript("Safari")]);
+    || ["Google Chrome", "Arc", "Brave Browser", "Microsoft Edge", "Safari"].map((browser) => runCommand("osascript", ["-e", browserYouTubeScript(browser)])).find(Boolean)
+    || "";
   return mediaStatusFromInfo(parseDelimitedMedia(raw));
 }
 
@@ -259,7 +342,6 @@ module.exports = {
   formatDuration,
   parseDelimitedMedia,
   parsePmsetBattery,
-  youtubeThumbnailUrl,
-  youtubeVideoId,
-  writeMacActivityStatusSnapshot
+  writeMacActivityStatusSnapshot,
+  youtubeThumbnailUrl
 };

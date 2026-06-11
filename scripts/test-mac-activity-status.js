@@ -43,6 +43,15 @@ const youtubeInfo = parseDelimitedMedia("youtube||Video Title||||YouTube||||0||0
 assert.equal(youtubeInfo.source, "youtube");
 assert.equal(youtubeInfo.artworkUrl, "https://img.youtube.com/vi/abcDEF_1234/hqdefault.jpg");
 
+const youtubeJsonInfo = parseDelimitedMedia('youtube-json||{"title":"Video Title","artist":"Channel","album":"YouTube","artworkUrl":"https://i.ytimg.com/vi/abcDEF_1234/hqdefault.jpg","durationSeconds":1521,"positionSeconds":8,"playbackState":"playing"}||https://www.youtube.com/watch?v=abcDEF_1234');
+assert.equal(youtubeJsonInfo.source, "youtube");
+assert.equal(youtubeJsonInfo.title, "Video Title");
+assert.equal(youtubeJsonInfo.artist, "Channel");
+assert.equal(youtubeJsonInfo.durationSeconds, 1521);
+assert.equal(youtubeJsonInfo.positionSeconds, 8);
+assert.equal(youtubeJsonInfo.playbackState, "playing");
+assert.equal(youtubeJsonInfo.artworkUrl, "https://i.ytimg.com/vi/abcDEF_1234/hqdefault.jpg");
+
 const payload = buildMacActivityStatusPayload({
   now: new Date("2026-06-11T09:00:00.000Z"),
   mediaInfo: spotifyInfo,
