@@ -84,4 +84,9 @@ assert.match(source, /guard contentOpacity > 0\.01 else \{ return \}/, "native o
 assert.match(source, /fadeContent\(in:/, "native overlay should fade media content back in after the shell reaches its target frame");
 assert.match(source, /Media surfaces can be expensive to draw/, "native overlay should document why media content is hidden during transitions");
 
+assert.match(source, /applyOptimisticMediaControl/, "media controls should update playback state optimistically so animations react immediately");
+assert.match(source, /applyOptimisticSeek/, "media seek should update local progress optimistically before provider status catches up");
+assert.match(source, /scheduleFastStatusReloadBurst/, "media controls should schedule a short reload burst after provider commands");
+assert.match(source, /DYNAMAC_STATUS_RELOAD_MS\"\] \?\? \"250\"/, "native status reload should default to a low-latency 250ms cadence");
+
 console.log("Native overlay contract test passed.");

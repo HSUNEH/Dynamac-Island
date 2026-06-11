@@ -43,10 +43,10 @@ function refreshStatus({ log = false } = {}) {
 }
 
 refreshStatus({ log: true });
-const refreshIntervalMs = Number(inherited.DYNAMAC_STATUS_REFRESH_MS || 2000);
+const refreshIntervalMs = Number(inherited.DYNAMAC_STATUS_REFRESH_MS || 750);
 const refreshTimer = inherited.DYNAMAC_DISABLE_STATUS_REFRESH === "1"
   ? null
-  : setInterval(refreshStatus, Number.isFinite(refreshIntervalMs) && refreshIntervalMs >= 500 ? refreshIntervalMs : 2000);
+  : setInterval(refreshStatus, Number.isFinite(refreshIntervalMs) && refreshIntervalMs >= 250 ? refreshIntervalMs : 750);
 
 const native = childProcess.spawn(path.join(repoRoot, ".build/dynamac-native"), {
   cwd: repoRoot,

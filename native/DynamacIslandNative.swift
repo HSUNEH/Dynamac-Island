@@ -6,26 +6,26 @@ struct StatusPayload: Decodable {
 }
 
 struct StatusItem: Decodable {
-    let agent: String
-    let state: String
-    let task: String
-    let detail: String?
-    let updatedAt: String?
-    let media: MediaInfo?
+    var agent: String
+    var state: String
+    var task: String
+    var detail: String?
+    var updatedAt: String?
+    var media: MediaInfo?
 }
 
 struct MediaInfo: Decodable {
-    let source: String?
-    let title: String?
-    let artist: String?
-    let album: String?
-    let artworkUrl: String?
-    let durationSeconds: Double?
-    let positionSeconds: Double?
-    let playbackState: String?
-    let elapsedLabel: String?
-    let durationLabel: String?
-    let pageUrl: String?
+    var source: String?
+    var title: String?
+    var artist: String?
+    var album: String?
+    var artworkUrl: String?
+    var durationSeconds: Double?
+    var positionSeconds: Double?
+    var playbackState: String?
+    var elapsedLabel: String?
+    var durationLabel: String?
+    var pageUrl: String?
 }
 
 struct NotchWingLayout {
@@ -183,10 +183,12 @@ final class IslandView: NSView {
         let location = convert(event.locationInWindow, from: nil)
         if expanded, let media = nowPlayingMedia(), let seekSeconds = mediaSeekSecond(at: location, media: media) {
             isDraggingProgress = true
+            applyOptimisticSeek(seconds: seekSeconds)
             onMediaSeek?(media.source ?? "", seekSeconds)
             return
         }
         if expanded, let action = mediaControlAction(at: location), let media = nowPlayingMedia() {
+            applyOptimisticMediaControl(action: action)
             onMediaControl?(action, media.source ?? "")
             return
         }
@@ -197,6 +199,7 @@ final class IslandView: NSView {
         guard isDraggingProgress, expanded, let media = nowPlayingMedia() else { return }
         let location = convert(event.locationInWindow, from: nil)
         if let seekSeconds = mediaSeekSecond(at: location, media: media) {
+            applyOptimisticSeek(seconds: seekSeconds)
             onMediaSeek?(media.source ?? "", seekSeconds)
         }
     }
@@ -381,6 +384,30 @@ final class IslandView: NSView {
 
     private func nowPlayingMedia() -> MediaInfo? {
         statuses.first { $0.agent == "Now Playing" }?.media
+    }
+
+    private func updateNowPlayingMedia(_ transform: (inout MediaInfo) -> Void) {
+        guard let index = statuses.firstIndex(where: { $0.agent == "Now Playing" }), statuses[index].media != nil else { return }
+        transform(&statuses[index].media!)
+        statusLoadedAt = Date()
+        needsDisplay = true
+    }
+
+    private func applyOptimisticMediaControl(action: String) {
+        updateNowPlayingMedia { media in
+            if action == "playpause" {
+                media.playbackState = media.playbackState == "playing" ? "paused" : "playing"
+            } else if action == "previous" || action == "next" {
+                media.playbackState = "playing"
+            }
+        }
+    }
+
+    private func applyOptimisticSeek(seconds: Double) {
+        updateNowPlayingMedia { media in
+            let duration = max(media.durationSeconds ?? seconds, 0)
+            media.positionSeconds = duration > 0 ? min(max(seconds, 0), duration) : max(seconds, 0)
+        }
     }
 
     private func drawCompactNowPlaying(_ media: MediaInfo) {
@@ -863,7 +890,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             default: js = "document.querySelector('video').paused ? document.querySelector('video').play() : document.querySelector('video').pause()"
             }
             performYouTubeJavaScript(js)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in self?.loadStatus() }
+            scheduleFastStatusReloadBurst()
             return
         }
 
@@ -882,7 +909,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         runAppleScript("if application \"\(appName)\" is running then tell application \"\(appName)\" to \(command)")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in self?.loadStatus() }
+        scheduleFastStatusReloadBurst()
     }
 
     private func performMediaSeek(source: String, seconds: Double) {
@@ -896,7 +923,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         default:
             return
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in self?.loadStatus() }
+        scheduleFastStatusReloadBurst()
     }
 
     private func runAppleScript(_ script: String) {
@@ -950,8 +977,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         """
     }
 
+    private func scheduleFastStatusReloadBurst() {
+        for delay in [0.12, 0.35, 0.75] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in self?.loadStatus() }
+        }
+    }
+
     private func startStatusRefresh() {
-        let interval = Double(ProcessInfo.processInfo.environment["DYNAMAC_STATUS_RELOAD_MS"] ?? "1000").flatMap { $0 >= 250 ? $0 / 1000 : nil } ?? 1
+        let interval = Double(ProcessInfo.processInfo.environment["DYNAMAC_STATUS_RELOAD_MS"] ?? "250").flatMap { $0 >= 100 ? $0 / 1000 : nil } ?? 0.25
         statusTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             self?.loadStatus()
         }
