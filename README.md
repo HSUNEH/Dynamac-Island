@@ -96,6 +96,8 @@ Run a fast native build/smoke test without leaving the overlay open:
 
 ```sh
 npm run native:smoke
+npm run test:notch-position
+npm run test:hermes-status
 ```
 
 Print real MacBook screen/notch diagnostics before launching the native overlay:
@@ -106,14 +108,36 @@ DYNAMAC_NATIVE_DIAG=1 npm run native:start
 
 On notched MacBooks, macOS may expose `auxiliaryTopLeftArea` and `auxiliaryTopRightArea`; Dynamac uses the smaller of the position gap and width-derived gap between them plus a small `DYNAMAC_NOTCH_MARGIN` as the native cutout width. The compact height defaults to the measured notch/menu-bar top band only when it is in a tight 24–32 pt range, otherwise 30 pt for notched screens and 38 pt for non-notch displays. On non-notch or external displays, those notch areas are unavailable and Dynamac automatically switches to a single compact pill instead of leaving an empty center gap. If notch values are unavailable on a physical MacBook, it falls back to `DYNAMAC_NOTCH_WIDTH=184` and can be tuned on that MacBook.
 
-For screenshot QA, physical MacBook notches do not appear in macOS screenshots. Enable a QA-only fake notch silhouette so `screencapture` can show the notch gap/alignment:
+For geometry QA, do not rely on screenshots alone: physical MacBook notches do not appear in macOS screenshots, and a fake notch derived from a wrong layout only proves the wrong layout. Use the live calibration loop on the real MacBook screen instead:
+
+```sh
+npm run native:calibrate
+```
+
+The calibration loop launches a QA silhouette on top of the real display and lets you adjust the geometry while looking at the physical notch:
+
+```text
+w+ / w-       widen or narrow the notch cutout
+h+ / h-       make the compact overlay taller or shorter
+wing+ / wing- make the side nubs wider or narrower
+r+ / r-       round or sharpen corners
+save          write .dynamac-calibration.json
+```
+
+After `save`, normal launches automatically apply the saved machine-local geometry:
+
+```sh
+npm run native:start
+```
+
+For screenshot reports after calibration, you can still enable the QA silhouette and capture the result:
 
 ```sh
 DYNAMAC_QA_NOTCH_SILHOUETTE=1 DYNAMAC_NATIVE_DIAG=1 npm run native:start
 screencapture -x /tmp/dynamac-notch-qa.png
 ```
 
-Leave `DYNAMAC_QA_NOTCH_SILHOUETTE` unset for normal use; it intentionally draws a black center silhouette only for visual QA screenshots. The silhouette uses the same measured `layout.notchCutoutWidth` and compact height as the real transparent cutout, with square top corners and rounded lower corners so it approximates the physical MacBook notch instead of a generic rounded pill.
+The saved `.dynamac-calibration.json` is ignored by git because notch geometry is per-machine.
 
 Prefer `npm run native:start` for the current native overlay. `swift run Dynamac-Island` exercises the older SwiftPM MVP target, not the AppKit overlay path.
 
@@ -163,10 +187,11 @@ Run these checks on the target MacBook after `npm install`:
 3. Run `npm run native:start` from `~/projects/dynamac-island` for the native AppKit notch overlay, or `npm start` for the Electron fallback.
 4. Confirm compact mode leaves the hardware notch area uncovered and paints black wings beside the notch, not one centered pill over it.
 5. If the cutout does not match the notch, run `DYNAMAC_NATIVE_DIAG=1 npm run native:start` and tune `DYNAMAC_NOTCH_WIDTH` from the printed `layout.notchCutoutWidth` value.
-6. For screenshot-based QA, launch with `DYNAMAC_QA_NOTCH_SILHOUETTE=1 DYNAMAC_NATIVE_DIAG=1 npm run native:start`, then capture `screencapture -x /tmp/dynamac-notch-qa.png` so the otherwise invisible hardware notch appears as a QA silhouette.
-7. Confirm the compact surface uses the normal Mac utility status provider; Hermes runtime status is an optional/dev provider, not the required default on machines without Hermes.
-8. Run `npm run test:notch-position` to verify the top-center anchoring contract.
-9. Run `npm run test:hermes-status` to verify optional local runtime snapshot generation.
+6. For geometry QA, run `npm run native:calibrate`, adjust the live overlay while looking at the physical notch, then `save` to write `.dynamac-calibration.json`.
+7. For screenshot-based reports after calibration, launch with `DYNAMAC_QA_NOTCH_SILHOUETTE=1 DYNAMAC_NATIVE_DIAG=1 npm run native:start`, then capture `screencapture -x /tmp/dynamac-notch-qa.png`.
+8. Confirm the compact surface uses the normal Mac utility status provider; Hermes runtime status is an optional/dev provider, not the required default on machines without Hermes.
+9. Run `npm run test:notch-position` to verify the top-center anchoring contract.
+10. Run `npm run test:hermes-status` to verify optional local runtime snapshot generation.
 
 Run the README content validation test:
 

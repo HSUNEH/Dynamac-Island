@@ -54,6 +54,8 @@ const requiredSnippets = [
   ["MacBook native smoke test launch path", "Run `npm run native:smoke` from `~/projects/dynamac-island`"],
   ["MacBook native overlay launch path", "Run `npm run native:start` from `~/projects/dynamac-island`"],
   ["notch wing verification", "on non-notch/external displays, Dynamac uses one normal compact pill"],
+  ["live calibration command", "npm run native:calibrate"],
+  ["machine-local calibration file", ".dynamac-calibration.json"],
   ["screenshot QA silhouette", "DYNAMAC_QA_NOTCH_SILHOUETTE=1"],
   ["screenshot capture command", "screencapture -x /tmp/dynamac-notch-qa.png"],
   ["notch test command", "npm run test:notch-position"],
