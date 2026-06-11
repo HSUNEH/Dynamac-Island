@@ -113,7 +113,7 @@ DYNAMAC_QA_NOTCH_SILHOUETTE=1 DYNAMAC_NATIVE_DIAG=1 npm run native:start
 screencapture -x /tmp/dynamac-notch-qa.png
 ```
 
-Leave `DYNAMAC_QA_NOTCH_SILHOUETTE` unset for normal use; it intentionally draws a black center silhouette only for visual QA screenshots.
+Leave `DYNAMAC_QA_NOTCH_SILHOUETTE` unset for normal use; it intentionally draws a black center silhouette only for visual QA screenshots. The silhouette uses the same measured `layout.notchCutoutWidth` and compact height as the real transparent cutout, with square top corners and rounded lower corners so it approximates the physical MacBook notch instead of a generic rounded pill.
 
 Prefer `npm run native:start` for the current native overlay. `swift run Dynamac-Island` exercises the older SwiftPM MVP target, not the AppKit overlay path.
 

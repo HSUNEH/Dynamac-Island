@@ -30,6 +30,8 @@ assert.match(source, /Non-notch displays have no hardware cutout/, "compact nati
 assert.doesNotMatch(source, /let size = NSSize\(width: 286, height: 58\)/, "compact native overlay must not use a single centered pill that covers the notch");
 assert.match(source, /DYNAMAC_QA_NOTCH_SILHOUETTE/, "native overlay should offer a QA-only fake notch silhouette so screenshots can verify physical-notch spacing");
 assert.match(source, /drawQaNotchSilhouette/, "native overlay should draw the QA notch silhouette only when requested");
+assert.match(source, /notchCutoutRect\(in: bounds\)/, "QA notch silhouette should use the same measured cutout rect as the real transparent hardware gap");
+assert.match(source, /Only bottom corners are rounded/, "QA notch silhouette should approximate a physical notch instead of a generic rounded pill");
 assert.match(source, /override func mouseDown/, "native overlay should provide a direct compact\/expanded toggle interaction");
 assert.match(source, /toggleExpanded\(\)/, "native overlay should expose a toggle path for expansion");
 assert.match(source, /panel\.setFrame\(topCenteredRect\(screen: screen, size: size\), display: true, animate: true\)/, "native overlay should resize and re-anchor the panel when the mode changes");

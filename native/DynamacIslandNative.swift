@@ -187,17 +187,26 @@ final class IslandView: NSView {
     }
 
     private func drawQaNotchSilhouette() {
-        let cutout = compactLayout.notchCutoutRect(in: bounds)
-        let silhouetteWidth = min(cutout.width, max(120, cutout.width - 14))
-        let silhouetteHeight = bounds.height
-        let rect = NSRect(
-            x: cutout.midX - silhouetteWidth / 2,
-            y: bounds.minY,
-            width: silhouetteWidth,
-            height: silhouetteHeight
+        let rect = compactLayout.notchCutoutRect(in: bounds)
+        let radius = min(max(6, rect.height * 0.32), 10)
+        let path = NSBezierPath()
+        // QA silhouette mirrors the measured native cutout: exact width, exact compact height,
+        // attached to the top edge like the physical camera notch. Only bottom corners are rounded.
+        path.move(to: NSPoint(x: rect.minX, y: rect.minY))
+        path.line(to: NSPoint(x: rect.maxX, y: rect.minY))
+        path.line(to: NSPoint(x: rect.maxX, y: rect.maxY - radius))
+        path.curve(
+            to: NSPoint(x: rect.maxX - radius, y: rect.maxY),
+            controlPoint1: NSPoint(x: rect.maxX, y: rect.maxY - radius * 0.45),
+            controlPoint2: NSPoint(x: rect.maxX - radius * 0.45, y: rect.maxY)
         )
-        let radius = min(10, silhouetteHeight / 3)
-        let path = NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius)
+        path.line(to: NSPoint(x: rect.minX + radius, y: rect.maxY))
+        path.curve(
+            to: NSPoint(x: rect.minX, y: rect.maxY - radius),
+            controlPoint1: NSPoint(x: rect.minX + radius * 0.45, y: rect.maxY),
+            controlPoint2: NSPoint(x: rect.minX, y: rect.maxY - radius * 0.45)
+        )
+        path.close()
         NSColor(calibratedRed: 0.0, green: 0.0, blue: 0.0, alpha: 1.0).setFill()
         path.fill()
     }
