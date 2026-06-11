@@ -396,8 +396,7 @@ final class IslandView: NSView {
         drawArtwork(media: media, in: NSRect(x: x, y: y, width: artSize, height: artSize), cornerRadius: 7, fallbackFontSize: 17)
 
         if compactLayout.usesHardwareNotchCutout {
-            let rightWing = compactLayout.rightWingRect(in: bounds)
-            drawPlayingBars(media: media, in: rightWing.insetBy(dx: 10, dy: 8))
+            drawPlayingBars(media: media, in: compactPlayingBarsRect())
         }
     }
 
@@ -550,18 +549,38 @@ final class IslandView: NSView {
         triangle.fill()
     }
 
+    private func compactPlayingBarsRect() -> NSRect {
+        // Keep the animation inside the visible right wing, not in the overlap that tucks
+        // under the hardware notch. That prevents the left edge of the bars from being
+        // clipped by the physical cutout while preserving the calibrated album-cover size.
+        let visibleRightWingX = compactLayout.wingWidth + compactLayout.notchCutoutWidth
+        let horizontalInset: CGFloat = 7
+        let verticalInset: CGFloat = 6
+        return NSRect(
+            x: visibleRightWingX + horizontalInset,
+            y: verticalInset,
+            width: max(18, compactLayout.wingWidth - horizontalInset * 2),
+            height: max(10, bounds.height - verticalInset * 2)
+        )
+    }
+
     private func drawPlayingBars(media: MediaInfo, in rect: NSRect) {
         let isPlaying = media.playbackState == "playing"
-        let barCount = 3
-        let gap: CGFloat = 3
+        let barCount = 4
+        let gap: CGFloat = 2
         let barWidth = max(3, (rect.width - CGFloat(barCount - 1) * gap) / CGFloat(barCount))
-        let phase = Date().timeIntervalSince1970 * 5
+        let sensitivity = CGFloat(Double(ProcessInfo.processInfo.environment["DYNAMAC_PLAYING_BARS_SENSITIVITY"] ?? "1.45") ?? 1.45)
+        let phase = Date().timeIntervalSince1970 * 10.5
         for index in 0..<barCount {
             let x = rect.minX + CGFloat(index) * (barWidth + gap)
-            let wave = isPlaying ? (sin(phase + Double(index) * 1.15) + 1) / 2 : 0.18
-            let height = max(5, rect.height * CGFloat(0.32 + wave * 0.68))
-            let y = rect.maxY - height
-            NSColor.systemGreen.withAlphaComponent(isPlaying ? 0.95 : 0.45).setFill()
+            let rawWave = isPlaying ? (sin(phase + Double(index) * 0.95) + 1) / 2 : 0.12
+            let boostedWave = min(1, pow(rawWave, 0.62) * sensitivity)
+            let heightRatio = isPlaying ? (0.18 + boostedWave * 0.82) : 0.22
+            let height = max(4, rect.height * CGFloat(heightRatio))
+            let y = rect.midY - height / 2
+            let alpha = isPlaying ? min(1, 0.58 + boostedWave * 0.42) : 0.38
+            let color = index % 2 == 0 ? NSColor.systemGreen : NSColor.systemMint
+            color.withAlphaComponent(alpha).setFill()
             NSBezierPath(roundedRect: NSRect(x: x, y: y, width: barWidth, height: height), xRadius: barWidth / 2, yRadius: barWidth / 2).fill()
         }
     }

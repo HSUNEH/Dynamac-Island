@@ -57,6 +57,11 @@ assert.match(source, /startDisplayRefresh/, "native overlay should redraw freque
 assert.match(source, /DYNAMAC_DISPLAY_REFRESH_MS/, "native overlay should allow tuning the display refresh interval");
 assert.match(source, /drawPlayingBars/, "compact notch mode should show a simple right-wing playing animation");
 assert.match(source, /rightWingRect\(in: bounds\)/, "compact playing animation should live in the right notch wing");
+assert.match(source, /compactPlayingBarsRect/, "compact playing animation should use a dedicated safe rect inside the visible right wing");
+assert.match(source, /visibleRightWingX = compactLayout\.wingWidth \+ compactLayout\.notchCutoutWidth/, "compact playing bars should avoid the notch-overlap area that clips their left edge");
+assert.match(source, /DYNAMAC_PLAYING_BARS_SENSITIVITY/, "compact playing bars should expose a sensitivity knob for tuning animation intensity");
+assert.match(source, /let barCount = 4/, "compact playing animation should use four bars for a livelier meter");
+assert.match(source, /Date\(\)\.timeIntervalSince1970 \* 10\.5/, "compact playing animation should move faster than the original low-sensitivity bars");
 
 assert.match(source, /onMediaSeek/, "expanded progress bar should expose media seek callbacks");
 assert.match(source, /mouseDragged/, "expanded progress bar should support dragging to seek");
