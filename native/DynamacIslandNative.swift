@@ -1,4 +1,5 @@
 import AppKit
+import QuartzCore
 
 struct StatusPayload: Decodable {
     let statuses: [StatusItem]
@@ -18,6 +19,7 @@ struct NotchWingLayout {
     let height: CGFloat
     let innerCornerRadius: CGFloat
     let outerCornerRadius: CGFloat
+    let notchOverlap: CGFloat
     let usesHardwareNotchCutout: Bool
     let showsQaNotchSilhouette: Bool
 
@@ -31,12 +33,14 @@ struct NotchWingLayout {
         let defaultHeight = usesHardwareNotchCutout ? (measuredNotchHeightValue ?? 30) : 38
         let defaultInnerRadius: CGFloat = usesHardwareNotchCutout ? 5 : 8
         let defaultOuterRadius: CGFloat = usesHardwareNotchCutout ? 8 : 12
+        let defaultNotchOverlap: CGFloat = usesHardwareNotchCutout ? 8 : 0
         return NotchWingLayout(
             notchCutoutWidth: CGFloat(Double(environment["DYNAMAC_NOTCH_WIDTH"] ?? "\(Int(defaultNotchWidth))") ?? Double(defaultNotchWidth)),
             wingWidth: CGFloat(Double(environment["DYNAMAC_WING_WIDTH"] ?? "\(Int(defaultWingWidth))") ?? Double(defaultWingWidth)),
             height: CGFloat(Double(environment["DYNAMAC_COMPACT_HEIGHT"] ?? "\(Int(defaultHeight))") ?? Double(defaultHeight)),
             innerCornerRadius: CGFloat(Double(environment["DYNAMAC_INNER_RADIUS"] ?? "\(Int(defaultInnerRadius))") ?? Double(defaultInnerRadius)),
             outerCornerRadius: CGFloat(Double(environment["DYNAMAC_OUTER_RADIUS"] ?? "\(Int(defaultOuterRadius))") ?? Double(defaultOuterRadius)),
+            notchOverlap: CGFloat(Double(environment["DYNAMAC_NOTCH_OVERLAP"] ?? "\(Int(defaultNotchOverlap))") ?? Double(defaultNotchOverlap)),
             usesHardwareNotchCutout: usesHardwareNotchCutout,
             showsQaNotchSilhouette: environment["DYNAMAC_QA_NOTCH_SILHOUETTE"] == "1"
         )
@@ -83,11 +87,13 @@ struct NotchWingLayout {
     }
 
     func leftWingRect(in bounds: NSRect) -> NSRect {
-        NSRect(x: 0, y: 0, width: wingWidth, height: bounds.height)
+        // Extend inward by notchOverlap so the wing covers the notch's rounded corner.
+        NSRect(x: 0, y: 0, width: wingWidth + notchOverlap, height: bounds.height)
     }
 
     func rightWingRect(in bounds: NSRect) -> NSRect {
-        NSRect(x: wingWidth + notchCutoutWidth, y: 0, width: wingWidth, height: bounds.height)
+        // Start notchOverlap earlier so the wing covers the notch's rounded corner.
+        NSRect(x: wingWidth + notchCutoutWidth - notchOverlap, y: 0, width: wingWidth + notchOverlap, height: bounds.height)
     }
 
     func notchCutoutRect(in bounds: NSRect) -> NSRect {
@@ -149,7 +155,9 @@ final class IslandView: NSView {
     }
 
     private func drawExpandedSurface() {
-        let radius: CGFloat = 42
+        // Use the same bottom-corner radius as the compact notch wings so the shape stays
+        // consistent through the expand/collapse animation instead of suddenly rounding off.
+        let radius = compactLayout.outerCornerRadius
         let path = NSBezierPath()
 
         // Expanded mode grows downward from the physical top edge.
@@ -242,59 +250,47 @@ final class IslandView: NSView {
         let inner = compactLayout.innerCornerRadius
         let path = NSBezierPath()
 
+        // Flipped coords: minY = top (flush to the screen edge), maxY = bottom.
+        // The top edge stays perfectly straight so the wing reads as connected off the
+        // top of the screen. Only the bottom corners are rounded: the outer radius on the
+        // screen-edge side, the inner radius on the notch side.
         switch side {
         case .left:
-            path.move(to: NSPoint(x: rect.minX + outer, y: rect.minY))
-            path.line(to: NSPoint(x: rect.maxX - inner, y: rect.minY))
+            let bottomNotch = inner   // bottom-right corner (notch side)
+            let bottomEdge = outer    // bottom-left corner (screen-edge side)
+            path.move(to: NSPoint(x: rect.minX, y: rect.minY))          // top-left (square)
+            path.line(to: NSPoint(x: rect.maxX, y: rect.minY))          // top-right (square)
+            path.line(to: NSPoint(x: rect.maxX, y: rect.maxY - bottomNotch))
             path.curve(
-                to: NSPoint(x: rect.maxX, y: rect.minY + inner),
-                controlPoint1: NSPoint(x: rect.maxX - inner / 2, y: rect.minY),
-                controlPoint2: NSPoint(x: rect.maxX, y: rect.minY + inner / 2)
+                to: NSPoint(x: rect.maxX - bottomNotch, y: rect.maxY),
+                controlPoint1: NSPoint(x: rect.maxX, y: rect.maxY - bottomNotch / 2),
+                controlPoint2: NSPoint(x: rect.maxX - bottomNotch / 2, y: rect.maxY)
             )
-            path.line(to: NSPoint(x: rect.maxX, y: rect.maxY - inner))
+            path.line(to: NSPoint(x: rect.minX + bottomEdge, y: rect.maxY))
             path.curve(
-                to: NSPoint(x: rect.maxX - inner, y: rect.maxY),
-                controlPoint1: NSPoint(x: rect.maxX, y: rect.maxY - inner / 2),
-                controlPoint2: NSPoint(x: rect.maxX - inner / 2, y: rect.maxY)
+                to: NSPoint(x: rect.minX, y: rect.maxY - bottomEdge),
+                controlPoint1: NSPoint(x: rect.minX + bottomEdge / 2, y: rect.maxY),
+                controlPoint2: NSPoint(x: rect.minX, y: rect.maxY - bottomEdge / 2)
             )
-            path.line(to: NSPoint(x: rect.minX + outer, y: rect.maxY))
-            path.curve(
-                to: NSPoint(x: rect.minX, y: rect.maxY - outer),
-                controlPoint1: NSPoint(x: rect.minX + outer / 2, y: rect.maxY),
-                controlPoint2: NSPoint(x: rect.minX, y: rect.maxY - outer / 2)
-            )
-            path.line(to: NSPoint(x: rect.minX, y: rect.minY + outer))
-            path.curve(
-                to: NSPoint(x: rect.minX + outer, y: rect.minY),
-                controlPoint1: NSPoint(x: rect.minX, y: rect.minY + outer / 2),
-                controlPoint2: NSPoint(x: rect.minX + outer / 2, y: rect.minY)
-            )
+            path.line(to: NSPoint(x: rect.minX, y: rect.minY))          // up left edge (square top-left)
         case .right:
-            path.move(to: NSPoint(x: rect.minX + inner, y: rect.minY))
-            path.line(to: NSPoint(x: rect.maxX - outer, y: rect.minY))
+            let bottomNotch = inner   // bottom-left corner (notch side)
+            let bottomEdge = outer    // bottom-right corner (screen-edge side)
+            path.move(to: NSPoint(x: rect.minX, y: rect.minY))          // top-left (square)
+            path.line(to: NSPoint(x: rect.maxX, y: rect.minY))          // top-right (square)
+            path.line(to: NSPoint(x: rect.maxX, y: rect.maxY - bottomEdge))
             path.curve(
-                to: NSPoint(x: rect.maxX, y: rect.minY + outer),
-                controlPoint1: NSPoint(x: rect.maxX - outer / 2, y: rect.minY),
-                controlPoint2: NSPoint(x: rect.maxX, y: rect.minY + outer / 2)
+                to: NSPoint(x: rect.maxX - bottomEdge, y: rect.maxY),
+                controlPoint1: NSPoint(x: rect.maxX, y: rect.maxY - bottomEdge / 2),
+                controlPoint2: NSPoint(x: rect.maxX - bottomEdge / 2, y: rect.maxY)
             )
-            path.line(to: NSPoint(x: rect.maxX, y: rect.maxY - outer))
+            path.line(to: NSPoint(x: rect.minX + bottomNotch, y: rect.maxY))
             path.curve(
-                to: NSPoint(x: rect.maxX - outer, y: rect.maxY),
-                controlPoint1: NSPoint(x: rect.maxX, y: rect.maxY - outer / 2),
-                controlPoint2: NSPoint(x: rect.maxX - outer / 2, y: rect.maxY)
+                to: NSPoint(x: rect.minX, y: rect.maxY - bottomNotch),
+                controlPoint1: NSPoint(x: rect.minX + bottomNotch / 2, y: rect.maxY),
+                controlPoint2: NSPoint(x: rect.minX, y: rect.maxY - bottomNotch / 2)
             )
-            path.line(to: NSPoint(x: rect.minX + inner, y: rect.maxY))
-            path.curve(
-                to: NSPoint(x: rect.minX, y: rect.maxY - inner),
-                controlPoint1: NSPoint(x: rect.minX + inner / 2, y: rect.maxY),
-                controlPoint2: NSPoint(x: rect.minX, y: rect.maxY - inner / 2)
-            )
-            path.line(to: NSPoint(x: rect.minX, y: rect.minY + inner))
-            path.curve(
-                to: NSPoint(x: rect.minX + inner, y: rect.minY),
-                controlPoint1: NSPoint(x: rect.minX, y: rect.minY + inner / 2),
-                controlPoint2: NSPoint(x: rect.minX + inner / 2, y: rect.minY)
-            )
+            path.line(to: NSPoint(x: rect.minX, y: rect.minY))          // up left edge (square top-left)
         }
 
         path.close()
@@ -379,6 +375,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.level = .screenSaver
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         panel.hidesOnDeactivate = false
+        // Disable the implicit window animation, otherwise resizing between expanded and
+        // compact slides the panel from its old (wider, left-shifted) frame to the new
+        // centered frame instead of snapping in place.
+        panel.animationBehavior = .none
 
         let view = IslandView(frame: NSRect(origin: .zero, size: size))
         view.compactLayout = compactLayout
@@ -394,9 +394,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let panel, let islandView, let screen = panel.screen ?? NSScreen.main else { return }
         expanded.toggle()
         let size = expanded ? NSSize(width: 520, height: 210) : compactLayout.totalSize
-        islandView.expanded = expanded
-        islandView.frame = NSRect(origin: .zero, size: size)
-        panel.setFrame(topCenteredRect(screen: screen, size: size), display: true, animate: true)
+        let targetFrame = topCenteredRect(screen: screen, size: size)
+        let duration = 0.28
+
+        // The content view always fills the window, so animating the panel frame (which
+        // topCenteredRect keeps centered) makes the surface scale toward the notch instead
+        // of sliding. The filled expanded surface is drawn for the whole transition so the
+        // transparent-center compact shape never shows mid-animation; we swap to the notch
+        // wings only once the frame has finished shrinking.
+        if expanded {
+            // Grow: fill with the expanded surface first, then scale up smoothly.
+            islandView.expanded = true
+            islandView.needsDisplay = true
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = duration
+                ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                panel.animator().setFrame(targetFrame, display: true)
+            }
+        } else {
+            // Collapse: keep drawing the filled surface while it shrinks, swap to the
+            // notch wings at the end.
+            NSAnimationContext.runAnimationGroup({ ctx in
+                ctx.duration = duration
+                ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                panel.animator().setFrame(targetFrame, display: true)
+            }, completionHandler: { [weak islandView] in
+                islandView?.expanded = false
+                islandView?.needsDisplay = true
+            })
+        }
     }
 
     private func topCenteredRect(screen: NSScreen, size: NSSize) -> NSRect {
