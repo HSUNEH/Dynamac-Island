@@ -25,23 +25,33 @@ struct NotchWingLayout {
 
     static func compactFromEnvironment(screen: NSScreen? = nil) -> NotchWingLayout {
         let environment = ProcessInfo.processInfo.environment
-        let measuredNotchWidth = screen.flatMap { measuredNotchCutoutWidth(screen: $0) }
-        let measuredNotchHeightValue = screen.flatMap { measuredNotchHeight(screen: $0) }
-        let usesHardwareNotchCutout = measuredNotchWidth != nil || screen.map { $0.safeAreaInsets.top > 0 } == true
-        let defaultNotchWidth = usesHardwareNotchCutout ? (measuredNotchWidth ?? 184) : 0
-        let defaultWingWidth: CGFloat = usesHardwareNotchCutout ? 36 : 132
-        let defaultHeight = usesHardwareNotchCutout ? (measuredNotchHeightValue ?? 32.12) : 38
-        let defaultInnerRadius: CGFloat = usesHardwareNotchCutout ? 5 : 8
-        let defaultOuterRadius: CGFloat = usesHardwareNotchCutout ? 8 : 12
-        let defaultNotchOverlap: CGFloat = usesHardwareNotchCutout ? 12 : 0
+        let hasHardwareNotch = screen.flatMap { measuredNotchCutoutWidth(screen: $0) } != nil
+            || screen.map { $0.safeAreaInsets.top > 0 } == true
+
+        // Hand-calibrated dimensions for the hardware-notch overlay. These fixed values are
+        // used as-is (they intentionally take precedence over OS-measured notch sizes) so the
+        // overlay renders identically on every notch Mac. Each can still be overridden at
+        // runtime via its env var; fractional values are preserved.
+        let defaultNotchWidth: CGFloat = hasHardwareNotch ? 182 : 0
+        let defaultWingWidth: CGFloat = hasHardwareNotch ? 37 : 132
+        let defaultHeight: CGFloat = hasHardwareNotch ? 32.12 : 38
+        let defaultInnerRadius: CGFloat = hasHardwareNotch ? 5 : 8
+        let defaultOuterRadius: CGFloat = hasHardwareNotch ? 8 : 12
+        let defaultNotchOverlap: CGFloat = hasHardwareNotch ? 12 : 0
+
+        func tuned(_ key: String, _ fallback: CGFloat) -> CGFloat {
+            guard let raw = environment[key], let parsed = Double(raw) else { return fallback }
+            return CGFloat(parsed)
+        }
+
         return NotchWingLayout(
-            notchCutoutWidth: CGFloat(Double(environment["DYNAMAC_NOTCH_WIDTH"] ?? "\(Int(defaultNotchWidth))") ?? Double(defaultNotchWidth)),
-            wingWidth: CGFloat(Double(environment["DYNAMAC_WING_WIDTH"] ?? "\(Int(defaultWingWidth))") ?? Double(defaultWingWidth)),
-            height: CGFloat(Double(environment["DYNAMAC_COMPACT_HEIGHT"] ?? "\(Int(defaultHeight))") ?? Double(defaultHeight)),
-            innerCornerRadius: CGFloat(Double(environment["DYNAMAC_INNER_RADIUS"] ?? "\(Int(defaultInnerRadius))") ?? Double(defaultInnerRadius)),
-            outerCornerRadius: CGFloat(Double(environment["DYNAMAC_OUTER_RADIUS"] ?? "\(Int(defaultOuterRadius))") ?? Double(defaultOuterRadius)),
-            notchOverlap: CGFloat(Double(environment["DYNAMAC_NOTCH_OVERLAP"] ?? "\(Int(defaultNotchOverlap))") ?? Double(defaultNotchOverlap)),
-            usesHardwareNotchCutout: usesHardwareNotchCutout,
+            notchCutoutWidth: tuned("DYNAMAC_NOTCH_WIDTH", defaultNotchWidth),
+            wingWidth: tuned("DYNAMAC_WING_WIDTH", defaultWingWidth),
+            height: tuned("DYNAMAC_COMPACT_HEIGHT", defaultHeight),
+            innerCornerRadius: tuned("DYNAMAC_INNER_RADIUS", defaultInnerRadius),
+            outerCornerRadius: tuned("DYNAMAC_OUTER_RADIUS", defaultOuterRadius),
+            notchOverlap: tuned("DYNAMAC_NOTCH_OVERLAP", defaultNotchOverlap),
+            usesHardwareNotchCutout: hasHardwareNotch,
             showsQaNotchSilhouette: environment["DYNAMAC_QA_NOTCH_SILHOUETTE"] == "1"
         )
     }
