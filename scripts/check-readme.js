@@ -42,7 +42,7 @@ const requiredSnippets = [
   ["Mac activity status source", "native `npm run native:start` writes and refreshes a local Mac activity snapshot in `.build/status.json` while running"],
   ["Mac activity runtime model", "`Now Playing` from Spotify/Music best-effort AppleScript plus YouTube tab scanning with page metadata/video timing/thumbnail detection, `Clipboard` from local text clipboard, and `Battery` from `pmset -g batt`"],
   ["Now Playing notch mode", "notch mode shows only album art/YouTube thumbnail/music-note fallback on the left wing plus a simple animated playing-bars indicator on the right wing"],
-  ["Now Playing expanded mode", "expanded mode shows the cover on the left, title, artist/source, smoothly advancing play time/progress, draggable/clickable seek, and previous/play-pause/next vector controls"],
+  ["Now Playing expanded mode", "expanded mode uses an Apple-inspired quiet media sheet: larger artwork, SF-style 17/21pt typography, split elapsed/duration labels, thin scrubber with a visible thumb plus a large invisible hit target, centered pill transport controls, draggable/clickable seek, and previous/play-pause/next vector controls"],
   ["Now Playing transition performance", "Notch-to-expanded transitions animate only the lightweight island shell, then fade media content in after resize"],
   ["fixtures only", "Fixture JSON files under `fixtures/` remain only for deterministic tests"],
   ["watched status source", "status/status.json"],

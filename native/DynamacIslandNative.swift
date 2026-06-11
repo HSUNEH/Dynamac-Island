@@ -401,37 +401,56 @@ final class IslandView: NSView {
     }
 
     private func drawExpandedNowPlaying(_ media: MediaInfo) {
-        NSString(string: "NOW PLAYING").draw(
-            in: NSRect(x: 28, y: 20, width: bounds.width - 56, height: 18),
-            withAttributes: [.foregroundColor: NSColor(calibratedWhite: 0.70, alpha: 1), .font: NSFont.systemFont(ofSize: 12, weight: .bold)]
-        )
+        // Apple-inspired media sheet: quiet chrome, SF Pro proportions, 8pt rhythm,
+        // one accent color, and large invisible scrubber target over a thin track.
+        let cover = expandedCoverRect()
+        drawArtwork(media: media, in: cover, cornerRadius: 24, fallbackFontSize: 40)
 
-        let cover = NSRect(x: 28, y: 52, width: 112, height: 112)
-        drawArtwork(media: media, in: cover, cornerRadius: 22, fallbackFontSize: 42)
+        let contentX = cover.maxX + 24
+        let contentW = bounds.width - contentX - 32
+        let labelAttrs = expandedTextAttributes(size: 11, weight: .semibold, color: NSColor(calibratedWhite: 0.64, alpha: 1), letterSpacing: 0.8)
+        let titleAttrs = expandedTextAttributes(size: 21, weight: .semibold, color: .white, letterSpacing: -0.28)
+        let artistAttrs = expandedTextAttributes(size: 15, weight: .regular, color: NSColor(calibratedWhite: 0.70, alpha: 1), letterSpacing: -0.12)
+        let timeAttrs = expandedTextAttributes(size: 11, weight: .medium, color: NSColor(calibratedWhite: 0.56, alpha: 1), letterSpacing: 0, monospaced: true)
 
-        let titleAttrs: [NSAttributedString.Key: Any] = [
-            .foregroundColor: NSColor.white,
-            .font: NSFont.systemFont(ofSize: 24, weight: .bold)
-        ]
-        let artistAttrs: [NSAttributedString.Key: Any] = [
-            .foregroundColor: NSColor(calibratedWhite: 0.74, alpha: 1),
-            .font: NSFont.systemFont(ofSize: 14, weight: .medium)
-        ]
-        let timeAttrs: [NSAttributedString.Key: Any] = [
-            .foregroundColor: NSColor(calibratedWhite: 0.64, alpha: 1),
-            .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
-        ]
-
-        let textX: CGFloat = 160
-        NSString(string: media.title ?? "Nothing playing").draw(in: NSRect(x: textX, y: 56, width: bounds.width - textX - 28, height: 34), withAttributes: titleAttrs)
-        NSString(string: media.artist?.isEmpty == false ? media.artist! : displaySourceName(media.source)).draw(in: NSRect(x: textX, y: 92, width: bounds.width - textX - 28, height: 22), withAttributes: artistAttrs)
+        NSString(string: displaySourceName(media.source).uppercased()).draw(in: NSRect(x: contentX, y: 34, width: contentW, height: 14), withAttributes: labelAttrs)
+        NSString(string: media.title ?? "Nothing playing").draw(in: NSRect(x: contentX, y: 54, width: contentW, height: 50), withAttributes: titleAttrs)
+        NSString(string: media.artist?.isEmpty == false ? media.artist! : displaySourceName(media.source)).draw(in: NSRect(x: contentX, y: 106, width: contentW, height: 20), withAttributes: artistAttrs)
 
         let elapsedSeconds = displayPositionSeconds(media)
         let elapsed = formatSeconds(elapsedSeconds)
         let duration = media.durationLabel ?? formatSeconds(media.durationSeconds)
-        NSString(string: "\(elapsed) / \(duration)").draw(in: NSRect(x: textX, y: 124, width: 180, height: 18), withAttributes: timeAttrs)
-        drawProgressBar(media: media, positionSeconds: elapsedSeconds, rect: progressBarRect())
+        let progressRect = progressBarRect()
+        NSString(string: elapsed).draw(in: NSRect(x: progressRect.minX, y: progressRect.minY - 20, width: 72, height: 14), withAttributes: timeAttrs)
+        NSString(string: duration).draw(in: NSRect(x: progressRect.maxX - 72, y: progressRect.minY - 20, width: 72, height: 14), withAttributes: rightAlignedAttributes(timeAttrs))
+        drawProgressBar(media: media, positionSeconds: elapsedSeconds, rect: progressRect)
         drawMediaControls(media: media)
+    }
+
+    private func expandedCoverRect() -> NSRect {
+        NSRect(x: 32, y: 48, width: 120, height: 120)
+    }
+
+    private func expandedTextAttributes(size: CGFloat, weight: NSFont.Weight, color: NSColor, letterSpacing: CGFloat, monospaced: Bool = false) -> [NSAttributedString.Key: Any] {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineBreakMode = .byTruncatingTail
+        paragraph.alignment = .left
+        let font = monospaced ? NSFont.monospacedDigitSystemFont(ofSize: size, weight: weight) : NSFont.systemFont(ofSize: size, weight: weight)
+        return [
+            .foregroundColor: color,
+            .font: font,
+            .kern: letterSpacing,
+            .paragraphStyle: paragraph
+        ]
+    }
+
+    private func rightAlignedAttributes(_ attrs: [NSAttributedString.Key: Any]) -> [NSAttributedString.Key: Any] {
+        var copy = attrs
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineBreakMode = .byTruncatingTail
+        paragraph.alignment = .right
+        copy[.paragraphStyle] = paragraph
+        return copy
     }
 
     private func drawArtwork(media: MediaInfo, in rect: NSRect, cornerRadius: CGFloat, fallbackFontSize: CGFloat) {
@@ -488,24 +507,29 @@ final class IslandView: NSView {
     }
 
     private func drawProgressBar(media: MediaInfo, positionSeconds: Double, rect: NSRect) {
-        NSColor(calibratedWhite: 1, alpha: 0.14).setFill()
+        NSColor(calibratedWhite: 1, alpha: 0.16).setFill()
         NSBezierPath(roundedRect: rect, xRadius: rect.height / 2, yRadius: rect.height / 2).fill()
         let duration = max(media.durationSeconds ?? 0, 0)
         let position = max(positionSeconds, 0)
         guard duration > 0 else { return }
         let ratio = min(max(position / duration, 0), 1)
-        let fill = NSRect(x: rect.minX, y: rect.minY, width: rect.width * CGFloat(ratio), height: rect.height)
-        NSColor.systemPink.withAlphaComponent(0.92).setFill()
+        let fill = NSRect(x: rect.minX, y: rect.minY, width: max(rect.height, rect.width * CGFloat(ratio)), height: rect.height)
+        NSColor(calibratedRed: 0.98, green: 0.20, blue: 0.36, alpha: 1).setFill()
         NSBezierPath(roundedRect: fill, xRadius: rect.height / 2, yRadius: rect.height / 2).fill()
+        let knobSize: CGFloat = 9
+        let knobX = min(max(fill.maxX - knobSize / 2, rect.minX - knobSize / 2), rect.maxX - knobSize / 2)
+        NSColor.white.withAlphaComponent(0.96).setFill()
+        NSBezierPath(ovalIn: NSRect(x: knobX, y: rect.midY - knobSize / 2, width: knobSize, height: knobSize)).fill()
     }
 
     private func drawMediaControls(media: MediaInfo) {
         for action in ["previous", "playpause", "next"] {
             let rect = mediaControlRect(action: action)
-            NSColor(calibratedWhite: 1, alpha: action == "playpause" ? 0.18 : 0.10).setFill()
+            let isPrimary = action == "playpause"
+            NSColor(calibratedWhite: 1, alpha: isPrimary ? 0.20 : 0.11).setFill()
             NSBezierPath(roundedRect: rect, xRadius: rect.height / 2, yRadius: rect.height / 2).fill()
-            NSColor.white.setFill()
-            drawTransportIcon(action: action, playing: media.playbackState == "playing", in: rect.insetBy(dx: action == "playpause" ? 10 : 8, dy: action == "playpause" ? 9 : 8))
+            NSColor.white.withAlphaComponent(isPrimary ? 0.98 : 0.88).setFill()
+            drawTransportIcon(action: action, playing: media.playbackState == "playing", in: rect.insetBy(dx: isPrimary ? 13 : 10, dy: isPrimary ? 12 : 10))
         }
     }
 
@@ -586,30 +610,41 @@ final class IslandView: NSView {
     }
 
     private func mediaControlRect(action: String) -> NSRect {
-        let baseX: CGFloat = 160
-        let y: CGFloat = 170
-        let size: CGFloat = action == "playpause" ? 36 : 30
+        let centerX = bounds.midX
+        let y: CGFloat = 164
+        let primarySize: CGFloat = 42
+        let secondarySize: CGFloat = 34
         switch action {
-        case "previous": return NSRect(x: baseX, y: y + 3, width: size, height: size)
-        case "playpause": return NSRect(x: baseX + 44, y: y, width: size, height: size)
-        default: return NSRect(x: baseX + 92, y: y + 3, width: size, height: size)
+        case "previous": return NSRect(x: centerX - 72, y: y + 4, width: secondarySize, height: secondarySize)
+        case "playpause": return NSRect(x: centerX - primarySize / 2, y: y, width: primarySize, height: primarySize)
+        default: return NSRect(x: centerX + 38, y: y + 4, width: secondarySize, height: secondarySize)
         }
     }
 
     private func progressBarRect() -> NSRect {
-        let textX: CGFloat = 160
-        return NSRect(x: textX, y: 148, width: bounds.width - textX - 40, height: 5)
+        let cover = expandedCoverRect()
+        let x = cover.maxX + 24
+        return NSRect(x: x, y: 140, width: bounds.width - x - 32, height: 4)
     }
 
     private func progressHitRect() -> NSRect {
-        progressBarRect().insetBy(dx: 0, dy: -10)
+        // Apple-style scrubbers are visually thin but easy to hit. Keep a 40pt target
+        // around the 4pt track so click and drag feel reliable.
+        progressBarRect().insetBy(dx: -6, dy: -18)
+    }
+
+    private func normalizedInteractionPoint(_ point: NSPoint) -> NSPoint {
+        if progressHitRect().contains(point) { return point }
+        let flipped = NSPoint(x: point.x, y: bounds.height - point.y)
+        return progressHitRect().contains(flipped) ? flipped : point
     }
 
     private func mediaSeekSecond(at point: NSPoint, media: MediaInfo) -> Double? {
         let duration = max(media.durationSeconds ?? 0, 0)
-        guard duration > 0, progressHitRect().contains(point) else { return nil }
+        let normalized = normalizedInteractionPoint(point)
+        guard duration > 0, progressHitRect().contains(normalized) else { return nil }
         let rect = progressBarRect()
-        let ratio = min(max((point.x - rect.minX) / rect.width, 0), 1)
+        let ratio = min(max((normalized.x - rect.minX) / rect.width, 0), 1)
         return Double(ratio) * duration
     }
 

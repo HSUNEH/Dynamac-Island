@@ -63,6 +63,14 @@ assert.match(source, /DYNAMAC_PLAYING_BARS_SENSITIVITY/, "compact playing bars s
 assert.match(source, /let barCount = 4/, "compact playing animation should use four bars for a livelier meter");
 assert.match(source, /Date\(\)\.timeIntervalSince1970 \* 10\.5/, "compact playing animation should move faster than the original low-sensitivity bars");
 
+assert.match(source, /Apple-inspired media sheet/, "expanded Now Playing should follow an Apple-inspired quiet media sheet layout");
+assert.match(source, /expandedCoverRect/, "expanded layout should use a named cover rect instead of scattered magic values");
+assert.match(source, /expandedTextAttributes/, "expanded layout should centralize SF-style typography attributes");
+assert.match(source, /rightAlignedAttributes/, "expanded layout should separate elapsed and duration labels around the scrubber");
+assert.match(source, /knobSize: CGFloat = 9/, "scrubber should render a small thumb so users can see it is draggable");
+assert.match(source, /progressBarRect\(\)\.insetBy\(dx: -6, dy: -18\)/, "scrubber should keep a large invisible hit target around the thin visual track");
+assert.match(source, /normalizedInteractionPoint/, "scrubber should normalize event coordinates so click and drag work reliably in flipped views");
+
 assert.match(source, /onMediaSeek/, "expanded progress bar should expose media seek callbacks");
 assert.match(source, /mouseDragged/, "expanded progress bar should support dragging to seek");
 assert.match(source, /mediaSeekSecond/, "expanded progress bar clicks should map x-position to playback seconds");
