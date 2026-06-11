@@ -158,6 +158,10 @@ final class IslandView: NSView {
     var onMediaSeek: ((String, Double) -> Void)?
     private var isDraggingProgress = false
 
+    var contentOpacity: CGFloat = 1 {
+        didSet { needsDisplay = true }
+    }
+
     var expanded = false {
         didSet { needsDisplay = true }
     }
@@ -216,7 +220,19 @@ final class IslandView: NSView {
             drawCompactSinglePill()
         }
 
+        drawContentWithOpacity()
+    }
+
+    private func drawContentWithOpacity() {
+        guard contentOpacity > 0.01 else { return }
+        guard let context = NSGraphicsContext.current else {
+            drawContent()
+            return
+        }
+        context.saveGraphicsState()
+        context.cgContext.setAlpha(contentOpacity)
         drawContent()
+        context.restoreGraphicsState()
     }
 
     private func drawExpandedSurface() {
@@ -622,6 +638,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var islandView: IslandView?
     private var statusTimer: Timer?
     private var displayTimer: Timer?
+    private var contentFadeTimer: Timer?
     private var expanded = false
     private var compactLayout = NotchWingLayout.compactFromEnvironment()
 
@@ -715,36 +732,62 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func toggleExpanded() {
         guard let panel, let islandView, let screen = panel.screen ?? NSScreen.main else { return }
-        expanded.toggle()
-        let size = expanded ? NSSize(width: 520, height: 210) : compactLayout.totalSize
+        contentFadeTimer?.invalidate()
+        let willExpand = !expanded
+        expanded = willExpand
+        let size = willExpand ? NSSize(width: 520, height: 210) : compactLayout.totalSize
         let targetFrame = topCenteredRect(screen: screen, size: size)
-        let duration = 0.28
+        let duration = 0.24
 
-        // The content view always fills the window, so animating the panel frame (which
-        // topCenteredRect keeps centered) makes the surface scale toward the notch instead
-        // of sliding. The filled expanded surface is drawn for the whole transition so the
-        // transparent-center compact shape never shows mid-animation; we swap to the notch
-        // wings only once the frame has finished shrinking.
-        if expanded {
-            // Grow: fill with the expanded surface first, then scale up smoothly.
+        // Media surfaces can be expensive to draw because album artwork, text, progress,
+        // and transport controls are composited every frame. During resize we draw only
+        // the lightweight island shell, then fade the content back in after the panel
+        // reaches its final frame. This keeps notch <-> expanded motion smooth even with
+        // YouTube thumbnails or local artwork loaded.
+        islandView.contentOpacity = 0
+
+        if willExpand {
             islandView.expanded = true
             islandView.needsDisplay = true
-            NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = duration
-                ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-                panel.animator().setFrame(targetFrame, display: true)
-            }
-        } else {
-            // Collapse: keep drawing the filled surface while it shrinks, swap to the
-            // notch wings at the end.
             NSAnimationContext.runAnimationGroup({ ctx in
                 ctx.duration = duration
-                ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.2, 0.0, 0.0, 1.0)
                 panel.animator().setFrame(targetFrame, display: true)
-            }, completionHandler: { [weak islandView] in
+            }, completionHandler: { [weak self, weak islandView] in
+                self?.fadeContent(in: islandView)
+            })
+        } else {
+            NSAnimationContext.runAnimationGroup({ ctx in
+                ctx.duration = duration
+                ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.2, 0.0, 0.0, 1.0)
+                panel.animator().setFrame(targetFrame, display: true)
+            }, completionHandler: { [weak self, weak islandView] in
                 islandView?.expanded = false
                 islandView?.needsDisplay = true
+                self?.fadeContent(in: islandView)
             })
+        }
+    }
+
+    private func fadeContent(in view: IslandView?) {
+        guard let view else { return }
+        contentFadeTimer?.invalidate()
+        view.contentOpacity = 0
+        let startedAt = Date()
+        let duration: TimeInterval = 0.12
+        contentFadeTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self, weak view] timer in
+            guard let view else {
+                timer.invalidate()
+                return
+            }
+            let progress = min(Date().timeIntervalSince(startedAt) / duration, 1)
+            let eased = 1 - pow(1 - progress, 2)
+            view.contentOpacity = CGFloat(eased)
+            if progress >= 1 {
+                view.contentOpacity = 1
+                timer.invalidate()
+                self?.contentFadeTimer = nil
+            }
         }
     }
 

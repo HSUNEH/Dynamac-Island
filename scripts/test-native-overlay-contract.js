@@ -65,4 +65,10 @@ assert.match(source, /performMediaSeek/, "native overlay should wire progress se
 assert.match(source, /performYouTubeJavaScript/, "native overlay should control YouTube playback through browser JavaScript best-effort");
 assert.match(source, /chromiumYouTubeScript/, "native overlay should scan Chromium browser tabs for YouTube control targets");
 
+assert.match(source, /contentOpacity/, "native overlay should separate content opacity from shell animation");
+assert.match(source, /drawContentWithOpacity/, "native overlay should gate expensive media content drawing during transitions");
+assert.match(source, /guard contentOpacity > 0\.01 else \{ return \}/, "native overlay should skip drawing media content while the resize animation is running");
+assert.match(source, /fadeContent\(in:/, "native overlay should fade media content back in after the shell reaches its target frame");
+assert.match(source, /Media surfaces can be expensive to draw/, "native overlay should document why media content is hidden during transitions");
+
 console.log("Native overlay contract test passed.");
