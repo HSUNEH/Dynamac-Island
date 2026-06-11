@@ -102,12 +102,28 @@ function spotifyScript() {
 }
 
 function musicScript() {
+  const artworkPath = "/tmp/dynamac-music-artwork.jpg";
   return [
     'if application "Music" is running then',
     'tell application "Music"',
     'if player state is playing or player state is paused then',
     'set t to current track',
-    'return "music||" & name of t & "||" & artist of t & "||" & album of t & "||||" & ((duration of t) as string) & "||" & (player position as string) & "||" & (player state as string)',
+    `set artworkPath to "${artworkPath}"`,
+    'set artworkOut to ""',
+    'if (count of artworks of t) > 0 then',
+    'try',
+    'set artworkFile to open for access (POSIX file artworkPath) with write permission',
+    'set eof of artworkFile to 0',
+    'write (data of artwork 1 of t) to artworkFile',
+    'close access artworkFile',
+    'set artworkOut to artworkPath',
+    'on error',
+    'try',
+    'close access (POSIX file artworkPath)',
+    'end try',
+    'end try',
+    'end if',
+    'return "music||" & name of t & "||" & artist of t & "||" & album of t & "||" & artworkOut & "||" & ((duration of t) as string) & "||" & (player position as string) & "||" & (player state as string)',
     'end if',
     'end tell',
     'end if'

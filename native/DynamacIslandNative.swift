@@ -485,6 +485,7 @@ final class IslandView: NSView {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var panel: NSPanel?
     private var islandView: IslandView?
+    private var statusTimer: Timer?
     private var expanded = false
     private var compactLayout = NotchWingLayout.compactFromEnvironment()
 
@@ -492,6 +493,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         createPanel()
         loadStatus()
+        startStatusRefresh()
+
+        if ProcessInfo.processInfo.environment["DYNAMAC_START_EXPANDED"] == "1" {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in self?.toggleExpanded() }
+        }
 
         if ProcessInfo.processInfo.environment["DYNAMAC_NATIVE_SMOKE_TEST"] == "1" {
             print("DYNAMAC_NATIVE_READY")
@@ -593,6 +599,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
         process.arguments = ["-e", "if application \"\(appName)\" is running then tell application \"\(appName)\" to \(command)"]
         try? process.run()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in self?.loadStatus() }
+    }
+
+    private func startStatusRefresh() {
+        let interval = Double(ProcessInfo.processInfo.environment["DYNAMAC_STATUS_RELOAD_MS"] ?? "1000").flatMap { $0 >= 250 ? $0 / 1000 : nil } ?? 1
+        statusTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+            self?.loadStatus()
+        }
     }
 
     private func loadStatus() {

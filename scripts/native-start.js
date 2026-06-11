@@ -3,6 +3,7 @@
 const childProcess = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
+const { writeMacActivityStatusSnapshot } = require("../src/mac-activity-status");
 
 const repoRoot = path.resolve(__dirname, "..");
 const calibrationPath = path.join(repoRoot, ".dynamac-calibration.json");
@@ -28,10 +29,24 @@ function loadCalibrationEnv() {
 }
 
 run("npm", ["run", "native:build"]);
-run("npm", ["run", "status:write"]);
 
 const inherited = { ...loadCalibrationEnv(), ...process.env };
 inherited.DYNAMAC_STATUS_FILE = inherited.DYNAMAC_STATUS_FILE || path.join(repoRoot, ".build/status.json");
+
+function refreshStatus({ log = false } = {}) {
+  try {
+    const result = writeMacActivityStatusSnapshot({ outputPath: inherited.DYNAMAC_STATUS_FILE });
+    if (log) console.log(`Mac activity snapshot written: ${result.outputPath}`);
+  } catch (error) {
+    console.error(`Mac activity snapshot refresh failed: ${error.message}`);
+  }
+}
+
+refreshStatus({ log: true });
+const refreshIntervalMs = Number(inherited.DYNAMAC_STATUS_REFRESH_MS || 2000);
+const refreshTimer = inherited.DYNAMAC_DISABLE_STATUS_REFRESH === "1"
+  ? null
+  : setInterval(refreshStatus, Number.isFinite(refreshIntervalMs) && refreshIntervalMs >= 500 ? refreshIntervalMs : 2000);
 
 const native = childProcess.spawn(path.join(repoRoot, ".build/dynamac-native"), {
   cwd: repoRoot,
@@ -40,6 +55,7 @@ const native = childProcess.spawn(path.join(repoRoot, ".build/dynamac-native"), 
 });
 
 native.on("exit", (code, signal) => {
+  if (refreshTimer) clearInterval(refreshTimer);
   if (signal) process.kill(process.pid, signal);
   process.exit(code ?? 0);
 });

@@ -39,7 +39,7 @@ const requiredSnippets = [
   ["Dynamic Island concept", "compact live-activity surface around the camera/sensor area"],
   ["notch anchored current state", "Notch-attached floating overlay, not a normal movable app window"],
   ["physical display anchoring", "pins `y` to the physical top edge"],
-  ["Mac activity status source", "native `npm run native:start` writes a fresh local Mac activity snapshot to `.build/status.json`"],
+  ["Mac activity status source", "native `npm run native:start` writes and refreshes a local Mac activity snapshot in `.build/status.json` while running"],
   ["Mac activity runtime model", "`Now Playing` from Spotify/Music best-effort AppleScript plus YouTube tab thumbnail detection, `Clipboard` from local text clipboard, and `Battery` from `pmset -g batt`"],
   ["Now Playing notch mode", "notch mode shows only album art/YouTube thumbnail/music-note fallback"],
   ["Now Playing expanded mode", "expanded mode shows the cover on the left, title, artist/source, play time/progress, and previous/play-pause/next controls"],

@@ -37,6 +37,9 @@ assert.match(source, /toggleExpanded\(\)/, "native overlay should expose a toggl
 assert.match(source, /let targetFrame = topCenteredRect\(screen: screen, size: size\)/, "native overlay should compute a centered target frame when the mode changes");
 assert.match(source, /panel\.animator\(\)\.setFrame\(targetFrame, display: true\)/, "native overlay should resize and re-anchor the panel with the centered target frame when the mode changes");
 
+assert.match(source, /startStatusRefresh/, "native overlay should reload status while running so Now Playing changes are reflected without relaunch");
+assert.match(source, /DYNAMAC_START_EXPANDED/, "native overlay should expose an expanded-mode smoke path for UI QA");
+assert.match(source, /DYNAMAC_STATUS_RELOAD_MS/, "native overlay should allow tuning the status reload interval");
 assert.match(source, /drawCompactNowPlaying/, "compact notch mode should render a dedicated Now Playing surface");
 assert.match(source, /artwork alone is the live activity/, "compact notch mode should show album art only, not title and artist text");
 assert.match(source, /drawExpandedNowPlaying/, "expanded mode should render cover, metadata, play time, and controls");

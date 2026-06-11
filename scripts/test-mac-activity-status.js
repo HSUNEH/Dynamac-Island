@@ -34,6 +34,11 @@ assert.equal(spotifyInfo.durationSeconds, 240);
 assert.equal(spotifyInfo.positionSeconds, 42.4);
 assert.equal(spotifyInfo.artworkUrl, "https://i.scdn.co/image/abc");
 
+const musicInfo = parseDelimitedMedia("music||Song Title||Artist Name||Album Name||/tmp/dynamac-music-artwork.jpg||240||42.4||paused");
+assert.equal(musicInfo.source, "music");
+assert.equal(musicInfo.artworkUrl, "/tmp/dynamac-music-artwork.jpg");
+assert.equal(musicInfo.playbackState, "paused");
+
 const youtubeInfo = parseDelimitedMedia("youtube||Video Title||||YouTube||||0||0||unknown||https://www.youtube.com/watch?v=abcDEF_1234");
 assert.equal(youtubeInfo.source, "youtube");
 assert.equal(youtubeInfo.artworkUrl, "https://img.youtube.com/vi/abcDEF_1234/hqdefault.jpg");
