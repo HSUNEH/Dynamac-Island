@@ -30,10 +30,10 @@ struct NotchWingLayout {
         let usesHardwareNotchCutout = measuredNotchWidth != nil || screen.map { $0.safeAreaInsets.top > 0 } == true
         let defaultNotchWidth = usesHardwareNotchCutout ? (measuredNotchWidth ?? 184) : 0
         let defaultWingWidth: CGFloat = usesHardwareNotchCutout ? 36 : 132
-        let defaultHeight = usesHardwareNotchCutout ? (measuredNotchHeightValue ?? 30) : 38
+        let defaultHeight = usesHardwareNotchCutout ? (measuredNotchHeightValue ?? 32.12) : 38
         let defaultInnerRadius: CGFloat = usesHardwareNotchCutout ? 5 : 8
         let defaultOuterRadius: CGFloat = usesHardwareNotchCutout ? 8 : 12
-        let defaultNotchOverlap: CGFloat = usesHardwareNotchCutout ? 8 : 0
+        let defaultNotchOverlap: CGFloat = usesHardwareNotchCutout ? 12 : 0
         return NotchWingLayout(
             notchCutoutWidth: CGFloat(Double(environment["DYNAMAC_NOTCH_WIDTH"] ?? "\(Int(defaultNotchWidth))") ?? Double(defaultNotchWidth)),
             wingWidth: CGFloat(Double(environment["DYNAMAC_WING_WIDTH"] ?? "\(Int(defaultWingWidth))") ?? Double(defaultWingWidth)),
@@ -247,49 +247,36 @@ final class IslandView: NSView {
 
     private func compactWingPath(rect: NSRect, side: WingSide) -> NSBezierPath {
         let outer = compactLayout.outerCornerRadius
-        let inner = compactLayout.innerCornerRadius
         let path = NSBezierPath()
 
         // Flipped coords: minY = top (flush to the screen edge), maxY = bottom.
-        // The top edge stays perfectly straight so the wing reads as connected off the
-        // top of the screen. Only the bottom corners are rounded: the outer radius on the
-        // screen-edge side, the inner radius on the notch side.
+        // The top edge stays perfectly straight so the wing reads as connected off the top
+        // of the screen. The notch-side bottom corner is kept square (no rounding) and the
+        // wing overlaps the notch, so the hardware notch's own rounded corner is fully
+        // covered instead of peeking out below. Only the outer, screen-edge bottom corner
+        // is rounded.
         switch side {
         case .left:
-            let bottomNotch = inner   // bottom-right corner (notch side)
-            let bottomEdge = outer    // bottom-left corner (screen-edge side)
             path.move(to: NSPoint(x: rect.minX, y: rect.minY))          // top-left (square)
             path.line(to: NSPoint(x: rect.maxX, y: rect.minY))          // top-right (square)
-            path.line(to: NSPoint(x: rect.maxX, y: rect.maxY - bottomNotch))
+            path.line(to: NSPoint(x: rect.maxX, y: rect.maxY))          // bottom-right, notch side (square)
+            path.line(to: NSPoint(x: rect.minX + outer, y: rect.maxY))
             path.curve(
-                to: NSPoint(x: rect.maxX - bottomNotch, y: rect.maxY),
-                controlPoint1: NSPoint(x: rect.maxX, y: rect.maxY - bottomNotch / 2),
-                controlPoint2: NSPoint(x: rect.maxX - bottomNotch / 2, y: rect.maxY)
-            )
-            path.line(to: NSPoint(x: rect.minX + bottomEdge, y: rect.maxY))
-            path.curve(
-                to: NSPoint(x: rect.minX, y: rect.maxY - bottomEdge),
-                controlPoint1: NSPoint(x: rect.minX + bottomEdge / 2, y: rect.maxY),
-                controlPoint2: NSPoint(x: rect.minX, y: rect.maxY - bottomEdge / 2)
+                to: NSPoint(x: rect.minX, y: rect.maxY - outer),
+                controlPoint1: NSPoint(x: rect.minX + outer / 2, y: rect.maxY),
+                controlPoint2: NSPoint(x: rect.minX, y: rect.maxY - outer / 2)
             )
             path.line(to: NSPoint(x: rect.minX, y: rect.minY))          // up left edge (square top-left)
         case .right:
-            let bottomNotch = inner   // bottom-left corner (notch side)
-            let bottomEdge = outer    // bottom-right corner (screen-edge side)
             path.move(to: NSPoint(x: rect.minX, y: rect.minY))          // top-left (square)
             path.line(to: NSPoint(x: rect.maxX, y: rect.minY))          // top-right (square)
-            path.line(to: NSPoint(x: rect.maxX, y: rect.maxY - bottomEdge))
+            path.line(to: NSPoint(x: rect.maxX, y: rect.maxY - outer))
             path.curve(
-                to: NSPoint(x: rect.maxX - bottomEdge, y: rect.maxY),
-                controlPoint1: NSPoint(x: rect.maxX, y: rect.maxY - bottomEdge / 2),
-                controlPoint2: NSPoint(x: rect.maxX - bottomEdge / 2, y: rect.maxY)
+                to: NSPoint(x: rect.maxX - outer, y: rect.maxY),
+                controlPoint1: NSPoint(x: rect.maxX, y: rect.maxY - outer / 2),
+                controlPoint2: NSPoint(x: rect.maxX - outer / 2, y: rect.maxY)
             )
-            path.line(to: NSPoint(x: rect.minX + bottomNotch, y: rect.maxY))
-            path.curve(
-                to: NSPoint(x: rect.minX, y: rect.maxY - bottomNotch),
-                controlPoint1: NSPoint(x: rect.minX + bottomNotch / 2, y: rect.maxY),
-                controlPoint2: NSPoint(x: rect.minX, y: rect.maxY - bottomNotch / 2)
-            )
+            path.line(to: NSPoint(x: rect.minX, y: rect.maxY))          // bottom-left, notch side (square)
             path.line(to: NSPoint(x: rect.minX, y: rect.minY))          // up left edge (square top-left)
         }
 
