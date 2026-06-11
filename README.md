@@ -1,6 +1,6 @@
 # Dynamac Island
 
-Dynamac Island is a macOS notch-attached status island for Snuffles/Hermes. It is not a normal desktop app window: the Electron window is frameless, transparent, non-movable, always-on-top, and anchored to the physical top-center edge of the primary display so it visually attaches to the MacBook notch. A native AppKit overlay is also available for notch-accurate testing when Electron is clamped by macOS windowing behavior.
+Dynamac Island is a macOS notch-attached utility island for everyday Mac activity: Now Playing, clipboard, battery/charging, and later shelf/HUD-style signals. It is not a normal desktop app window: the Electron window is frameless, transparent, non-movable, always-on-top, and anchored to the physical top-center edge of the primary display so it visually attaches to the MacBook notch. A native AppKit overlay is also available for notch-accurate testing when Electron is clamped by macOS windowing behavior.
 
 ## Concept
 
@@ -9,7 +9,7 @@ Apple's Dynamic Island is a compact live-activity surface around the camera/sens
 Dynamac Island follows that pattern for this Mac:
 
 - **Small state:** collapsed native wings beside the hardware notch for the current most important activity.
-- **Live activity:** Snuffles/Hermes runtime status, active sessions, gateway/process health, and later GitHub/Discord/cron/job progress.
+- **Live activity:** general Mac utility signals that work without Hermes: Now Playing, clipboard, battery/charging, and later shelf/drop, volume/brightness HUD, calendar, and reminders.
 - **Quick expansion:** future hover/click expansion for detail and controls without opening a full app.
 - **Multiple activities:** future rotation/swipe-like switching between active signals.
 
@@ -20,8 +20,8 @@ Dynamac Island follows that pattern for this Mac:
 - Window source: `src/window-config.js` centers the island against `screen.getPrimaryDisplay().bounds` and pins `y` to the physical top edge.
 - Native overlay source: `native/DynamacIslandNative.swift` builds with `swiftc` through `npm run native:start`, avoiding the SwiftPM/Xcode path for quick MacBook CLT testing.
 - Native compact shape: on notched MacBook displays, the hardware notch area remains transparent and Dynamac paints only left/right wings beside the notch so it attaches to the occluded area instead of covering it; on non-notch/external displays, Dynamac uses one normal compact pill instead of leaving an empty center gap.
-- Runtime status source: Electron development runs generate Hermes snapshots in `status/status.json`; native `npm run native:start` writes a fresh local snapshot to `.build/status.json` before launching so it does not show the bundled placeholder data.
-- Hermes snapshot model: installed Hermes profiles, active gateway profile health, and the latest local Hermes session from `~/.hermes/sessions/sessions.json` or profile-local session indexes.
+- Runtime status source: Electron development watches `status/status.json`; native `npm run native:start` writes a fresh local Mac activity snapshot to `.build/status.json` before launching so it does not show bundled placeholder data.
+- Mac activity snapshot model: `Now Playing` from Spotify/Music best-effort AppleScript, `Clipboard` from local text clipboard, and `Battery` from `pmset -g batt`. Hermes runtime status remains an optional/dev provider, not the default product surface.
 - Validation model: each status item needs `agent`, `state`, `task`, `updatedAt`, and `detail`.
 - Allowed states: `idle`, `running`, `success`, `warning`, `error`.
 - Invalid JSON or invalid status fields are visible in the app as an error state.
@@ -220,7 +220,7 @@ cd ~/projects/dynamac-island
 npm run check-status
 ```
 
-4. Observe that status entries describe Snuffles, Hermes Gateway, and Active Session instead of deterministic sample jobs.
+4. Observe that status entries describe Now Playing, Clipboard, and Battery instead of deterministic sample jobs.
 5. For fixture-only development tests, validate deterministic fixture input separately:
 
 ```sh
@@ -234,17 +234,18 @@ printf '{ "statuses": [\n' > status/status.json
 ```
 
 7. Observe the running app without relaunching and confirm the pill shows an error state for the invalid status input.
-8. Relaunch the app to regenerate real Hermes runtime status:
+8. Relaunch the native overlay to regenerate real Mac activity status:
 
 ```sh
-npm start
+npm run native:start
 ```
 
 ## Status File
 
 The renderer still consumes a local JSON file because it gives the UI a simple, testable boundary. The important change is what writes that file:
 
-- Product/default path: `src/hermes-status.js` generates a snapshot from local Hermes runtime signals.
+- Product/default native path: `src/mac-activity-status.js` generates a snapshot from local Mac utility signals: Now Playing, Clipboard, and Battery.
+- Optional/dev path: `src/hermes-status.js` can still generate local Hermes runtime snapshots for Hermes-equipped development machines.
 - Development path: `status/status.json` is watched so updates can be verified without relaunching.
 - Packaged `.app` path: Electron userData, usually `~/Library/Application Support/Dynamac Island/status/status.json`.
 - Fixture path: `fixtures/*.json` only for deterministic validation tests.
@@ -255,11 +256,25 @@ Example generated shape:
 {
   "statuses": [
     {
-      "agent": "Snuffles",
+      "agent": "Now Playing",
+      "state": "idle",
+      "task": "Nothing playing",
+      "updatedAt": "2026-06-11T09:00:00.000Z",
+      "detail": "No active Spotify or Music playback was detected."
+    },
+    {
+      "agent": "Clipboard",
       "state": "running",
-      "task": "Watching Hermes runtime",
-      "updatedAt": "2026-06-08T14:05:00.000Z",
-      "detail": "2 Hermes gateway processes active on this Mac."
+      "task": "Link copied · 21 chars",
+      "updatedAt": "2026-06-11T09:00:00.000Z",
+      "detail": "https://example.com/a"
+    },
+    {
+      "agent": "Battery",
+      "state": "running",
+      "task": "Charging 82%",
+      "updatedAt": "2026-06-11T09:00:00.000Z",
+      "detail": "Now drawing from AC Power."
     }
   ]
 }
@@ -272,6 +287,7 @@ npm run check
 npm run check-readme
 npm run smoke:launch
 npm run test:notch-position
+npm run test:mac-activity-status
 npm run test:hermes-status
 npm run test:status-loader
 npm run check-status
@@ -282,11 +298,12 @@ npm run check-status:malformed
 
 Expected results:
 
-- `check` passes when README, notch positioning, Hermes snapshot, status validation, and fixture checks pass.
+- `check` passes when README, notch positioning, Mac activity snapshot, optional Hermes snapshot, status validation, and fixture checks pass.
 - `check-readme` passes when this README documents the current notch island concept, scope, runbook, validation commands, and roadmap.
 - `smoke:launch` passes after `npm install` when Electron can open the real app window, finish loading `src/index.html`, and quit automatically.
 - `test:notch-position` passes when the overlay is centered on the physical display bounds and pinned to `y=0`.
-- `test:hermes-status` passes when the app can generate status entries from local Hermes runtime/session inputs.
+- `test:mac-activity-status` passes when the app can generate default Now Playing, Clipboard, and Battery status entries.
+- `test:hermes-status` passes when the optional Hermes provider can generate status entries from local Hermes runtime/session inputs.
 - `test:status-loader` passes when the status loader can read, parse, and validate `fixtures/valid-status.json`.
 - `check-status` passes for `status/status.json`.
 - `check-status:valid` passes for `fixtures/valid-status.json`.

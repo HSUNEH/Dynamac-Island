@@ -34,13 +34,13 @@ function hasShellCommandAfterHeading(heading, command) {
 }
 
 const requiredSnippets = [
-  ["product identity", "macOS notch-attached status island for Snuffles/Hermes"],
+  ["product identity", "macOS notch-attached utility island for everyday Mac activity"],
   ["not normal app", "not a normal desktop app window"],
   ["Dynamic Island concept", "compact live-activity surface around the camera/sensor area"],
   ["notch anchored current state", "Notch-attached floating overlay, not a normal movable app window"],
   ["physical display anchoring", "pins `y` to the physical top edge"],
-  ["Hermes status source", "native `npm run native:start` writes a fresh local snapshot to `.build/status.json`"],
-  ["Hermes runtime model", "installed Hermes profiles, active gateway profile health, and the latest local Hermes session"],
+  ["Mac activity status source", "native `npm run native:start` writes a fresh local Mac activity snapshot to `.build/status.json`"],
+  ["Mac activity runtime model", "`Now Playing` from Spotify/Music best-effort AppleScript, `Clipboard` from local text clipboard, and `Battery` from `pmset -g batt`"],
   ["fixtures only", "Fixture JSON files under `fixtures/` remain only for deterministic tests"],
   ["watched status source", "status/status.json"],
   ["required fields", "`agent`, `state`, `task`, `updatedAt`, and `detail`"],
@@ -59,6 +59,7 @@ const requiredSnippets = [
   ["screenshot QA silhouette", "DYNAMAC_QA_NOTCH_SILHOUETTE=1"],
   ["screenshot capture command", "screencapture -x /tmp/dynamac-notch-qa.png"],
   ["notch test command", "npm run test:notch-position"],
+  ["Mac activity status test command", "npm run test:mac-activity-status"],
   ["Hermes status test command", "npm run test:hermes-status"],
   ["README validation test description", "Run the README content validation test"],
   ["README validation coverage", "This test is runnable and fails if the README stops documenting"],
@@ -70,7 +71,7 @@ const requiredSnippets = [
   ["manual update terminal 1 step", "Terminal 1: launch the app from the project directory"],
   ["manual update initial observation", "Confirm the floating pill is visible and attached to the notch/top-center area."],
   ["manual status inspection", "inspect the generated runtime status file"],
-  ["manual real status observation", "Snuffles, Hermes Gateway, and Active Session instead of deterministic sample jobs"],
+  ["manual real status observation", "Now Playing, Clipboard, and Battery instead of deterministic sample jobs"],
   ["manual invalid JSON step", "write malformed JSON to the watched file"],
   [
     "manual invalid JSON observation",

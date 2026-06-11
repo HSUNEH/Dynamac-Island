@@ -34,7 +34,7 @@ assert.match(
 );
 
 const missingNotchConceptResult = runChecker(
-  readme.replace("macOS notch-attached status island for Snuffles/Hermes", "")
+  readme.replace("macOS notch-attached utility island for everyday Mac activity", "")
 );
 
 assert.notEqual(
@@ -48,17 +48,17 @@ assert.match(
   "check-readme should report the missing notch island identity"
 );
 
-const missingHermesStatusResult = runChecker(
-  readme.replace("Snuffles, Hermes Gateway, and Active Session instead of deterministic sample jobs", "")
+const missingMacActivityStatusResult = runChecker(
+  readme.replace("Now Playing, Clipboard, and Battery instead of deterministic sample jobs", "")
 );
 
 assert.notEqual(
-  missingHermesStatusResult.status,
+  missingMacActivityStatusResult.status,
   0,
-  `check-readme should fail when real Hermes status verification is missing.\nstdout:\n${missingHermesStatusResult.stdout}\nstderr:\n${missingHermesStatusResult.stderr}`
+  `check-readme should fail when real Mac activity status verification is missing.\nstdout:\n${missingMacActivityStatusResult.stdout}\nstderr:\n${missingMacActivityStatusResult.stderr}`
 );
 assert.match(
-  missingHermesStatusResult.stderr,
+  missingMacActivityStatusResult.stderr,
   /Missing manual real status observation/,
   "check-readme should report the missing real status verification step"
 );

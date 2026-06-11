@@ -34,6 +34,7 @@ assert.match(source, /notchCutoutRect\(in: bounds\)/, "QA notch guide should use
 assert.match(source, /without filling it/, "QA notch guide must not hide the real physical notch during camera-based calibration");
 assert.match(source, /override func mouseDown/, "native overlay should provide a direct compact\/expanded toggle interaction");
 assert.match(source, /toggleExpanded\(\)/, "native overlay should expose a toggle path for expansion");
-assert.match(source, /panel\.setFrame\(topCenteredRect\(screen: screen, size: size\), display: true, animate: true\)/, "native overlay should resize and re-anchor the panel when the mode changes");
+assert.match(source, /let targetFrame = topCenteredRect\(screen: screen, size: size\)/, "native overlay should compute a centered target frame when the mode changes");
+assert.match(source, /panel\.animator\(\)\.setFrame\(targetFrame, display: true\)/, "native overlay should resize and re-anchor the panel with the centered target frame when the mode changes");
 
 console.log("Native overlay contract test passed.");
