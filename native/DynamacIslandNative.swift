@@ -526,7 +526,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.backgroundColor = .clear
         panel.hasShadow = false
         panel.level = .screenSaver
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+        // Intentionally NOT .canJoinAllSpaces / .stationary: those pin the overlay on top of
+        // every Space so it sits visibly "waiting" during the slide animation. Keeping it on
+        // the current Space lets it slide away with the departing Space; we then re-show it on
+        // the new Space (with a fade) only once the transition has finished.
+        panel.collectionBehavior = [.fullScreenAuxiliary, .ignoresCycle]
         panel.hidesOnDeactivate = false
         // Disable the implicit window animation, otherwise resizing between expanded and
         // compact slides the panel from its old (wider, left-shifted) frame to the new
@@ -543,16 +547,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.panel = panel
         self.islandView = view
 
-        // Switching Spaces (Ctrl+←/→) or changing the display layout can leave the floating
-        // panel with a stale frame, which shows up as the overlay growing taller. Reassert
-        // the fixed compact geometry whenever the active Space or screen parameters change.
-        let reassert: (Notification) -> Void = { [weak self] _ in self?.reassertCompactFrame() }
+        // A display-layout change can leave the panel with a stale frame; just re-pin it.
         NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
-            object: nil, queue: .main, using: reassert)
+            object: nil, queue: .main) { [weak self] _ in self?.reassertCompactFrame() }
+        // activeSpaceDidChange fires once the Space transition has finished. Re-show the
+        // overlay on the now-active Space and fade it in so it turns on after the slide
+        // completes rather than sitting pinned during it.
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.activeSpaceDidChangeNotification,
-            object: nil, queue: .main, using: reassert)
+            object: nil, queue: .main) { [weak self] _ in self?.showOnActiveSpace() }
+    }
+
+    private func showOnActiveSpace() {
+        guard let panel else { return }
+        reassertCompactFrame()
+        panel.alphaValue = 0
+        panel.orderFrontRegardless()
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.22
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            panel.animator().alphaValue = 1
+        }
     }
 
     private func reassertCompactFrame() {
