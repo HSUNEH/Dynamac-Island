@@ -39,6 +39,7 @@ struct NotchWingLayout {
 
     static func compactFromEnvironment(screen: NSScreen? = nil) -> NotchWingLayout {
         let environment = ProcessInfo.processInfo.environment
+        let measuredNotchHeightValue = screen.flatMap { measuredNotchHeight(screen: $0) }
         let hasHardwareNotch = screen.flatMap { measuredNotchCutoutWidth(screen: $0) } != nil
             || screen.map { $0.safeAreaInsets.top > 0 } == true
 
@@ -48,7 +49,6 @@ struct NotchWingLayout {
         // runtime via its env var; fractional values are preserved.
         let defaultNotchWidth: CGFloat = hasHardwareNotch ? 182 : 0
         let defaultWingWidth: CGFloat = hasHardwareNotch ? 37 : 132
-        let defaultHeight: CGFloat = hasHardwareNotch ? 32.12 : 38
         let defaultInnerRadius: CGFloat = hasHardwareNotch ? 5 : 8
         let defaultOuterRadius: CGFloat = hasHardwareNotch ? 8 : 12
         let defaultNotchOverlap: CGFloat = hasHardwareNotch ? 12 : 0
@@ -58,10 +58,18 @@ struct NotchWingLayout {
             return CGFloat(parsed)
         }
 
+        // Height matches the hardware notch exactly: use the measured safe-area notch height
+        // so the overlay lines up with the physical notch edge. This is measured once at
+        // launch and then held fixed, so a full-screen Space (which stops reporting the
+        // notch) can't change it. Falls back to the env override or 32pt only if unmeasured.
+        let notchHeight: CGFloat = hasHardwareNotch
+            ? (measuredNotchHeightValue ?? tuned("DYNAMAC_COMPACT_HEIGHT", 32))
+            : tuned("DYNAMAC_COMPACT_HEIGHT", 38)
+
         return NotchWingLayout(
             notchCutoutWidth: tuned("DYNAMAC_NOTCH_WIDTH", defaultNotchWidth),
             wingWidth: tuned("DYNAMAC_WING_WIDTH", defaultWingWidth),
-            height: tuned("DYNAMAC_COMPACT_HEIGHT", defaultHeight),
+            height: notchHeight,
             innerCornerRadius: tuned("DYNAMAC_INNER_RADIUS", defaultInnerRadius),
             outerCornerRadius: tuned("DYNAMAC_OUTER_RADIUS", defaultOuterRadius),
             notchOverlap: tuned("DYNAMAC_NOTCH_OVERLAP", defaultNotchOverlap),
@@ -534,6 +542,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         self.panel = panel
         self.islandView = view
+
+        // Switching Spaces (Ctrl+←/→) or changing the display layout can leave the floating
+        // panel with a stale frame, which shows up as the overlay growing taller. Reassert
+        // the fixed compact geometry whenever the active Space or screen parameters change.
+        let reassert: (Notification) -> Void = { [weak self] _ in self?.reassertCompactFrame() }
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil, queue: .main, using: reassert)
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification,
+            object: nil, queue: .main, using: reassert)
+    }
+
+    private func reassertCompactFrame() {
+        guard let panel, let islandView, !expanded, let screen = NSScreen.main else { return }
+        // Reuse the launch-time notch layout instead of recomputing it. In a full-screen
+        // Space macOS temporarily stops reporting the notch (safeAreaInsets/auxiliary areas
+        // go away), so recomputing would fall back to the taller non-notch single pill and
+        // the overlay would appear to grow. Only re-pin the fixed frame.
+        let size = compactLayout.totalSize
+        islandView.frame = NSRect(origin: .zero, size: size)
+        panel.setFrame(topCenteredRect(screen: screen, size: size), display: true)
+        islandView.needsDisplay = true
     }
 
     private func toggleExpanded() {
