@@ -104,7 +104,16 @@ Print real MacBook screen/notch diagnostics before launching the native overlay:
 DYNAMAC_NATIVE_DIAG=1 npm run native:start
 ```
 
-On notched MacBooks, macOS may expose `auxiliaryTopLeftArea` and `auxiliaryTopRightArea`; Dynamac uses the smaller of the position gap and width-derived gap between them plus a small `DYNAMAC_NOTCH_MARGIN` as the native cutout width. The compact height defaults to the measured notch/menu-bar top band only when it is in a tight 30–36 pt range, otherwise 34 pt for notched screens and 38 pt for non-notch displays. On non-notch or external displays, those notch areas are unavailable and Dynamac automatically switches to a single compact pill instead of leaving an empty center gap. If notch values are unavailable on a physical MacBook, it falls back to `DYNAMAC_NOTCH_WIDTH=206` and can be tuned on that MacBook.
+On notched MacBooks, macOS may expose `auxiliaryTopLeftArea` and `auxiliaryTopRightArea`; Dynamac uses the smaller of the position gap and width-derived gap between them plus a small `DYNAMAC_NOTCH_MARGIN` as the native cutout width. The compact height defaults to the measured notch/menu-bar top band only when it is in a tight 24–32 pt range, otherwise 30 pt for notched screens and 38 pt for non-notch displays. On non-notch or external displays, those notch areas are unavailable and Dynamac automatically switches to a single compact pill instead of leaving an empty center gap. If notch values are unavailable on a physical MacBook, it falls back to `DYNAMAC_NOTCH_WIDTH=184` and can be tuned on that MacBook.
+
+For screenshot QA, physical MacBook notches do not appear in macOS screenshots. Enable a QA-only fake notch silhouette so `screencapture` can show the notch gap/alignment:
+
+```sh
+DYNAMAC_QA_NOTCH_SILHOUETTE=1 DYNAMAC_NATIVE_DIAG=1 npm run native:start
+screencapture -x /tmp/dynamac-notch-qa.png
+```
+
+Leave `DYNAMAC_QA_NOTCH_SILHOUETTE` unset for normal use; it intentionally draws a black center silhouette only for visual QA screenshots.
 
 Prefer `npm run native:start` for the current native overlay. `swift run Dynamac-Island` exercises the older SwiftPM MVP target, not the AppKit overlay path.
 
@@ -154,10 +163,10 @@ Run these checks on the target MacBook after `npm install`:
 3. Run `npm run native:start` from `~/projects/dynamac-island` for the native AppKit notch overlay, or `npm start` for the Electron fallback.
 4. Confirm compact mode leaves the hardware notch area uncovered and paints black wings beside the notch, not one centered pill over it.
 5. If the cutout does not match the notch, run `DYNAMAC_NATIVE_DIAG=1 npm run native:start` and tune `DYNAMAC_NOTCH_WIDTH` from the printed `layout.notchCutoutWidth` value.
-6. Confirm the pill lists real local Hermes/Snuffles runtime signals when Hermes exists on the machine.
-7. Confirm the pill still shows a warning state instead of fake success when Hermes data is unavailable.
+6. For screenshot-based QA, launch with `DYNAMAC_QA_NOTCH_SILHOUETTE=1 DYNAMAC_NATIVE_DIAG=1 npm run native:start`, then capture `screencapture -x /tmp/dynamac-notch-qa.png` so the otherwise invisible hardware notch appears as a QA silhouette.
+7. Confirm the compact surface uses the normal Mac utility status provider; Hermes runtime status is an optional/dev provider, not the required default on machines without Hermes.
 8. Run `npm run test:notch-position` to verify the top-center anchoring contract.
-9. Run `npm run test:hermes-status` to verify local runtime snapshot generation.
+9. Run `npm run test:hermes-status` to verify optional local runtime snapshot generation.
 
 Run the README content validation test:
 

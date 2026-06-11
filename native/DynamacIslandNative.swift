@@ -19,6 +19,7 @@ struct NotchWingLayout {
     let innerCornerRadius: CGFloat
     let outerCornerRadius: CGFloat
     let usesHardwareNotchCutout: Bool
+    let showsQaNotchSilhouette: Bool
 
     static func compactFromEnvironment(screen: NSScreen? = nil) -> NotchWingLayout {
         let environment = ProcessInfo.processInfo.environment
@@ -36,7 +37,8 @@ struct NotchWingLayout {
             height: CGFloat(Double(environment["DYNAMAC_COMPACT_HEIGHT"] ?? "\(Int(defaultHeight))") ?? Double(defaultHeight)),
             innerCornerRadius: CGFloat(Double(environment["DYNAMAC_INNER_RADIUS"] ?? "\(Int(defaultInnerRadius))") ?? Double(defaultInnerRadius)),
             outerCornerRadius: CGFloat(Double(environment["DYNAMAC_OUTER_RADIUS"] ?? "\(Int(defaultOuterRadius))") ?? Double(defaultOuterRadius)),
-            usesHardwareNotchCutout: usesHardwareNotchCutout
+            usesHardwareNotchCutout: usesHardwareNotchCutout,
+            showsQaNotchSilhouette: environment["DYNAMAC_QA_NOTCH_SILHOUETTE"] == "1"
         )
     }
 
@@ -105,7 +107,8 @@ struct NotchWingLayout {
             "layout.notchCutoutWidth=\(Int(notchCutoutWidth))",
             "layout.wingWidth=\(Int(wingWidth))",
             "layout.height=\(Int(height))",
-            "layout.displayMode=\(usesHardwareNotchCutout ? "notch-wings" : "single-pill")"
+            "layout.displayMode=\(usesHardwareNotchCutout ? "notch-wings" : "single-pill")",
+            "layout.qaNotchSilhouette=\(showsQaNotchSilhouette ? "on" : "off")"
         ].joined(separator: "\n")
     }
 }
@@ -178,6 +181,25 @@ final class IslandView: NSView {
         let rightWing = compactLayout.rightWingRect(in: bounds)
         compactWingPath(rect: leftWing, side: .left).fill()
         compactWingPath(rect: rightWing, side: .right).fill()
+        if compactLayout.showsQaNotchSilhouette {
+            drawQaNotchSilhouette()
+        }
+    }
+
+    private func drawQaNotchSilhouette() {
+        let cutout = compactLayout.notchCutoutRect(in: bounds)
+        let silhouetteWidth = min(cutout.width, max(120, cutout.width - 14))
+        let silhouetteHeight = bounds.height
+        let rect = NSRect(
+            x: cutout.midX - silhouetteWidth / 2,
+            y: bounds.minY,
+            width: silhouetteWidth,
+            height: silhouetteHeight
+        )
+        let radius = min(10, silhouetteHeight / 3)
+        let path = NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius)
+        NSColor(calibratedRed: 0.0, green: 0.0, blue: 0.0, alpha: 1.0).setFill()
+        path.fill()
     }
 
     private func drawCompactSinglePill() {
