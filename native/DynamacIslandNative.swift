@@ -158,8 +158,13 @@ final class IslandView: NSView {
     var expanded = false {
         didSet { needsDisplay = true }
     }
+    private var statusLoadedAt = Date()
+
     var statuses: [StatusItem] = [] {
-        didSet { needsDisplay = true }
+        didSet {
+            statusLoadedAt = Date()
+            needsDisplay = true
+        }
     }
     var compactLayout = NotchWingLayout.compactFromEnvironment() {
         didSet { needsDisplay = true }
@@ -351,6 +356,11 @@ final class IslandView: NSView {
             x = 8
         }
         drawArtwork(media: media, in: NSRect(x: x, y: y, width: artSize, height: artSize), cornerRadius: 7, fallbackFontSize: 17)
+
+        if compactLayout.usesHardwareNotchCutout {
+            let rightWing = compactLayout.rightWingRect(in: bounds)
+            drawPlayingBars(media: media, in: rightWing.insetBy(dx: 10, dy: 8))
+        }
     }
 
     private func drawExpandedNowPlaying(_ media: MediaInfo) {
@@ -379,10 +389,11 @@ final class IslandView: NSView {
         NSString(string: media.title ?? "Nothing playing").draw(in: NSRect(x: textX, y: 56, width: bounds.width - textX - 28, height: 34), withAttributes: titleAttrs)
         NSString(string: media.artist?.isEmpty == false ? media.artist! : displaySourceName(media.source)).draw(in: NSRect(x: textX, y: 92, width: bounds.width - textX - 28, height: 22), withAttributes: artistAttrs)
 
-        let elapsed = media.elapsedLabel ?? formatSeconds(media.positionSeconds)
+        let elapsedSeconds = displayPositionSeconds(media)
+        let elapsed = formatSeconds(elapsedSeconds)
         let duration = media.durationLabel ?? formatSeconds(media.durationSeconds)
         NSString(string: "\(elapsed) / \(duration)").draw(in: NSRect(x: textX, y: 124, width: 180, height: 18), withAttributes: timeAttrs)
-        drawProgressBar(media: media, rect: NSRect(x: textX, y: 148, width: bounds.width - textX - 40, height: 5))
+        drawProgressBar(media: media, positionSeconds: elapsedSeconds, rect: NSRect(x: textX, y: 148, width: bounds.width - textX - 40, height: 5))
         drawMediaControls(media: media)
     }
 
@@ -391,7 +402,7 @@ final class IslandView: NSView {
         NSGraphicsContext.saveGraphicsState()
         path.addClip()
         if let image = artworkImage(media.artworkUrl) {
-            image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1)
+            drawUprightImage(image, in: rect)
         } else {
             NSColor(calibratedWhite: 1, alpha: 0.10).setFill()
             rect.fill()
@@ -416,11 +427,34 @@ final class IslandView: NSView {
         return NSImage(contentsOf: url)
     }
 
-    private func drawProgressBar(media: MediaInfo, rect: NSRect) {
+    private func drawUprightImage(_ image: NSImage, in rect: NSRect) {
+        // IslandView is flipped so text/layout use top-left coordinates. Draw album art through
+        // a temporary unflipped transform so AppKit does not vertically invert remote artwork.
+        guard let context = NSGraphicsContext.current?.cgContext else {
+            image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1)
+            return
+        }
+        context.saveGState()
+        context.translateBy(x: 0, y: bounds.height)
+        context.scaleBy(x: 1, y: -1)
+        let unflippedRect = NSRect(x: rect.minX, y: bounds.height - rect.maxY, width: rect.width, height: rect.height)
+        image.draw(in: unflippedRect, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: false, hints: nil)
+        context.restoreGState()
+    }
+
+    private func displayPositionSeconds(_ media: MediaInfo) -> Double {
+        let base = max(media.positionSeconds ?? 0, 0)
+        guard media.playbackState == "playing" else { return base }
+        let duration = max(media.durationSeconds ?? 0, 0)
+        let advanced = base + Date().timeIntervalSince(statusLoadedAt)
+        return duration > 0 ? min(advanced, duration) : advanced
+    }
+
+    private func drawProgressBar(media: MediaInfo, positionSeconds: Double, rect: NSRect) {
         NSColor(calibratedWhite: 1, alpha: 0.14).setFill()
         NSBezierPath(roundedRect: rect, xRadius: rect.height / 2, yRadius: rect.height / 2).fill()
         let duration = max(media.durationSeconds ?? 0, 0)
-        let position = max(media.positionSeconds ?? 0, 0)
+        let position = max(positionSeconds, 0)
         guard duration > 0 else { return }
         let ratio = min(max(position / duration, 0), 1)
         let fill = NSRect(x: rect.minX, y: rect.minY, width: rect.width * CGFloat(ratio), height: rect.height)
@@ -429,14 +463,68 @@ final class IslandView: NSView {
     }
 
     private func drawMediaControls(media: MediaInfo) {
-        for (action, symbol) in [("previous", "􀊊"), ("playpause", media.playbackState == "playing" ? "􀊆" : "􀊄"), ("next", "􀊌")] {
+        for action in ["previous", "playpause", "next"] {
             let rect = mediaControlRect(action: action)
             NSColor(calibratedWhite: 1, alpha: action == "playpause" ? 0.18 : 0.10).setFill()
             NSBezierPath(roundedRect: rect, xRadius: rect.height / 2, yRadius: rect.height / 2).fill()
-            let attrs: [NSAttributedString.Key: Any] = [.foregroundColor: NSColor.white, .font: NSFont.systemFont(ofSize: action == "playpause" ? 20 : 16, weight: .bold)]
-            let text = symbol as NSString
-            let size = text.size(withAttributes: attrs)
-            text.draw(at: NSPoint(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2), withAttributes: attrs)
+            NSColor.white.setFill()
+            drawTransportIcon(action: action, playing: media.playbackState == "playing", in: rect.insetBy(dx: action == "playpause" ? 10 : 8, dy: action == "playpause" ? 9 : 8))
+        }
+    }
+
+    private func drawTransportIcon(action: String, playing: Bool, in rect: NSRect) {
+        switch action {
+        case "previous":
+            drawSkipIcon(direction: -1, in: rect)
+        case "next":
+            drawSkipIcon(direction: 1, in: rect)
+        default:
+            if playing {
+                let barWidth = max(3, rect.width * 0.26)
+                NSBezierPath(roundedRect: NSRect(x: rect.minX, y: rect.minY, width: barWidth, height: rect.height), xRadius: 1.2, yRadius: 1.2).fill()
+                NSBezierPath(roundedRect: NSRect(x: rect.maxX - barWidth, y: rect.minY, width: barWidth, height: rect.height), xRadius: 1.2, yRadius: 1.2).fill()
+            } else {
+                let path = NSBezierPath()
+                path.move(to: NSPoint(x: rect.minX + 1, y: rect.minY))
+                path.line(to: NSPoint(x: rect.maxX, y: rect.midY))
+                path.line(to: NSPoint(x: rect.minX + 1, y: rect.maxY))
+                path.close()
+                path.fill()
+            }
+        }
+    }
+
+    private func drawSkipIcon(direction: CGFloat, in rect: NSRect) {
+        let barWidth: CGFloat = 3
+        let barX = direction < 0 ? rect.minX : rect.maxX - barWidth
+        NSBezierPath(roundedRect: NSRect(x: barX, y: rect.minY, width: barWidth, height: rect.height), xRadius: 1, yRadius: 1).fill()
+        let triangle = NSBezierPath()
+        if direction < 0 {
+            triangle.move(to: NSPoint(x: rect.maxX, y: rect.minY))
+            triangle.line(to: NSPoint(x: rect.minX + barWidth + 2, y: rect.midY))
+            triangle.line(to: NSPoint(x: rect.maxX, y: rect.maxY))
+        } else {
+            triangle.move(to: NSPoint(x: rect.minX, y: rect.minY))
+            triangle.line(to: NSPoint(x: rect.maxX - barWidth - 2, y: rect.midY))
+            triangle.line(to: NSPoint(x: rect.minX, y: rect.maxY))
+        }
+        triangle.close()
+        triangle.fill()
+    }
+
+    private func drawPlayingBars(media: MediaInfo, in rect: NSRect) {
+        let isPlaying = media.playbackState == "playing"
+        let barCount = 3
+        let gap: CGFloat = 3
+        let barWidth = max(3, (rect.width - CGFloat(barCount - 1) * gap) / CGFloat(barCount))
+        let phase = Date().timeIntervalSince1970 * 5
+        for index in 0..<barCount {
+            let x = rect.minX + CGFloat(index) * (barWidth + gap)
+            let wave = isPlaying ? (sin(phase + Double(index) * 1.15) + 1) / 2 : 0.18
+            let height = max(5, rect.height * CGFloat(0.32 + wave * 0.68))
+            let y = rect.maxY - height
+            NSColor.systemGreen.withAlphaComponent(isPlaying ? 0.95 : 0.45).setFill()
+            NSBezierPath(roundedRect: NSRect(x: x, y: y, width: barWidth, height: height), xRadius: barWidth / 2, yRadius: barWidth / 2).fill()
         }
     }
 
@@ -494,6 +582,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var panel: NSPanel?
     private var islandView: IslandView?
     private var statusTimer: Timer?
+    private var displayTimer: Timer?
     private var expanded = false
     private var compactLayout = NotchWingLayout.compactFromEnvironment()
 
@@ -502,6 +591,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         createPanel()
         loadStatus()
         startStatusRefresh()
+        startDisplayRefresh()
 
         if ProcessInfo.processInfo.environment["DYNAMAC_START_EXPANDED"] == "1" {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in self?.toggleExpanded() }
@@ -653,6 +743,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let interval = Double(ProcessInfo.processInfo.environment["DYNAMAC_STATUS_RELOAD_MS"] ?? "1000").flatMap { $0 >= 250 ? $0 / 1000 : nil } ?? 1
         statusTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             self?.loadStatus()
+        }
+    }
+
+    private func startDisplayRefresh() {
+        let interval = Double(ProcessInfo.processInfo.environment["DYNAMAC_DISPLAY_REFRESH_MS"] ?? "33").flatMap { $0 >= 16 ? $0 / 1000 : nil } ?? 0.033
+        displayTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+            self?.islandView?.needsDisplay = true
         }
     }
 

@@ -47,4 +47,14 @@ assert.match(source, /drawMediaControls/, "expanded Now Playing mode should draw
 assert.match(source, /performMediaControl/, "native overlay should wire media control buttons to playback actions");
 assert.match(source, /artworkImage/, "native overlay should render album art or fall back to a music note");
 
+assert.match(source, /drawUprightImage/, "album artwork should be drawn through an upright image path so flipped NSView coordinates do not invert covers");
+assert.match(source, /respectFlipped: false/, "album artwork drawing should explicitly avoid AppKit flipped-coordinate inversion");
+assert.match(source, /drawTransportIcon/, "transport buttons should use drawn vector icons instead of SF glyphs that can render as question marks");
+assert.doesNotMatch(source, /􀊊|􀊆|􀊄|􀊌/, "transport buttons must not depend on private SF symbol glyph characters");
+assert.match(source, /displayPositionSeconds/, "expanded mode should locally advance play time between status refreshes");
+assert.match(source, /startDisplayRefresh/, "native overlay should redraw frequently enough for smooth play time and compact animations");
+assert.match(source, /DYNAMAC_DISPLAY_REFRESH_MS/, "native overlay should allow tuning the display refresh interval");
+assert.match(source, /drawPlayingBars/, "compact notch mode should show a simple right-wing playing animation");
+assert.match(source, /rightWingRect\(in: bounds\)/, "compact playing animation should live in the right notch wing");
+
 console.log("Native overlay contract test passed.");
