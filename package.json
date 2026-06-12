@@ -11,6 +11,7 @@
     "smoke:launch": "node scripts/smoke-launch.js",
     "native:build": "mkdir -p .build && swiftc native/DynamacIslandNative.swift -o .build/dynamac-native",
     "status:write": "node scripts/write-mac-activity-status.js .build/status.json",
+    "diagnose:youtube": "node scripts/diagnose-youtube-media.js",
     "native:start": "node scripts/native-start.js",
     "native:calibrate": "node scripts/notch-calibrate.js",
     "native:smoke": "npm run native:build && DYNAMAC_NATIVE_SMOKE_TEST=1 DYNAMAC_STATUS_FILE=status/status.json ./.build/dynamac-native",

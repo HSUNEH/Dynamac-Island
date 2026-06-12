@@ -102,8 +102,8 @@ assert.match(source, /"Vivaldi"/, "native YouTube control should include Vivaldi
 assert.match(source, /"Opera GX"/, "native YouTube control should include Opera GX");
 assert.match(source, /"Orion"/, "native YouTube control should include Orion");
 assert.match(source, /"Dia"/, "native YouTube control should include Dia");
-assert.match(source, /execute javascript "\\\(escapedJs\)" in t/, "native YouTube control should use Chromium's execute-javascript-in-tab AppleScript form");
-assert.doesNotMatch(source, /execute t javascript/, "native YouTube control must not use invalid execute-tab-javascript word order");
+assert.match(source, /execute t javascript "\\\(escapedJs\)"/, "native YouTube control should use Chrome's execute-tab-javascript AppleScript form");
+assert.doesNotMatch(source, /execute javascript "\\\(escapedJs\)" in t/, "native YouTube control must not use Safari-style Chromium control syntax");
 assert.match(source, /performYouTubeJavaScript/, "native overlay should control YouTube playback through browser JavaScript best-effort");
 assert.match(source, /chromiumYouTubeScript/, "native overlay should scan Chromium browser tabs for YouTube control targets");
 

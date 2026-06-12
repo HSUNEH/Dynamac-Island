@@ -75,8 +75,9 @@ assert.equal(firefoxInfo.title, "Lo-fi beats");
 assert.equal(firefoxInfo.playbackState, "unknown");
 
 const arcYouTubeScript = browserYouTubeScript("Arc");
-assert.match(arcYouTubeScript, /execute javascript[\s\S]* in t/, "Arc/Chromium YouTube detection should use the standard execute-javascript-in-tab AppleScript form");
-assert.doesNotMatch(arcYouTubeScript, /execute t javascript/, "Arc/Chromium YouTube detection must not use the invalid execute-tab-javascript word order");
+assert.match(arcYouTubeScript, /execute t javascript/, "Arc/Chromium YouTube detection should use Chrome's execute-tab-javascript AppleScript form");
+assert.doesNotMatch(arcYouTubeScript, /execute javascript[\s\S]* in t/, "Arc/Chromium YouTube detection must not use the Safari-style execute-javascript-in-tab form");
+assert.doesNotMatch(arcYouTubeScript, /execute t javascript "[^"]*\n/, "Arc/Chromium YouTube detection should pass one-line AppleScript-safe JavaScript to osascript");
 assert.match(arcYouTubeScript, /youtube\.com\/watch/, "Arc YouTube detection should scan watch tabs");
 
 const safariYouTubeScript = browserYouTubeScript("Safari");
@@ -96,14 +97,22 @@ const youtubeBeatsSpotify = collectMediaStatus({
 assert.equal(youtubeBeatsSpotify.media.source, "youtube");
 assert.equal(youtubeBeatsSpotify.media.title, "Video Title");
 
-const frontmostArcTitleFallbackBeatsSpotify = collectMediaStatus({
+const frontmostArcTitleFallbackDoesNotBeatSpotify = collectMediaStatus({
   browserMediaTexts: [{ browserName: "Arc", text: "youtube-title||[Vlog] 10년차 무명 배우 브이로그 - YouTube||https://www.youtube.com/watch?v=vlog12345" }],
   spotifyText,
   musicText: "",
   frontmostApp: "Arc"
 });
-assert.equal(frontmostArcTitleFallbackBeatsSpotify.media.source, "youtube");
-assert.equal(frontmostArcTitleFallbackBeatsSpotify.media.title, "[Vlog] 10년차 무명 배우 브이로그");
+assert.equal(frontmostArcTitleFallbackDoesNotBeatSpotify.media.source, "spotify");
+
+const frontmostArcTitleFallbackWinsWhenNoNativePlayer = collectMediaStatus({
+  browserMediaTexts: [{ browserName: "Arc", text: "youtube-title||[Vlog] 10년차 무명 배우 브이로그 - YouTube||https://www.youtube.com/watch?v=vlog12345" }],
+  spotifyText: "",
+  musicText: "",
+  frontmostApp: "Arc"
+});
+assert.equal(frontmostArcTitleFallbackWinsWhenNoNativePlayer.media.source, "youtube");
+assert.equal(frontmostArcTitleFallbackWinsWhenNoNativePlayer.media.title, "[Vlog] 10년차 무명 배우 브이로그");
 
 const backgroundYoutubeFallbackDoesNotBeatSpotify = collectMediaStatus({
   browserMediaTexts: ["youtube-title||Old tab - YouTube||https://www.youtube.com/watch?v=old12345"],

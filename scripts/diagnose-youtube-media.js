@@ -1,0 +1,55 @@
+#!/usr/bin/env node
+const { spawnSync } = require("node:child_process");
+const {
+  browserYouTubeScript,
+  CHROMIUM_YOUTUBE_BROWSERS,
+  SAFARI_YOUTUBE_BROWSERS,
+  FIREFOX_YOUTUBE_BROWSERS,
+  parseDelimitedMedia
+} = require("../src/mac-activity-status");
+
+function run(command, args) {
+  const result = spawnSync(command, args, { encoding: "utf8", timeout: 8000 });
+  return {
+    status: result.status,
+    stdout: (result.stdout || "").trim(),
+    stderr: (result.stderr || "").trim(),
+    error: result.error ? String(result.error.message || result.error) : ""
+  };
+}
+
+function appInstalled(name) {
+  const result = run("osascript", ["-e", `id of application ${JSON.stringify(name)}`]);
+  return result.status === 0;
+}
+
+function frontmostApp() {
+  const result = run("osascript", ["-e", 'tell application "System Events" to name of first application process whose frontmost is true']);
+  return result.stdout || "unknown";
+}
+
+function summarizeRaw(raw) {
+  if (!raw) return { kind: "empty", summary: "no YouTube tab result" };
+  const info = parseDelimitedMedia(raw);
+  if (!info) return { kind: "unparsed", summary: raw.slice(0, 220) };
+  return {
+    kind: info.source === "youtube" ? (raw.startsWith("youtube-json||") ? "youtube-json" : "youtube-title") : info.source,
+    summary: `${info.title || "untitled"} · state=${info.playbackState || "unknown"} · duration=${info.durationSeconds || 0} · position=${info.positionSeconds || 0}`
+  };
+}
+
+const browsers = [...CHROMIUM_YOUTUBE_BROWSERS, ...SAFARI_YOUTUBE_BROWSERS, ...FIREFOX_YOUTUBE_BROWSERS];
+console.log(`Frontmost app: ${frontmostApp()}`);
+console.log("YouTube media probe:");
+for (const browser of browsers) {
+  if (!appInstalled(browser)) continue;
+  const result = run("osascript", ["-e", browserYouTubeScript(browser)]);
+  const raw = result.stdout;
+  const summary = summarizeRaw(raw);
+  console.log(`- ${browser}: ${summary.kind} — ${summary.summary}`);
+  if (result.stderr) console.log(`  stderr: ${result.stderr.split("\n")[0]}`);
+  if (result.status !== 0) console.log(`  status: ${result.status}${result.error ? ` error=${result.error}` : ""}`);
+}
+
+console.log("\nIf Chrome/Arc/Brave/Edge/Vivaldi/Opera returns empty or youtube-title while a video is visibly playing, enable the browser setting/menu item named 'Allow JavaScript from Apple Events', then restart Dynamac.");
+console.log("Also allow macOS Automation prompts for Dynamac/Terminal to control the target browser and System Events.");

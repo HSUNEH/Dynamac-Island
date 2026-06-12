@@ -131,7 +131,10 @@ function musicScript() {
 }
 
 function appleScriptString(value) {
-  return `"${String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+  return `"${String(value)
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(/\r?\n/g, " ")}"`;
 }
 
 function youtubePageProbeJavaScript() {
@@ -228,7 +231,7 @@ function browserYouTubeScript(browserName) {
     'set tabUrl to URL of t',
     `if ${youtubeUrlAppleScriptCondition("tabUrl")} then`,
     'try',
-    `set payload to execute javascript ${js} in t`,
+    `set payload to execute t javascript ${js}`,
     'return "youtube-json||" & payload & "||" & tabUrl',
     'on error',
     'return "youtube-title||" & (title of t) & "||" & tabUrl',
@@ -412,13 +415,13 @@ function collectMediaStatus(options = {}) {
   const playingBrowserInfo = browserInfos.find((info) => info.playbackState === "playing");
   if (playingBrowserInfo) return mediaStatusFromInfo(playingBrowserInfo);
 
-  const frontmostApp = frontmostApplicationName(options);
-  const frontmostBrowserInfo = browserInfos.find((info) => info.browserName && info.browserName === frontmostApp);
-  if (frontmostBrowserInfo) return mediaStatusFromInfo(frontmostBrowserInfo);
-
   const spotifyInfo = parseDelimitedMedia(options.spotifyText ?? runCommand("osascript", ["-e", spotifyScript()]));
   const musicInfo = parseDelimitedMedia(options.musicText ?? runCommand("osascript", ["-e", musicScript()]));
-  return mediaStatusFromInfo(spotifyInfo || musicInfo || browserInfos[0] || null);
+  if (spotifyInfo || musicInfo) return mediaStatusFromInfo(spotifyInfo || musicInfo);
+
+  const frontmostApp = frontmostApplicationName(options);
+  const frontmostBrowserInfo = browserInfos.find((info) => info.browserName && info.browserName === frontmostApp);
+  return mediaStatusFromInfo(frontmostBrowserInfo || browserInfos[0] || null);
 }
 
 function buildMacActivityStatusPayload(options = {}) {

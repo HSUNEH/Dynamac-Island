@@ -1093,7 +1093,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
               repeat with t in tabs of w
                 set tabUrl to URL of t
                 if tabUrl contains "youtube.com/watch" or tabUrl contains "music.youtube.com/watch" or tabUrl contains "youtu.be/" or tabUrl contains "youtube.com/shorts/" then
-                  execute javascript "\(escapedJs)" in t
+                  execute t javascript "\(escapedJs)"
                   return
                 end if
               end repeat
