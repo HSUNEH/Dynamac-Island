@@ -466,30 +466,25 @@ final class IslandView: NSView {
     }
 
     private func drawExpandedNowPlaying(_ media: MediaInfo) {
-        // Apple-inspired media sheet: quiet chrome, SF Pro proportions, 8pt rhythm,
-        // one accent color, and large invisible scrubber target over a thin track.
+        // DESIGN-apple.md form pass: keep the current dark/media colors, but use Apple's
+        // product-first structure — quiet chrome, 8pt rhythm, 17/21pt SF hierarchy,
+        // pill/circular transport grammar, and a thin scrubber.
         let cover = expandedCoverRect()
-        drawArtwork(media: media, in: cover, cornerRadius: 24, fallbackFontSize: 40)
+        drawArtwork(media: media, in: cover, cornerRadius: 18, fallbackFontSize: 40)
 
-        let content = expandedContentRect()
-        let contentX = content.minX
-        let contentW = content.width
         let labelAttrs = expandedTextAttributes(size: 11, weight: .semibold, color: NSColor(calibratedWhite: 0.64, alpha: 1), letterSpacing: 0.8)
         let titleAttrs = expandedTextAttributes(size: 21, weight: .semibold, color: .white, letterSpacing: -0.28)
-        let artistAttrs = expandedTextAttributes(size: 15, weight: .regular, color: NSColor(calibratedWhite: 0.70, alpha: 1), letterSpacing: -0.12)
-        let timeAttrs = expandedTextAttributes(size: 11, weight: .medium, color: NSColor(calibratedWhite: 0.56, alpha: 1), letterSpacing: 0, monospaced: true)
+        let artistAttrs = expandedTextAttributes(size: 17, weight: .regular, color: NSColor(calibratedWhite: 0.70, alpha: 1), letterSpacing: -0.374)
+        let timeAttrs = expandedTextAttributes(size: 11, weight: .regular, color: NSColor(calibratedWhite: 0.56, alpha: 1), letterSpacing: -0.12, monospaced: true)
 
-        let textTop = expandedTopContentY()
-        NSString(string: displaySourceName(media.source).uppercased()).draw(in: NSRect(x: contentX, y: textTop, width: contentW, height: 14), withAttributes: labelAttrs)
-        NSString(string: media.title ?? "Nothing playing").draw(in: NSRect(x: contentX, y: textTop + 19, width: contentW, height: 27), withAttributes: titleAttrs)
-        NSString(string: media.artist?.isEmpty == false ? media.artist! : displaySourceName(media.source)).draw(in: NSRect(x: contentX, y: textTop + 47, width: contentW, height: 20), withAttributes: artistAttrs)
+        NSString(string: displaySourceName(media.source).uppercased()).draw(in: expandedSourceRect(), withAttributes: labelAttrs)
+        NSString(string: media.title ?? "Nothing playing").draw(in: expandedTitleRect(), withAttributes: titleAttrs)
+        NSString(string: media.artist?.isEmpty == false ? media.artist! : displaySourceName(media.source)).draw(in: expandedArtistRect(), withAttributes: artistAttrs)
 
         let elapsedSeconds = displayPositionSeconds(media)
-        let elapsed = formatSeconds(elapsedSeconds)
-        let duration = media.durationLabel ?? formatSeconds(media.durationSeconds)
         let progressRect = progressBarRect()
-        NSString(string: elapsed).draw(in: NSRect(x: progressRect.minX, y: progressRect.minY - 18, width: 72, height: 14), withAttributes: timeAttrs)
-        NSString(string: duration).draw(in: NSRect(x: progressRect.maxX - 72, y: progressRect.minY - 18, width: 72, height: 14), withAttributes: rightAlignedAttributes(timeAttrs))
+        NSString(string: formatSeconds(elapsedSeconds)).draw(in: expandedElapsedRect(progressRect: progressRect), withAttributes: timeAttrs)
+        NSString(string: media.durationLabel ?? formatSeconds(media.durationSeconds)).draw(in: expandedDurationRect(progressRect: progressRect), withAttributes: rightAlignedAttributes(timeAttrs))
         drawProgressBar(media: media, positionSeconds: elapsedSeconds, rect: progressRect)
         drawMediaControls(media: media)
     }
@@ -514,7 +509,30 @@ final class IslandView: NSView {
     private func expandedContentRect() -> NSRect {
         let cover = expandedCoverRect()
         let x = cover.maxX + 24
-        return NSRect(x: x, y: 24, width: bounds.width - x - 32, height: 160)
+        return NSRect(x: x, y: expandedTopContentY(), width: bounds.width - x - 32, height: 160)
+    }
+
+    private func expandedSourceRect() -> NSRect {
+        let content = expandedContentRect()
+        return NSRect(x: content.minX, y: expandedTopContentY(), width: content.width, height: 14)
+    }
+
+    private func expandedTitleRect() -> NSRect {
+        let content = expandedContentRect()
+        return NSRect(x: content.minX, y: expandedTopContentY() + 20, width: content.width, height: 27)
+    }
+
+    private func expandedArtistRect() -> NSRect {
+        let content = expandedContentRect()
+        return NSRect(x: content.minX, y: expandedTopContentY() + 49, width: content.width, height: 24)
+    }
+
+    private func expandedElapsedRect(progressRect: NSRect) -> NSRect {
+        NSRect(x: progressRect.minX, y: progressRect.minY - 18, width: 72, height: 14)
+    }
+
+    private func expandedDurationRect(progressRect: NSRect) -> NSRect {
+        NSRect(x: progressRect.maxX - 72, y: progressRect.minY - 18, width: 72, height: 14)
     }
 
     private func expandedTopContentY() -> CGFloat {

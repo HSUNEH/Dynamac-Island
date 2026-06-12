@@ -84,12 +84,16 @@ assert.match(source, /artworkCache: \[String: NSImage\]/, "native overlay should
 assert.match(source, /failedArtworkKeys = Set<String>\(\)/, "native overlay should remember failed artwork loads to avoid repeated blocking retries");
 assert.match(source, /if let cached = artworkCache\[value\] \{ return cached \}/, "artwork cache should be checked before Data(contentsOf:) network loading");
 
-assert.match(source, /Apple-inspired media sheet/, "expanded Now Playing should follow an Apple-inspired quiet media sheet layout");
+assert.match(source, /DESIGN-apple\.md form pass/, "expanded Now Playing should follow the supplied Apple DESIGN.md form without importing its colors");
+assert.match(source, /product-first structure/, "expanded media sheet should use Apple-style product-first structure rather than decorative chrome");
 assert.match(source, /expandedContentRect/, "expanded layout should use a named right-side content rect for metadata, scrubber, and controls");
+assert.match(source, /expandedSourceRect/, "expanded source label should use a named DESIGN.md-form rect");
+assert.match(source, /expandedTitleRect/, "expanded title should use a named DESIGN.md-form rect");
+assert.match(source, /expandedArtistRect/, "expanded artist should use a named DESIGN.md-form rect");
 assert.match(source, /expandedTopContentY/, "expanded layout should compute a notch-safe metadata top inset");
 assert.match(source, /compactLayout\.usesHardwareNotchCutout \? max\(44, compactLayout\.height \+ 12\) : 24/, "expanded metadata should move below the physical notch on MacBook displays while preserving external display spacing");
-assert.match(source, /NSRect\(x: contentX, y: textTop \+ 19, width: contentW, height: 27\)/, "expanded title should be a single-line Apple-style title block below the notch-safe source label");
-assert.match(source, /NSRect\(x: contentX, y: textTop \+ 47, width: contentW, height: 20\)/, "expanded artist should sit directly under the title");
+assert.match(source, /expandedTopContentY\(\) \+ 20/, "expanded title should sit in a 17\/21pt Apple-style hierarchy below the source label");
+assert.match(source, /expandedTopContentY\(\) \+ 49/, "expanded artist should sit directly under the title in the same Apple-style text stack");
 assert.match(source, /expandedProgressY\(\)/, "expanded scrubber should follow the notch-safe metadata stack");
 assert.match(source, /expandedControlsY\(\)/, "expanded controls should follow the notch-safe metadata stack");
 assert.match(source, /let centerX = expandedContentRect\(\)\.midX/, "expanded transport controls should be centered under the metadata/scrubber area, not the whole panel");
