@@ -4,6 +4,48 @@ const os = require("node:os");
 const path = require("node:path");
 
 const home = os.homedir();
+const DEFAULT_PROFILE_NAME = process.env.DYNAMAC_BROWSER_PROFILE_NAME || "snuffles";
+
+function appExists(appName) {
+  if (process.env.DYNAMAC_FORCE_ARC_PROFILE_SEED === "1" && appName === "Arc") return true;
+  return fs.existsSync(path.join("/Applications", `${appName}.app`));
+}
+
+function ensureArcSnufflesProfile(roots, profileName = DEFAULT_PROFILE_NAME) {
+  if (!appExists("Arc")) return [];
+  const root = roots[0];
+  const defaultDir = path.join(root, "Default");
+  const localStatePath = path.join(root, "Local State");
+  const preferencesPath = path.join(defaultDir, "Preferences");
+  fs.mkdirSync(defaultDir, { recursive: true });
+
+  let localState = {};
+  if (fs.existsSync(localStatePath)) {
+    try { localState = JSON.parse(fs.readFileSync(localStatePath, "utf8")); } catch { localState = {}; }
+  }
+  localState.profile = localState.profile || {};
+  localState.profile.info_cache = localState.profile.info_cache || {};
+  localState.profile.info_cache.Default = {
+    ...(localState.profile.info_cache.Default || {}),
+    name: profileName,
+    user_name: profileName,
+    is_using_default_name: false
+  };
+  localState.profile.last_used = localState.profile.last_used || "Default";
+  localState.profile.last_active_profiles = localState.profile.last_active_profiles || ["Default"];
+  fs.writeFileSync(localStatePath, JSON.stringify(localState, null, 2));
+
+  if (!fs.existsSync(preferencesPath)) {
+    fs.writeFileSync(preferencesPath, JSON.stringify({
+      browser: { allow_javascript_apple_events: true },
+      profile: {
+        name: profileName,
+        avatar_index: 0
+      }
+    }, null, 2));
+  }
+  return [preferencesPath];
+}
 
 const browserProfiles = [
   {
@@ -79,7 +121,14 @@ function patchPreferenceFile(file) {
 
 let foundAny = false;
 for (const browser of browserProfiles) {
-  const files = [...new Set(browser.roots.flatMap(walkPreferences))];
+  let files = [...new Set(browser.roots.flatMap(walkPreferences))];
+  if (!files.length && browser.name === "Arc") {
+    const seeded = ensureArcSnufflesProfile(browser.roots);
+    if (seeded.length) {
+      console.log(`${browser.name}: seeded Chromium profile '${DEFAULT_PROFILE_NAME}' — ${path.dirname(seeded[0])}`);
+      files = [...new Set(browser.roots.flatMap(walkPreferences))];
+    }
+  }
   if (!files.length) {
     console.log(`${browser.name}: no Chromium Preferences file found`);
     continue;

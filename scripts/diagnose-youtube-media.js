@@ -46,13 +46,20 @@ console.log(`Frontmost app: ${frontmostApp()}`);
 console.log("YouTube media probe:");
 for (const browser of browsers) {
   if (!appInstalled(browser)) continue;
-  let result = run("osascript", ["-e", browserYouTubeScript(browser)]);
-  let raw = result.stdout;
-  if (!raw && CHROMIUM_YOUTUBE_BROWSERS.includes(browser)) {
-    const fallback = run("osascript", ["-e", chromiumFallbackYouTubeTitleScript(browser)]);
-    if (fallback.stdout) {
-      result = fallback;
-      raw = fallback.stdout;
+  let result;
+  let raw;
+  if (browser === "Arc") {
+    result = run("osascript", ["-e", chromiumFallbackYouTubeTitleScript(browser)]);
+    raw = result.stdout;
+  } else {
+    result = run("osascript", ["-e", browserYouTubeScript(browser)]);
+    raw = result.stdout;
+    if (!raw && CHROMIUM_YOUTUBE_BROWSERS.includes(browser)) {
+      const fallback = run("osascript", ["-e", chromiumFallbackYouTubeTitleScript(browser)]);
+      if (fallback.stdout) {
+        result = fallback;
+        raw = fallback.stdout;
+      }
     }
   }
   const summary = summarizeRaw(raw);

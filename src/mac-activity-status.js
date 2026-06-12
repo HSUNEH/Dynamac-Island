@@ -425,6 +425,11 @@ function collectBrowserYouTubeMediaInfos(options = {}) {
   ];
   return browserNames
     .map((browserName) => {
+      if (browserName === "Arc") {
+        const fallbackInfo = parseDelimitedMedia(runCommand("osascript", ["-e", chromiumFallbackYouTubeTitleScript(browserName)]));
+        if (fallbackInfo) return { ...fallbackInfo, browserName };
+        return null;
+      }
       const raw = runCommand("osascript", ["-e", browserYouTubeScript(browserName)]);
       let info = parseDelimitedMedia(raw);
       if (!info && CHROMIUM_YOUTUBE_BROWSERS.includes(browserName)) {

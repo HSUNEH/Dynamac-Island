@@ -22,6 +22,8 @@ const {
   writeMacActivityStatusSnapshot
 } = require("../src/mac-activity-status");
 
+const sourceText = fs.readFileSync(path.join(__dirname, "..", "src", "mac-activity-status.js"), "utf8");
+
 assert.deepEqual(parsePmsetBattery("Now drawing from 'Battery Power'\n -InternalBattery-0 (id=1234567)\t19%; discharging; 1:20 remaining present: true"), {
   agent: "Battery",
   state: "warning",
@@ -86,6 +88,7 @@ assert.match(arcYouTubeScript, /System Events/, "Arc/Chromium detection should f
 assert.match(arcYouTubeScript, /does not contain "YouTube Studio"/, "Arc/Chromium title fallback should not treat YouTube Studio as playback");
 const arcFallbackScript = chromiumFallbackYouTubeTitleScript("Arc");
 assert.match(arcFallbackScript, /System Events/, "Arc fallback should be callable as a separate System Events script after Arc tab scripting times out");
+assert.match(sourceText, /browserName === "Arc"[\s\S]*chromiumFallbackYouTubeTitleScript\(browserName\)[\s\S]*return null/, "Arc collection should use fast System Events title fallback first instead of hanging on Arc tab AppleScript");
 assert.doesNotMatch(arcFallbackScript, /tell application "Arc"/, "Arc fallback should not depend on Arc's own AppleScript dictionary after a timeout");
 assert.match(arcYouTubeScript, /youtube\.com\/watch/, "Arc YouTube detection should scan watch tabs");
 
