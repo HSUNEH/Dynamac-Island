@@ -60,6 +60,9 @@ assert.match(source, /rightWingRect\(in: bounds\)/, "compact playing animation s
 assert.match(source, /compactPlayingBarsRect/, "compact playing animation should use a dedicated safe rect inside the visible right wing");
 assert.match(source, /visibleRightWingX = compactLayout\.wingWidth \+ compactLayout\.notchCutoutWidth/, "compact playing bars should avoid the notch-overlap area that clips their left edge");
 assert.match(source, /DYNAMAC_PLAYING_BARS_SENSITIVITY/, "compact playing bars should expose a sensitivity knob for tuning animation intensity");
+assert.match(source, /compactSinglePillPlayingBarsRect/, "non-notch single-pill compact mode should also show the playing animation");
+assert.match(source, /External\/non-notch displays use one centered pill/, "single-pill playing animation should document external display behavior");
+assert.match(source, /bounds\.maxX - horizontalInset - width/, "single-pill playing animation should live at the trailing end of the pill");
 assert.match(source, /let barCount = 4/, "compact playing animation should use four bars for a livelier meter");
 assert.match(source, /Date\(\)\.timeIntervalSince1970 \* 10\.5/, "compact playing animation should move faster than the original low-sensitivity bars");
 
@@ -88,5 +91,9 @@ assert.match(source, /applyOptimisticMediaControl/, "media controls should updat
 assert.match(source, /applyOptimisticSeek/, "media seek should update local progress optimistically before provider status catches up");
 assert.match(source, /scheduleFastStatusReloadBurst/, "media controls should schedule a short reload burst after provider commands");
 assert.match(source, /DYNAMAC_STATUS_RELOAD_MS\"\] \?\? \"250\"/, "native status reload should default to a low-latency 250ms cadence");
+
+assert.match(source, /scheduleAutoCollapse/, "expanded mode should auto-collapse back to compact mode after a timeout");
+assert.match(source, /DYNAMAC_EXPANDED_AUTO_COLLAPSE_SECONDS\"\] \?\? \"7\"/, "expanded auto-collapse should default to 7 seconds and be tunable");
+assert.match(source, /autoCollapseTimer\?\.invalidate\(\)/, "manual toggles should cancel any pending auto-collapse timer");
 
 console.log("Native overlay contract test passed.");

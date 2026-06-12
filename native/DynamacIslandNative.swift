@@ -424,6 +424,8 @@ final class IslandView: NSView {
 
         if compactLayout.usesHardwareNotchCutout {
             drawPlayingBars(media: media, in: compactPlayingBarsRect())
+        } else {
+            drawPlayingBars(media: media, in: compactSinglePillPlayingBarsRect())
         }
     }
 
@@ -615,6 +617,21 @@ final class IslandView: NSView {
         )
     }
 
+    private func compactSinglePillPlayingBarsRect() -> NSRect {
+        // External/non-notch displays use one centered pill, so there is no separate
+        // right wing. Keep the artwork on the left and reserve the pill's trailing end
+        // for the same activity meter so playback is visible in both compact modes.
+        let horizontalInset: CGFloat = 12
+        let verticalInset: CGFloat = 8
+        let width: CGFloat = 24
+        return NSRect(
+            x: bounds.maxX - horizontalInset - width,
+            y: verticalInset,
+            width: width,
+            height: max(10, bounds.height - verticalInset * 2)
+        )
+    }
+
     private func drawPlayingBars(media: MediaInfo, in rect: NSRect) {
         let isPlaying = media.playbackState == "playing"
         let barCount = 4
@@ -720,6 +737,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusTimer: Timer?
     private var displayTimer: Timer?
     private var contentFadeTimer: Timer?
+    private var autoCollapseTimer: Timer?
     private var expanded = false
     private var compactLayout = NotchWingLayout.compactFromEnvironment()
 
@@ -814,6 +832,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func toggleExpanded() {
         guard let panel, let islandView, let screen = panel.screen ?? NSScreen.main else { return }
         contentFadeTimer?.invalidate()
+        autoCollapseTimer?.invalidate()
         let willExpand = !expanded
         expanded = willExpand
         let size = willExpand ? NSSize(width: 520, height: 210) : compactLayout.totalSize
@@ -836,6 +855,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 panel.animator().setFrame(targetFrame, display: true)
             }, completionHandler: { [weak self, weak islandView] in
                 self?.fadeContent(in: islandView)
+                self?.scheduleAutoCollapse()
             })
         } else {
             NSAnimationContext.runAnimationGroup({ ctx in
@@ -869,6 +889,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 timer.invalidate()
                 self?.contentFadeTimer = nil
             }
+        }
+    }
+
+    private func scheduleAutoCollapse() {
+        autoCollapseTimer?.invalidate()
+        let seconds = Double(ProcessInfo.processInfo.environment["DYNAMAC_EXPANDED_AUTO_COLLAPSE_SECONDS"] ?? "7").flatMap { $0 > 0 ? $0 : nil } ?? 7
+        autoCollapseTimer = Timer.scheduledTimer(withTimeInterval: seconds, repeats: false) { [weak self] _ in
+            guard let self, self.expanded else { return }
+            self.toggleExpanded()
         }
     }
 
