@@ -149,22 +149,68 @@ function youtubePageProbeJavaScript() {
   })()`;
 }
 
+const CHROMIUM_YOUTUBE_BROWSERS = [
+  "Google Chrome",
+  "Google Chrome Canary",
+  "Chromium",
+  "Arc",
+  "Brave Browser",
+  "Microsoft Edge",
+  "Vivaldi",
+  "Opera",
+  "Opera GX",
+  "Orion",
+  "Dia"
+];
+
+const FIREFOX_YOUTUBE_BROWSERS = [
+  "Firefox",
+  "Firefox Developer Edition",
+  "Firefox Nightly",
+  "Waterfox",
+  "LibreWolf"
+];
+
+const SAFARI_YOUTUBE_BROWSERS = ["Safari", "Safari Technology Preview"];
+
+function youtubeUrlAppleScriptCondition(variableName = "tabUrl") {
+  return `${variableName} contains "youtube.com/watch" or ${variableName} contains "music.youtube.com/watch" or ${variableName} contains "youtu.be/" or ${variableName} contains "youtube.com/shorts/"`;
+}
+
 function browserYouTubeScript(browserName) {
   const js = appleScriptString(youtubePageProbeJavaScript());
-  const chromiumBrowsers = new Set(["Google Chrome", "Google Chrome Canary", "Brave Browser", "Microsoft Edge", "Arc"]);
-  if (browserName === "Safari") {
+  const chromiumBrowsers = new Set(CHROMIUM_YOUTUBE_BROWSERS);
+  const safariBrowsers = new Set(SAFARI_YOUTUBE_BROWSERS);
+  const firefoxBrowsers = new Set(FIREFOX_YOUTUBE_BROWSERS);
+  if (safariBrowsers.has(browserName)) {
     return [
       `if application "${browserName}" is running then`,
       `tell application "${browserName}"`,
       'repeat with w in windows',
       'repeat with t in tabs of w',
       'set tabUrl to URL of t',
-      'if tabUrl contains "youtube.com/watch" or tabUrl contains "music.youtube.com/watch" or tabUrl contains "youtu.be/" or tabUrl contains "youtube.com/shorts/" then',
+      `if ${youtubeUrlAppleScriptCondition("tabUrl")} then`,
       `set payload to do JavaScript ${js} in t`,
       'return "youtube-json||" & payload & "||" & tabUrl',
       'end if',
       'end repeat',
       'end repeat',
+      'end tell',
+      'end if'
+    ].join("\n");
+  }
+  if (firefoxBrowsers.has(browserName)) {
+    return [
+      `if application "${browserName}" is running then`,
+      'tell application "System Events"',
+      `tell process "${browserName}"`,
+      'repeat with w in windows',
+      'set windowTitle to name of w',
+      'if windowTitle contains "YouTube" then',
+      'return "youtube-title||" & windowTitle & "||" & "firefox-window"',
+      'end if',
+      'end repeat',
+      'end tell',
       'end tell',
       'end if'
     ].join("\n");
@@ -176,7 +222,7 @@ function browserYouTubeScript(browserName) {
     'repeat with w in windows',
     'repeat with t in tabs of w',
     'set tabUrl to URL of t',
-    'if tabUrl contains "youtube.com/watch" or tabUrl contains "music.youtube.com/watch" or tabUrl contains "youtu.be/" or tabUrl contains "youtube.com/shorts/" then',
+    `if ${youtubeUrlAppleScriptCondition("tabUrl")} then`,
     `set payload to execute javascript ${js} in t`,
     'return "youtube-json||" & payload & "||" & tabUrl',
     'end if',
@@ -207,6 +253,22 @@ function parseDelimitedMedia(raw) {
     } catch (_error) {
       return null;
     }
+  }
+
+  if (text.startsWith("youtube-title||")) {
+    const [, windowTitle = "YouTube", pageUrl = ""] = text.split("||");
+    const title = parseYouTubeWindowTitle(windowTitle);
+    return normalizeMediaInfo({
+      source: "youtube",
+      title,
+      artist: "YouTube",
+      album: "YouTube",
+      artworkUrl: "",
+      durationSeconds: 0,
+      positionSeconds: 0,
+      playbackState: "unknown",
+      pageUrl
+    });
   }
 
   const parts = text.split("||");
@@ -240,6 +302,15 @@ function normalizeMediaInfo(info) {
     playbackState: info.playbackState || "unknown",
     pageUrl: info.pageUrl || ""
   };
+}
+
+function parseYouTubeWindowTitle(windowTitle) {
+  const cleaned = String(windowTitle || "")
+    .replace(/\s+[-–—]\s+Mozilla Firefox\s*$/i, "")
+    .replace(/\s+[-–—]\s+Firefox(?: Developer Edition| Nightly)?\s*$/i, "")
+    .replace(/\s+[-–—]\s+YouTube\s*$/i, "")
+    .trim();
+  return cleaned || "YouTube";
 }
 
 function youtubeVideoId(url) {
@@ -303,9 +374,14 @@ function collectMediaStatus(options = {}) {
   if (options.mediaInfo !== undefined) return mediaStatusFromInfo(normalizeMediaInfo(options.mediaInfo));
   if (options.mediaText !== undefined) return mediaStatusFromInfo(parseDelimitedMedia(options.mediaText));
 
+  const browserNames = [
+    ...CHROMIUM_YOUTUBE_BROWSERS,
+    ...SAFARI_YOUTUBE_BROWSERS,
+    ...FIREFOX_YOUTUBE_BROWSERS
+  ];
   const raw = runCommand("osascript", ["-e", spotifyScript()])
     || runCommand("osascript", ["-e", musicScript()])
-    || ["Google Chrome", "Arc", "Brave Browser", "Microsoft Edge", "Safari"].map((browser) => runCommand("osascript", ["-e", browserYouTubeScript(browser)])).find(Boolean)
+    || browserNames.map((browser) => runCommand("osascript", ["-e", browserYouTubeScript(browser)])).find(Boolean)
     || "";
   return mediaStatusFromInfo(parseDelimitedMedia(raw));
 }
@@ -336,6 +412,9 @@ function writeMacActivityStatusSnapshot(options = {}) {
 module.exports = {
   buildMacActivityStatusPayload,
   browserYouTubeScript,
+  CHROMIUM_YOUTUBE_BROWSERS,
+  FIREFOX_YOUTUBE_BROWSERS,
+  SAFARI_YOUTUBE_BROWSERS,
   classifyClipboardText,
   collectBatteryStatus,
   collectClipboardStatus,

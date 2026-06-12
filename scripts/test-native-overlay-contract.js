@@ -85,6 +85,12 @@ assert.match(source, /onMediaSeek/, "expanded progress bar should expose media s
 assert.match(source, /mouseDragged/, "expanded progress bar should support dragging to seek");
 assert.match(source, /mediaSeekSecond/, "expanded progress bar clicks should map x-position to playback seconds");
 assert.match(source, /performMediaSeek/, "native overlay should wire progress seeking to Spotify, Music, and YouTube");
+assert.match(source, /let scriptableBrowsers = \[/, "native YouTube control should centralize scriptable browser coverage");
+assert.match(source, /"Google Chrome Canary"/, "native YouTube control should include Chrome Canary");
+assert.match(source, /"Vivaldi"/, "native YouTube control should include Vivaldi");
+assert.match(source, /"Opera GX"/, "native YouTube control should include Opera GX");
+assert.match(source, /"Orion"/, "native YouTube control should include Orion");
+assert.match(source, /"Dia"/, "native YouTube control should include Dia");
 assert.match(source, /execute javascript "\\\(escapedJs\)" in t/, "native YouTube control should use Chromium's execute-javascript-in-tab AppleScript form");
 assert.doesNotMatch(source, /execute t javascript/, "native YouTube control must not use invalid execute-tab-javascript word order");
 assert.match(source, /performYouTubeJavaScript/, "native overlay should control YouTube playback through browser JavaScript best-effort");

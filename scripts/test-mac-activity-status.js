@@ -6,6 +6,9 @@ const os = require("node:os");
 const path = require("node:path");
 const {
   browserYouTubeScript,
+  CHROMIUM_YOUTUBE_BROWSERS,
+  FIREFOX_YOUTUBE_BROWSERS,
+  SAFARI_YOUTUBE_BROWSERS,
   buildMacActivityStatusPayload,
   classifyClipboardText,
   formatDuration,
@@ -53,10 +56,31 @@ assert.equal(youtubeJsonInfo.positionSeconds, 8);
 assert.equal(youtubeJsonInfo.playbackState, "playing");
 assert.equal(youtubeJsonInfo.artworkUrl, "https://i.ytimg.com/vi/abcDEF_1234/hqdefault.jpg");
 
+assert.deepEqual(CHROMIUM_YOUTUBE_BROWSERS.includes("Google Chrome"), true);
+assert.deepEqual(CHROMIUM_YOUTUBE_BROWSERS.includes("Arc"), true);
+assert.deepEqual(CHROMIUM_YOUTUBE_BROWSERS.includes("Vivaldi"), true);
+assert.deepEqual(CHROMIUM_YOUTUBE_BROWSERS.includes("Opera"), true);
+assert.deepEqual(CHROMIUM_YOUTUBE_BROWSERS.includes("Orion"), true);
+assert.deepEqual(SAFARI_YOUTUBE_BROWSERS.includes("Safari"), true);
+assert.deepEqual(FIREFOX_YOUTUBE_BROWSERS.includes("Firefox"), true);
+
+const firefoxInfo = parseDelimitedMedia("youtube-title||Lo-fi beats - YouTube — Mozilla Firefox||firefox-window");
+assert.equal(firefoxInfo.source, "youtube");
+assert.equal(firefoxInfo.title, "Lo-fi beats");
+assert.equal(firefoxInfo.playbackState, "unknown");
+
 const arcYouTubeScript = browserYouTubeScript("Arc");
 assert.match(arcYouTubeScript, /execute javascript[\s\S]* in t/, "Arc/Chromium YouTube detection should use the standard execute-javascript-in-tab AppleScript form");
 assert.doesNotMatch(arcYouTubeScript, /execute t javascript/, "Arc/Chromium YouTube detection must not use the invalid execute-tab-javascript word order");
 assert.match(arcYouTubeScript, /youtube\.com\/watch/, "Arc YouTube detection should scan watch tabs");
+
+const safariYouTubeScript = browserYouTubeScript("Safari");
+assert.match(safariYouTubeScript, /do JavaScript[\s\S]* in t/, "Safari YouTube detection should use Safari's do-JavaScript-in-tab form");
+
+const firefoxYouTubeScript = browserYouTubeScript("Firefox");
+assert.match(firefoxYouTubeScript, /System Events/, "Firefox fallback should use System Events because Firefox does not expose tab JavaScript via AppleScript");
+assert.match(firefoxYouTubeScript, /youtube-title/, "Firefox fallback should return title-based YouTube metadata");
+assert.doesNotMatch(firefoxYouTubeScript, /execute javascript|do JavaScript/, "Firefox fallback must not pretend to execute tab JavaScript");
 
 const payload = buildMacActivityStatusPayload({
   now: new Date("2026-06-11T09:00:00.000Z"),

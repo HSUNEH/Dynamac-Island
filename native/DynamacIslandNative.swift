@@ -1017,7 +1017,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func performYouTubeJavaScript(_ js: String) {
         let escapedJs = js.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
-        for browserName in ["Google Chrome", "Arc", "Brave Browser", "Microsoft Edge"] {
+        let scriptableBrowsers = [
+            "Google Chrome",
+            "Google Chrome Canary",
+            "Chromium",
+            "Arc",
+            "Brave Browser",
+            "Microsoft Edge",
+            "Vivaldi",
+            "Opera",
+            "Opera GX",
+            "Orion",
+            "Dia"
+        ]
+        for browserName in scriptableBrowsers {
             runAppleScript(chromiumYouTubeScript(browserName: browserName, escapedJs: escapedJs))
         }
         runAppleScript(safariYouTubeScript(escapedJs: escapedJs))
