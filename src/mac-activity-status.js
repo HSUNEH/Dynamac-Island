@@ -369,21 +369,59 @@ function youtubeThumbnailUrl(url) {
   return id ? `https://img.youtube.com/vi/${id}/hqdefault.jpg` : "";
 }
 
+const youtubeMetadataCache = new Map();
+
+function parseYouTubeDurationFromHtml(html) {
+  const text = String(html || "");
+  const approxMatch = text.match(/"approxDurationMs":"(\d+)"/);
+  if (approxMatch) return Math.round(Number(approxMatch[1]) / 1000);
+  const lengthMatch = text.match(/"lengthSeconds":"(\d+)"/);
+  return lengthMatch ? Number(lengthMatch[1]) : 0;
+}
+
+function collectYouTubeMetadata(pageUrl, options = {}) {
+  if (!pageUrl) return null;
+  if (options.youtubeMetadataByUrl && Object.prototype.hasOwnProperty.call(options.youtubeMetadataByUrl, pageUrl)) {
+    return options.youtubeMetadataByUrl[pageUrl];
+  }
+  if (youtubeMetadataCache.has(pageUrl)) return youtubeMetadataCache.get(pageUrl);
+
+  let metadata = null;
+  const encodedUrl = encodeURIComponent(pageUrl);
+  const oembedRaw = runCommand("curl", ["-L", "--max-time", "2", "--silent", "--show-error", `https://www.youtube.com/oembed?format=json&url=${encodedUrl}`], { timeout: 2400 });
+  if (oembedRaw) {
+    try {
+      metadata = JSON.parse(oembedRaw);
+    } catch (_error) {
+      metadata = null;
+    }
+  }
+
+  const watchHtml = runCommand("curl", ["-L", "--max-time", "5", "--silent", "--show-error", "-A", "Mozilla/5.0", pageUrl], { timeout: 6200, maxBuffer: 4 * 1024 * 1024 });
+  const durationSeconds = parseYouTubeDurationFromHtml(watchHtml);
+  if (metadata || durationSeconds) {
+    metadata = { ...(metadata || {}), durationSeconds };
+    youtubeMetadataCache.set(pageUrl, metadata);
+  }
+  return metadata;
+}
+
 function collectArcProcessYouTubeInfo(options = {}) {
   const processText = options.arcProcessText ?? runCommand("ps", ["axo", "command"], { timeout: 450 });
   const lines = String(processText || "").split("\n");
   const arcLine = lines.find((line) => /\/Arc(?:\s|$)/.test(line) && /youtube\.com\/watch|music\.youtube\.com\/watch|youtu\.be\/|youtube\.com\/shorts\//i.test(line));
   const pageUrl = extractFirstYouTubeUrl(arcLine || "");
   if (!pageUrl) return null;
+  const metadata = collectYouTubeMetadata(pageUrl, options) || {};
   return normalizeMediaInfo({
     source: "youtube",
-    title: "YouTube",
-    artist: "YouTube",
+    title: metadata.title || "YouTube",
+    artist: metadata.author_name || metadata.author || "YouTube",
     album: "YouTube",
-    artworkUrl: youtubeThumbnailUrl(pageUrl),
-    durationSeconds: 0,
+    artworkUrl: metadata.thumbnail_url || youtubeThumbnailUrl(pageUrl),
+    durationSeconds: Number(metadata.durationSeconds || 0),
     positionSeconds: 0,
-    playbackState: "unknown",
+    playbackState: "playing",
     pageUrl
   });
 }

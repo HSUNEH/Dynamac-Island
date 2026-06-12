@@ -150,6 +150,14 @@ const frontmostArcProcessUrlBeatsSpotify = collectMediaStatus({
   frontmostApp: "Arc",
   frontmostBrowserMediaText: "",
   arcProcessText: "/Users/sunbot/Applications/Arc-Snuffles.app/Contents/MacOS/Arc https://www.youtube.com/watch?v=jNQXAC9IVRw",
+  youtubeMetadataByUrl: {
+    "https://www.youtube.com/watch?v=jNQXAC9IVRw": {
+      title: "Me at the zoo",
+      author_name: "jawed",
+      thumbnail_url: "https://i.ytimg.com/vi/jNQXAC9IVRw/hqdefault.jpg",
+      durationSeconds: 19
+    }
+  },
   mediaRemoteRaw: JSON.stringify({
     kMRMediaRemoteNowPlayingInfoClientBundleIdentifier: "com.spotify.client",
     kMRMediaRemoteNowPlayingInfoTitle: "Crush",
@@ -162,9 +170,12 @@ const frontmostArcProcessUrlBeatsSpotify = collectMediaStatus({
   musicText: ""
 });
 assert.equal(frontmostArcProcessUrlBeatsSpotify.media.source, "youtube");
-assert.equal(frontmostArcProcessUrlBeatsSpotify.media.title, "YouTube");
+assert.equal(frontmostArcProcessUrlBeatsSpotify.media.title, "Me at the zoo");
+assert.equal(frontmostArcProcessUrlBeatsSpotify.media.artist, "jawed");
+assert.equal(frontmostArcProcessUrlBeatsSpotify.media.durationSeconds, 19);
+assert.equal(frontmostArcProcessUrlBeatsSpotify.media.playbackState, "playing");
 assert.equal(frontmostArcProcessUrlBeatsSpotify.media.pageUrl, "https://www.youtube.com/watch?v=jNQXAC9IVRw");
-assert.equal(frontmostArcProcessUrlBeatsSpotify.media.artworkUrl, "https://img.youtube.com/vi/jNQXAC9IVRw/hqdefault.jpg");
+assert.equal(frontmostArcProcessUrlBeatsSpotify.media.artworkUrl, "https://i.ytimg.com/vi/jNQXAC9IVRw/hqdefault.jpg");
 
 const arcMediaRemoteBeatsSpotify = collectMediaStatus({
   browserMediaTexts: [],
