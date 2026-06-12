@@ -349,6 +349,11 @@ function parseYouTubeWindowTitle(windowTitle) {
   return cleaned || "YouTube";
 }
 
+function extractFirstYouTubeUrl(text) {
+  const match = String(text || "").match(/https?:\/\/(?:www\.)?(?:youtube\.com\/(?:watch\?[^\s"']*v=|shorts\/)[^\s"']+|youtu\.be\/[^\s"']+|music\.youtube\.com\/watch\?[^\s"']*v=[^\s"']+)/i);
+  return match ? match[0] : "";
+}
+
 function youtubeVideoId(url) {
   const text = String(url || "");
   const watchMatch = text.match(/[?&]v=([A-Za-z0-9_-]{6,})/);
@@ -362,6 +367,25 @@ function youtubeVideoId(url) {
 function youtubeThumbnailUrl(url) {
   const id = youtubeVideoId(url);
   return id ? `https://img.youtube.com/vi/${id}/hqdefault.jpg` : "";
+}
+
+function collectArcProcessYouTubeInfo(options = {}) {
+  const processText = options.arcProcessText ?? runCommand("ps", ["axo", "command"], { timeout: 450 });
+  const lines = String(processText || "").split("\n");
+  const arcLine = lines.find((line) => /\/Arc(?:\s|$)/.test(line) && /youtube\.com\/watch|music\.youtube\.com\/watch|youtu\.be\/|youtube\.com\/shorts\//i.test(line));
+  const pageUrl = extractFirstYouTubeUrl(arcLine || "");
+  if (!pageUrl) return null;
+  return normalizeMediaInfo({
+    source: "youtube",
+    title: "YouTube",
+    artist: "YouTube",
+    album: "YouTube",
+    artworkUrl: youtubeThumbnailUrl(pageUrl),
+    durationSeconds: 0,
+    positionSeconds: 0,
+    playbackState: "unknown",
+    pageUrl
+  });
 }
 
 function mediaStatusFromInfo(info) {
@@ -414,8 +438,14 @@ function frontmostApplicationName(options = {}) {
 function collectFrontmostBrowserYouTubeInfo(options = {}) {
   if (options.frontmostBrowserMediaText !== undefined) {
     const info = parseDelimitedMedia(options.frontmostBrowserMediaText);
-    return info ? { ...info, browserName: options.frontmostApp } : null;
+    if (info) return { ...info, browserName: options.frontmostApp };
+    if (options.frontmostApp === "Arc") {
+      const arcProcessInfo = collectArcProcessYouTubeInfo(options);
+      if (arcProcessInfo) return { ...arcProcessInfo, browserName: options.frontmostApp };
+    }
+    return null;
   }
+  if (options.browserMediaTexts !== undefined) return null;
   const frontmostApp = frontmostApplicationName(options);
   const browserNames = new Set([
     ...CHROMIUM_YOUTUBE_BROWSERS,
@@ -424,7 +454,12 @@ function collectFrontmostBrowserYouTubeInfo(options = {}) {
   ]);
   if (!browserNames.has(frontmostApp)) return null;
   const info = parseDelimitedMedia(runCommand("osascript", ["-e", chromiumFallbackYouTubeTitleScript(frontmostApp)], { timeout: 450 }));
-  return info ? { ...info, browserName: frontmostApp } : null;
+  if (info) return { ...info, browserName: frontmostApp };
+  if (frontmostApp === "Arc") {
+    const arcProcessInfo = collectArcProcessYouTubeInfo(options);
+    if (arcProcessInfo) return { ...arcProcessInfo, browserName: frontmostApp };
+  }
+  return null;
 }
 
 function collectBrowserYouTubeMediaInfos(options = {}) {

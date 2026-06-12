@@ -146,6 +146,26 @@ assert.equal(frontmostArcTitleBeatsSpotify.media.source, "youtube");
 assert.equal(frontmostArcTitleBeatsSpotify.media.title, "12시간 뒤, 여러분은 다른 사람이 됩니다.");
 assert.equal(frontmostArcTitleBeatsSpotify.media.artist, "YouTube");
 
+const frontmostArcProcessUrlBeatsSpotify = collectMediaStatus({
+  frontmostApp: "Arc",
+  frontmostBrowserMediaText: "",
+  arcProcessText: "/Users/sunbot/Applications/Arc-Snuffles.app/Contents/MacOS/Arc https://www.youtube.com/watch?v=jNQXAC9IVRw",
+  mediaRemoteRaw: JSON.stringify({
+    kMRMediaRemoteNowPlayingInfoClientBundleIdentifier: "com.spotify.client",
+    kMRMediaRemoteNowPlayingInfoTitle: "Crush",
+    kMRMediaRemoteNowPlayingInfoArtist: "10CM",
+    kMRMediaRemoteNowPlayingInfoDuration: 239,
+    kMRMediaRemoteNowPlayingInfoElapsedTime: 33,
+    kMRMediaRemoteNowPlayingInfoPlaybackRate: 1
+  }),
+  spotifyText,
+  musicText: ""
+});
+assert.equal(frontmostArcProcessUrlBeatsSpotify.media.source, "youtube");
+assert.equal(frontmostArcProcessUrlBeatsSpotify.media.title, "YouTube");
+assert.equal(frontmostArcProcessUrlBeatsSpotify.media.pageUrl, "https://www.youtube.com/watch?v=jNQXAC9IVRw");
+assert.equal(frontmostArcProcessUrlBeatsSpotify.media.artworkUrl, "https://img.youtube.com/vi/jNQXAC9IVRw/hqdefault.jpg");
+
 const arcMediaRemoteBeatsSpotify = collectMediaStatus({
   browserMediaTexts: [],
   mediaRemoteRaw: arcMediaRemoteRaw,
@@ -193,6 +213,7 @@ const cachedArtworkUrl = "https://i.scdn.co/image/pre-cached-next-cover";
 const cachedArtworkPath = path.join(cachedArtworkDir, `${crypto.createHash("sha1").update(cachedArtworkUrl).digest("hex")}.img`);
 fs.writeFileSync(cachedArtworkPath, "fake image bytes");
 const spotifyArtworkUsesLocalCache = collectMediaStatus({
+  frontmostApp: "Spotify",
   mediaRemoteRaw: spotifyMediaRemoteRaw,
   spotifyText: `spotify||Next Song||Next Artist||Next Album||${cachedArtworkUrl}||200000||1.2||playing`,
   musicText: "",
@@ -213,6 +234,7 @@ const mediaRemoteArtworkRaw = JSON.stringify({
   kMRMediaRemoteNowPlayingInfoArtworkData: mediaRemoteArtworkBytes.toString("base64")
 });
 const mediaRemoteArtworkStatus = collectMediaStatus({
+  frontmostApp: "Spotify",
   mediaRemoteRaw: mediaRemoteArtworkRaw,
   spotifyText: "spotify||Instant Cover Song||Instant Artist||Instant Album||https://i.scdn.co/image/fallback-cover||180000||84.25||playing",
   musicText: "",
