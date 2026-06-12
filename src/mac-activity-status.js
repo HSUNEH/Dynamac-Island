@@ -440,11 +440,78 @@ function collectBrowserYouTubeMediaInfos(options = {}) {
     .filter(Boolean);
 }
 
+function parseMediaRemoteNowPlaying(raw) {
+  if (!raw) return null;
+  let payload;
+  try {
+    payload = typeof raw === "string" ? JSON.parse(raw) : raw;
+  } catch (_error) {
+    return null;
+  }
+  const title = payload.kMRMediaRemoteNowPlayingInfoTitle || payload.title || "";
+  if (!title) return null;
+  const bundleIdentifier = payload.kMRMediaRemoteNowPlayingInfoClientBundleIdentifier || payload.bundleIdentifier || "";
+  const browserBundles = new Set([
+    "com.google.Chrome",
+    "com.google.Chrome.canary",
+    "org.chromium.Chromium",
+    "company.thebrowser.Browser",
+    "com.brave.Browser",
+    "com.microsoft.edgemac",
+    "com.vivaldi.Vivaldi",
+    "com.operasoftware.Opera",
+    "com.operasoftware.OperaGX",
+    "com.apple.Safari"
+  ]);
+  const source = browserBundles.has(bundleIdentifier) ? "youtube" : (
+    bundleIdentifier.includes("spotify") ? "spotify" : (bundleIdentifier.includes("Music") ? "music" : "now-playing")
+  );
+  const playbackRate = Number(payload.kMRMediaRemoteNowPlayingInfoPlaybackRate ?? payload.playbackRate ?? 0);
+  return normalizeMediaInfo({
+    source,
+    title,
+    artist: payload.kMRMediaRemoteNowPlayingInfoArtist || payload.artist || (source === "youtube" ? "YouTube" : ""),
+    album: payload.kMRMediaRemoteNowPlayingInfoAlbum || payload.album || (source === "youtube" ? "YouTube" : ""),
+    artworkUrl: "",
+    durationSeconds: Number(payload.kMRMediaRemoteNowPlayingInfoDuration ?? payload.duration ?? 0),
+    positionSeconds: Number(payload.kMRMediaRemoteNowPlayingInfoElapsedTime ?? payload.elapsedTime ?? 0),
+    playbackState: playbackRate > 0 ? "playing" : "paused",
+    pageUrl: "",
+    bundleIdentifier
+  });
+}
+
+function enrichMediaRemoteInfo(info, browserInfos = []) {
+  if (!info) return null;
+  const matchingBrowser = browserInfos.find((browserInfo) => {
+    if (!browserInfo) return false;
+    if (info.title && browserInfo.title && (info.title === browserInfo.title || browserInfo.title.includes(info.title) || info.title.includes(browserInfo.title))) return true;
+    if (info.source === "youtube" && browserInfo.source === "youtube" && browserInfo.playbackState === "playing") return true;
+    return false;
+  });
+  return normalizeMediaInfo({
+    ...info,
+    artworkUrl: info.artworkUrl || matchingBrowser?.artworkUrl || "",
+    pageUrl: info.pageUrl || matchingBrowser?.pageUrl || "",
+    artist: info.artist || matchingBrowser?.artist || "",
+    album: info.album || matchingBrowser?.album || ""
+  });
+}
+
+function collectMediaRemoteInfo(options = {}) {
+  if (options.mediaRemoteInfo !== undefined) return normalizeMediaInfo(options.mediaRemoteInfo);
+  if (options.mediaRemoteRaw !== undefined) return parseMediaRemoteNowPlaying(options.mediaRemoteRaw);
+  return parseMediaRemoteNowPlaying(runCommand("nowplaying-cli", ["get-raw"], { timeout: 900 }));
+}
+
 function collectMediaStatus(options = {}) {
   if (options.mediaInfo !== undefined) return mediaStatusFromInfo(normalizeMediaInfo(options.mediaInfo));
   if (options.mediaText !== undefined) return mediaStatusFromInfo(parseDelimitedMedia(options.mediaText));
 
   const browserInfos = collectBrowserYouTubeMediaInfos(options);
+  const mediaRemoteInfo = enrichMediaRemoteInfo(collectMediaRemoteInfo(options), browserInfos);
+  if (mediaRemoteInfo?.playbackState === "playing") return mediaStatusFromInfo(mediaRemoteInfo);
+
   const playingBrowserInfo = browserInfos.find((info) => info.playbackState === "playing");
   if (playingBrowserInfo) return mediaStatusFromInfo(playingBrowserInfo);
 
@@ -493,6 +560,7 @@ module.exports = {
   collectMediaStatus,
   formatDuration,
   parseDelimitedMedia,
+  parseMediaRemoteNowPlaying,
   parsePmsetBattery,
   writeMacActivityStatusSnapshot,
   youtubeThumbnailUrl

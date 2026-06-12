@@ -17,6 +17,7 @@ const {
   collectMediaStatus,
   formatDuration,
   parseDelimitedMedia,
+  parseMediaRemoteNowPlaying,
   parsePmsetBattery,
   youtubeThumbnailUrl,
   writeMacActivityStatusSnapshot
@@ -64,6 +65,21 @@ assert.equal(youtubeJsonInfo.positionSeconds, 8);
 assert.equal(youtubeJsonInfo.playbackState, "playing");
 assert.equal(youtubeJsonInfo.artworkUrl, "https://i.ytimg.com/vi/abcDEF_1234/hqdefault.jpg");
 
+const arcMediaRemoteRaw = JSON.stringify({
+  kMRMediaRemoteNowPlayingInfoClientBundleIdentifier: "company.thebrowser.Browser",
+  kMRMediaRemoteNowPlayingInfoTitle: "Arc Video",
+  kMRMediaRemoteNowPlayingInfoArtist: "Arc Channel",
+  kMRMediaRemoteNowPlayingInfoDuration: 321,
+  kMRMediaRemoteNowPlayingInfoElapsedTime: 42,
+  kMRMediaRemoteNowPlayingInfoPlaybackRate: 1
+});
+const arcMediaRemoteInfo = parseMediaRemoteNowPlaying(arcMediaRemoteRaw);
+assert.equal(arcMediaRemoteInfo.source, "youtube");
+assert.equal(arcMediaRemoteInfo.title, "Arc Video");
+assert.equal(arcMediaRemoteInfo.positionSeconds, 42);
+assert.equal(arcMediaRemoteInfo.durationSeconds, 321);
+assert.equal(arcMediaRemoteInfo.playbackState, "playing");
+
 assert.deepEqual(CHROMIUM_YOUTUBE_BROWSERS.includes("Google Chrome"), true);
 assert.deepEqual(CHROMIUM_YOUTUBE_BROWSERS.includes("Arc"), true);
 assert.deepEqual(CHROMIUM_YOUTUBE_BROWSERS.includes("Vivaldi"), true);
@@ -102,6 +118,7 @@ assert.doesNotMatch(firefoxYouTubeScript, /execute javascript|do JavaScript/, "F
 
 const youtubeBeatsSpotify = collectMediaStatus({
   browserMediaTexts: [youtubePlayingText],
+  mediaRemoteRaw: "",
   spotifyText,
   musicText: "",
   frontmostApp: "Spotify"
@@ -109,8 +126,20 @@ const youtubeBeatsSpotify = collectMediaStatus({
 assert.equal(youtubeBeatsSpotify.media.source, "youtube");
 assert.equal(youtubeBeatsSpotify.media.title, "Video Title");
 
+const arcMediaRemoteBeatsSpotify = collectMediaStatus({
+  browserMediaTexts: [],
+  mediaRemoteRaw: arcMediaRemoteRaw,
+  spotifyText,
+  musicText: "",
+  frontmostApp: "Spotify"
+});
+assert.equal(arcMediaRemoteBeatsSpotify.media.source, "youtube");
+assert.equal(arcMediaRemoteBeatsSpotify.media.title, "Arc Video");
+assert.equal(arcMediaRemoteBeatsSpotify.media.elapsedLabel, "0:42");
+
 const frontmostArcTitleFallbackDoesNotBeatSpotify = collectMediaStatus({
   browserMediaTexts: [{ browserName: "Arc", text: "youtube-title||[Vlog] 10년차 무명 배우 브이로그 - YouTube||https://www.youtube.com/watch?v=vlog12345" }],
+  mediaRemoteRaw: "",
   spotifyText,
   musicText: "",
   frontmostApp: "Arc"
@@ -119,6 +148,7 @@ assert.equal(frontmostArcTitleFallbackDoesNotBeatSpotify.media.source, "spotify"
 
 const frontmostArcTitleFallbackWinsWhenNoNativePlayer = collectMediaStatus({
   browserMediaTexts: [{ browserName: "Arc", text: "youtube-title||[Vlog] 10년차 무명 배우 브이로그 - YouTube||https://www.youtube.com/watch?v=vlog12345" }],
+  mediaRemoteRaw: "",
   spotifyText: "",
   musicText: "",
   frontmostApp: "Arc"
@@ -128,6 +158,7 @@ assert.equal(frontmostArcTitleFallbackWinsWhenNoNativePlayer.media.title, "[Vlog
 
 const backgroundYoutubeFallbackDoesNotBeatSpotify = collectMediaStatus({
   browserMediaTexts: ["youtube-title||Old tab - YouTube||https://www.youtube.com/watch?v=old12345"],
+  mediaRemoteRaw: "",
   spotifyText,
   musicText: "",
   frontmostApp: "Spotify"

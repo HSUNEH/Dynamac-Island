@@ -6,7 +6,8 @@ const {
   CHROMIUM_YOUTUBE_BROWSERS,
   SAFARI_YOUTUBE_BROWSERS,
   FIREFOX_YOUTUBE_BROWSERS,
-  parseDelimitedMedia
+  parseDelimitedMedia,
+  parseMediaRemoteNowPlaying
 } = require("../src/mac-activity-status");
 
 function run(command, args) {
@@ -41,8 +42,33 @@ function summarizeRaw(raw) {
   };
 }
 
+function arcWindowTitles() {
+  const script = [
+    'try',
+    'tell application "System Events"',
+    'tell process "Arc"',
+    'set titles to {}',
+    'repeat with w in windows',
+    'set end of titles to name of w',
+    'end repeat',
+    'return titles as text',
+    'end tell',
+    'end tell',
+    'on error errMsg number errNo',
+    'return "ERR||" & errNo & "||" & errMsg',
+    'end try'
+  ].join("\n");
+  return run("osascript", ["-e", script]).stdout;
+}
+
 const browsers = [...CHROMIUM_YOUTUBE_BROWSERS, ...SAFARI_YOUTUBE_BROWSERS, ...FIREFOX_YOUTUBE_BROWSERS];
 console.log(`Frontmost app: ${frontmostApp()}`);
+const mediaRemote = parseMediaRemoteNowPlaying(run("nowplaying-cli", ["get-raw"]).stdout);
+if (mediaRemote) {
+  console.log(`MediaRemote current: ${mediaRemote.source} — ${mediaRemote.title} · state=${mediaRemote.playbackState} · duration=${mediaRemote.durationSeconds} · position=${mediaRemote.positionSeconds}`);
+} else {
+  console.log("MediaRemote current: empty");
+}
 console.log("YouTube media probe:");
 for (const browser of browsers) {
   if (!appInstalled(browser)) continue;
@@ -64,6 +90,11 @@ for (const browser of browsers) {
   }
   const summary = summarizeRaw(raw);
   console.log(`- ${browser}: ${summary.kind} — ${summary.summary}`);
+  if (browser === "Arc" && summary.kind === "empty") {
+    const titles = arcWindowTitles();
+    if (titles) console.log(`  Arc windows: ${titles}`);
+    if (/Sign In to Arc/i.test(titles)) console.log("  Arc is open but signed out/onboarding; finish Arc sign-in once, then rerun this diagnostic.");
+  }
   if (result.stderr) console.log(`  stderr: ${result.stderr.split("\n")[0]}`);
   if (result.status !== 0) console.log(`  status: ${result.status}${result.error ? ` error=${result.error}` : ""}`);
 }
