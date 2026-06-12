@@ -43,6 +43,7 @@ struct NotchWingLayout {
         let measuredNotchHeightValue = screen.flatMap { measuredNotchHeight(screen: $0) }
         let hasHardwareNotch = screen.flatMap { measuredNotchCutoutWidth(screen: $0) } != nil
             || screen.map { $0.safeAreaInsets.top > 0 } == true
+            || screen.map { likelyBuiltInDisplay($0) } == true
 
         // Hand-calibrated dimensions for the hardware-notch overlay. These fixed values are
         // used as-is (they intentionally take precedence over OS-measured notch sizes) so the
@@ -77,6 +78,11 @@ struct NotchWingLayout {
             usesHardwareNotchCutout: hasHardwareNotch,
             showsQaNotchSilhouette: environment["DYNAMAC_QA_NOTCH_SILHOUETTE"] == "1"
         )
+    }
+
+    static func likelyBuiltInDisplay(_ screen: NSScreen) -> Bool {
+        let name = screen.localizedName.lowercased()
+        return name.contains("built-in") || name.contains("liquid retina") || name.contains("color lcd")
     }
 
     private static func measuredNotchCutoutWidth(screen: NSScreen) -> CGFloat? {
@@ -791,6 +797,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var displayTimer: Timer?
     private var contentFadeTimer: Timer?
     private var autoCollapseTimer: Timer?
+    private var layoutRefreshGeneration = 0
+    private var lastKnownNotchLayout: NotchWingLayout?
     private var expanded = false
     private var compactLayout = NotchWingLayout.compactFromEnvironment()
 
@@ -812,12 +820,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func createPanel() {
-        guard let screen = NSScreen.main else { return }
+        guard let screen = NSScreen.main else { NSApp.terminate(nil); return }
         compactLayout = NotchWingLayout.compactFromEnvironment(screen: screen)
+        if compactLayout.usesHardwareNotchCutout {
+            lastKnownNotchLayout = compactLayout
+        }
+        let size = compactLayout.totalSize
         if ProcessInfo.processInfo.environment["DYNAMAC_NATIVE_DIAG"] == "1" {
             print(compactLayout.diagnosticDescription(screen: screen))
         }
-        let size = compactLayout.totalSize
         let rect = topCenteredRect(screen: screen, size: size)
         let panel = NSPanel(contentRect: rect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.isOpaque = false
@@ -846,10 +857,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.panel = panel
         self.islandView = view
 
-        // A display-layout change can leave the panel with a stale frame; just re-pin it.
+        // Display/wake changes can swap the main screen or make macOS briefly report stale
+        // notch safe-area data. Re-measure a few times and resize/re-anchor the panel.
         NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
-            object: nil, queue: .main) { [weak self] _ in self?.reassertCompactFrame() }
+            object: nil, queue: .main) { [weak self] _ in self?.scheduleLayoutRefresh(reason: "screen-parameters") }
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil, queue: .main) { [weak self] _ in self?.scheduleLayoutRefresh(reason: "wake") }
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.screensDidWakeNotification,
+            object: nil, queue: .main) { [weak self] _ in self?.scheduleLayoutRefresh(reason: "screens-wake") }
         // activeSpaceDidChange fires once the Space transition has finished. Re-show the
         // overlay on the now-active Space and fade it in so it turns on after the slide
         // completes rather than sitting pinned during it.
@@ -860,7 +878,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showOnActiveSpace() {
         guard let panel else { return }
-        reassertCompactFrame()
+        refreshLayoutAndFrame(reason: "active-space")
         panel.alphaValue = 0
         panel.orderFrontRegardless()
         NSAnimationContext.runAnimationGroup { ctx in
@@ -870,17 +888,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func reassertCompactFrame() {
-        guard let panel, let islandView, !expanded, let screen = NSScreen.main else { return }
-        // Reuse the launch-time notch layout instead of recomputing it. In a full-screen
-        // Space macOS temporarily stops reporting the notch (safeAreaInsets/auxiliary areas
-        // go away), so recomputing would fall back to the taller non-notch single pill and
-        // the overlay would appear to grow. Only re-pin the fixed frame.
-        let size = compactLayout.totalSize
+    private func scheduleLayoutRefresh(reason: String) {
+        layoutRefreshGeneration += 1
+        let generation = layoutRefreshGeneration
+        refreshLayoutAndFrame(reason: "\(reason)-immediate")
+        for delay in [0.15, 0.6, 1.4] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self, self.layoutRefreshGeneration == generation else { return }
+                self.refreshLayoutAndFrame(reason: "\(reason)-delayed")
+            }
+        }
+    }
+
+    private func refreshLayoutAndFrame(reason: String) {
+        guard let panel, let islandView, let screen = NSScreen.main else { return }
+        let measured = NotchWingLayout.compactFromEnvironment(screen: screen)
+        let resolved = resolvedLayoutForCurrentScreen(measured: measured, screen: screen)
+        compactLayout = resolved
+        islandView.compactLayout = resolved
+        if resolved.usesHardwareNotchCutout {
+            lastKnownNotchLayout = resolved
+        }
+        let size = expanded ? NSSize(width: 520, height: 210) : resolved.totalSize
         islandView.frame = NSRect(origin: .zero, size: size)
         panel.setFrame(topCenteredRect(screen: screen, size: size), display: true)
+        if ProcessInfo.processInfo.environment["DYNAMAC_NATIVE_DIAG"] == "1" {
+            print("DYNAMAC_LAYOUT_REFRESH reason=\(reason)")
+            print(resolved.diagnosticDescription(screen: screen))
+        }
         islandView.needsDisplay = true
     }
+
+    private func resolvedLayoutForCurrentScreen(measured: NotchWingLayout, screen: NSScreen) -> NotchWingLayout {
+        if measured.usesHardwareNotchCutout { return measured }
+        // After wake/display handoff, macOS can briefly expose the built-in notched panel
+        // without auxiliary notch areas. If this is still the built-in display, preserve the
+        // last known notch geometry instead of collapsing into the external-display pill.
+        if NotchWingLayout.likelyBuiltInDisplay(screen), let lastKnownNotchLayout {
+            return lastKnownNotchLayout
+        }
+        return measured
+    }
+
 
     private func toggleExpanded() {
         guard let panel, let islandView, let screen = panel.screen ?? NSScreen.main else { return }

@@ -35,6 +35,17 @@ assert.match(source, /notchCutoutRect\(in: bounds\)/, "QA notch guide should use
 assert.match(source, /without filling it/, "QA notch guide must not hide the real physical notch during camera-based calibration");
 assert.match(source, /override func mouseDown/, "native overlay should provide a direct compact\/expanded toggle interaction");
 assert.match(source, /toggleExpanded\(\)/, "native overlay should expose a toggle path for expansion");
+assert.match(source, /NSApplication\.didChangeScreenParametersNotification/, "native overlay should react to display topology and main-display changes");
+assert.match(source, /NSWorkspace\.didWakeNotification/, "native overlay should refresh layout after wake\/unlock");
+assert.match(source, /NSWorkspace\.screensDidWakeNotification/, "native overlay should refresh layout when displays wake");
+assert.match(source, /scheduleLayoutRefresh/, "display and wake notifications should schedule delayed layout refreshes for stale screen data");
+assert.match(source, /refreshLayoutAndFrame/, "native overlay should re-measure notch layout and re-anchor the panel after environment changes");
+assert.match(source, /NotchWingLayout\.compactFromEnvironment\(screen: screen\)/, "layout refresh should measure the current main screen instead of reusing launch-time geometry");
+assert.match(source, /layoutRefreshGeneration/, "layout refreshes should ignore stale delayed callbacks from older display events");
+assert.match(source, /lastKnownNotchLayout/, "native overlay should preserve known built-in notch geometry through transient wake\/Space states");
+assert.match(source, /likelyBuiltInDisplay/, "native overlay should distinguish built-in notched panels from external displays when screen metrics are stale");
+assert.match(source, /screen\.map \{ likelyBuiltInDisplay\(\$0\) \} == true/, "layout measurement should fall back to built-in display identity when notch safe-area data is temporarily missing");
+assert.doesNotMatch(source, /Reuse the launch-time notch layout/, "native overlay must not keep stale launch-time notch layout after display changes");
 assert.match(source, /let targetFrame = topCenteredRect\(screen: screen, size: size\)/, "native overlay should compute a centered target frame when the mode changes");
 assert.match(source, /panel\.animator\(\)\.setFrame\(targetFrame, display: true\)/, "native overlay should resize and re-anchor the panel with the centered target frame when the mode changes");
 
