@@ -8,6 +8,8 @@ const sourcePath = path.resolve("native/DynamacIslandNative.swift");
 const source = fs.readFileSync(sourcePath, "utf8");
 const nativeStartPath = path.resolve("scripts/native-start.js");
 const nativeStartSource = fs.readFileSync(nativeStartPath, "utf8");
+const macActivityPath = path.resolve("src/mac-activity-status.js");
+const macActivitySource = fs.readFileSync(macActivityPath, "utf8");
 
 assert.match(source, /NSPanel\(/, "native overlay should use NSPanel instead of an Electron BrowserWindow");
 assert.match(source, /styleMask:\s*\[\.borderless, \.nonactivatingPanel\]/, "native panel should be borderless and non-activating");
@@ -108,9 +110,10 @@ assert.match(source, /progressBarRect\(\)\.insetBy\(dx: -2, dy: -5\)/, "scrubber
 assert.match(source, /not the surrounding time-label whitespace/, "scrubber should document its intentionally narrow hit target");
 assert.match(source, /normalizedInteractionPoint/, "scrubber should normalize event coordinates so click and drag work reliably in flipped views");
 
-assert.match(source, /smallBackwardTick/, "smooth play time should suppress small stale provider rewinds instead of ticking 0→1→0");
-assert.match(source, /localLead > 0 && localLead < 3/, "real large backward seeks should still be accepted while tiny stale rewinds are ignored");
-assert.match(source, /play time never ticks 0→1→0/, "native overlay should document the anti-jitter playback-time contract");
+assert.match(source, /staleBackwardTick/, "smooth play time should suppress stale provider rewinds instead of ticking 0→1→0");
+assert.match(source, /staleZeroFallback/, "native overlay should treat same-track 0-second Spotify fallbacks as stale snapshots");
+assert.match(macActivitySource, /backwardJump > 0\.25 && backwardJump <= 12/, "Mac activity writer should only stabilize real backward provider jumps, not every small collection lag");
+assert.match(source, /play time never ticks 0→1→0 or 1:08→1:05/, "native overlay should document the anti-jitter playback-time contract");
 
 assert.match(source, /onMediaSeek/, "expanded progress bar should expose media seek callbacks");
 assert.match(source, /mouseDragged/, "expanded progress bar should support dragging to seek");
@@ -136,7 +139,7 @@ assert.match(source, /Media surfaces can be expensive to draw/, "native overlay 
 assert.match(source, /applyOptimisticMediaControl/, "media controls should update playback state optimistically so animations react immediately");
 assert.match(source, /optimisticPlaybackStateUntil/, "optimistic play-pause state should be protected briefly from stale provider reloads");
 assert.match(source, /replaceStatuses/, "status reloads should be merged through a reconciliation path instead of overwriting local playback state directly");
-assert.match(source, /smallBackwardTick/, "incoming stale positions should not make displayed play time jump backwards");
+assert.match(source, /staleBackwardTick/, "incoming stale positions should not make displayed play time jump backwards");
 assert.match(source, /isSameMedia/, "status reconciliation should only smooth updates for the same track");
 assert.match(source, /applyOptimisticSeek/, "media seek should update local progress optimistically before provider status catches up");
 assert.match(source, /scheduleFastStatusReloadBurst/, "media controls should schedule a short reload burst after provider commands");
@@ -149,6 +152,10 @@ assert.match(source, /requestStatusSnapshotRefresh/, "native overlay should touc
 assert.match(source, /media\.artworkUrl = ""/, "next/previous should clear stale artwork immediately while the new track cover is being fetched");
 assert.match(nativeStartSource, /DYNAMAC_STATUS_REFRESH_MS \|\| 250/, "native-start writer should default to a 250ms refresh cadence for external Spotify track changes");
 assert.match(nativeStartSource, />= 200 \? refreshIntervalMs : 250/, "native-start should clamp invalid writer refresh intervals back to 250ms");
+assert.match(source, /staleZeroFallback/, "native overlay should ignore same-track zero-position provider fallbacks while playing");
+assert.match(source, /localLead > 0 && localLead <= 12/, "native overlay should ignore same-track stale playback rewinds up to 12 seconds while playing");
+assert.match(source, /1:08→1:05/, "native overlay should document and guard against visible backward playback-time jumps");
+assert.match(macActivitySource, /renameSync\(tempPath, outputPath\)/, "Mac activity writer should atomically rename status snapshots to avoid partial JSON reads");
 assert.match(source, /DYNAMAC_STATUS_RELOAD_MS\"\] \?\? \"250\"/, "native status reload should default to a low-latency 250ms cadence");
 
 assert.match(source, /scheduleAutoCollapse/, "expanded mode should auto-collapse back to compact mode after an idle timeout");

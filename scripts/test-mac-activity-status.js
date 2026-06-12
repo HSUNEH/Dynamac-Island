@@ -20,6 +20,7 @@ const {
   parseDelimitedMedia,
   parseMediaRemoteNowPlaying,
   parsePmsetBattery,
+  stabilizeMediaProgress,
   youtubeThumbnailUrl,
   writeMacActivityStatusSnapshot
 } = require("../src/mac-activity-status");
@@ -204,6 +205,56 @@ const expectedMediaRemoteArtworkPath = path.join(mediaRemoteArtworkDir, `${crypt
 assert.equal(mediaRemoteArtworkStatus.media.artworkUrl, expectedMediaRemoteArtworkPath);
 assert.equal(mediaRemoteArtworkStatus.media.positionSeconds, 84.25);
 assert.equal(fs.readFileSync(expectedMediaRemoteArtworkPath, "utf8"), "mediaremote-cover-bytes");
+
+const previousStablePayload = {
+  statuses: [{
+    agent: "Now Playing",
+    updatedAt: "2026-06-12T12:00:00.000Z",
+    media: {
+      source: "spotify",
+      title: "Stable Song",
+      artist: "Stable Artist",
+      durationSeconds: 180,
+      positionSeconds: 65,
+      playbackState: "playing"
+    }
+  }]
+};
+const rewoundPayload = {
+  statuses: [{
+    agent: "Now Playing",
+    updatedAt: "2026-06-12T12:00:03.000Z",
+    media: {
+      source: "spotify",
+      title: "Stable Song",
+      artist: "Stable Artist",
+      durationSeconds: 180,
+      positionSeconds: 62,
+      playbackState: "playing"
+    }
+  }]
+};
+const stabilizedPayload = stabilizeMediaProgress(rewoundPayload, previousStablePayload, new Date("2026-06-12T12:00:03.000Z"));
+assert.equal(stabilizedPayload.statuses[0].media.positionSeconds, 68);
+assert.equal(stabilizedPayload.statuses[0].media.elapsedLabel, "1:08");
+
+const zeroFallbackPayload = {
+  statuses: [{
+    agent: "Now Playing",
+    updatedAt: "2026-06-12T12:00:06.000Z",
+    media: {
+      source: "spotify",
+      title: "Stable Song",
+      artist: "Stable Artist",
+      durationSeconds: 180,
+      positionSeconds: 0,
+      playbackState: "playing"
+    }
+  }]
+};
+const stabilizedZeroPayload = stabilizeMediaProgress(zeroFallbackPayload, previousStablePayload, new Date("2026-06-12T12:00:06.000Z"));
+assert.equal(stabilizedZeroPayload.statuses[0].media.positionSeconds, 71);
+assert.equal(stabilizedZeroPayload.statuses[0].media.elapsedLabel, "1:11");
 
 const frontmostArcTitleFallbackDoesNotBeatSpotify = collectMediaStatus({
   browserMediaTexts: [{ browserName: "Arc", text: "youtube-title||[Vlog] 10년차 무명 배우 브이로그 - YouTube||https://www.youtube.com/watch?v=vlog12345" }],

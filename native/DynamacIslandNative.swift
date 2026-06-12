@@ -402,11 +402,12 @@ final class IslandView: NSView {
             let displayedPosition = displayPositionSeconds(previousMedia)
             let incomingPosition = incomingMedia.positionSeconds ?? 0
             let localLead = displayedPosition - incomingPosition
-            let smallBackwardTick = incomingMedia.playbackState == "playing" && previousMedia.playbackState == "playing" && localLead > 0 && localLead < 3
-            if smallBackwardTick {
+            let staleZeroFallback = incomingPosition == 0 && (previousMedia.positionSeconds ?? 0) > 3
+            let staleBackwardTick = incomingMedia.playbackState == "playing" && previousMedia.playbackState == "playing" && (staleZeroFallback || (localLead > 0 && localLead <= 12))
+            if staleBackwardTick {
                 // Provider snapshots can arrive quantized or stale while the overlay advances
                 // smoothly between reloads. Preserve the locally displayed position so the
-                // play time never ticks 0→1→0 unless the user actually seeks far backward.
+                // play time never ticks 0→1→0 or 1:08→1:05 unless the user actually seeks far backward.
                 incomingMedia.positionSeconds = displayedPosition
             }
             if Date() < optimisticPlaybackStateUntil, let optimisticPlaybackState {

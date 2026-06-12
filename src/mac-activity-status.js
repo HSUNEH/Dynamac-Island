@@ -613,12 +613,49 @@ function buildMacActivityStatusPayload(options = {}) {
   return { statuses };
 }
 
+function sameMediaIdentity(left, right) {
+  return Boolean(left && right)
+    && left.source === right.source
+    && left.title === right.title
+    && left.artist === right.artist;
+}
+
+function stabilizeMediaProgress(payload, previousPayload, now = new Date()) {
+  if (!previousPayload) return payload;
+  const currentStatus = payload.statuses?.find((status) => status.agent === "Now Playing");
+  const previousStatus = previousPayload.statuses?.find((status) => status.agent === "Now Playing");
+  const current = currentStatus?.media;
+  const previous = previousStatus?.media;
+  if (!current || !previous || !sameMediaIdentity(current, previous)) return payload;
+  if (current.playbackState !== "playing" || previous.playbackState !== "playing") return payload;
+
+  const currentPosition = Number(current.positionSeconds || 0);
+  const previousPosition = Number(previous.positionSeconds || 0);
+  const previousUpdatedAt = Date.parse(previousStatus.updatedAt || previousPayload.updatedAt || "");
+  const elapsed = Number.isFinite(previousUpdatedAt) ? Math.max(0, (now.getTime() - previousUpdatedAt) / 1000) : 0;
+  const expectedPosition = previousPosition + elapsed;
+  const backwardJump = previousPosition - currentPosition;
+  const staleZeroFallback = currentPosition === 0 && previousPosition > 3;
+  const staleBackwardFallback = backwardJump > 0.25 && backwardJump <= 12;
+  if (staleZeroFallback || staleBackwardFallback) {
+    current.positionSeconds = Math.min(expectedPosition, Number(current.durationSeconds || 0) || expectedPosition);
+    current.elapsedLabel = formatDuration(current.positionSeconds);
+  }
+  return payload;
+}
+
 function writeMacActivityStatusSnapshot(options = {}) {
   const outputPath = options.outputPath;
   if (!outputPath) throw new Error("outputPath is required");
-  const payload = buildMacActivityStatusPayload({ ...options, cacheRemoteArtwork: options.cacheRemoteArtwork ?? true });
+  const payload = stabilizeMediaProgress(
+    buildMacActivityStatusPayload({ ...options, cacheRemoteArtwork: options.cacheRemoteArtwork ?? true }),
+    options.previousPayload,
+    options.now || new Date()
+  );
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-  fs.writeFileSync(outputPath, `${JSON.stringify(payload, null, 2)}\n`);
+  const tempPath = `${outputPath}.${process.pid}.${Date.now()}.tmp`;
+  fs.writeFileSync(tempPath, `${JSON.stringify(payload, null, 2)}\n`);
+  fs.renameSync(tempPath, outputPath);
   return { ok: true, outputPath, payload };
 }
 
@@ -637,6 +674,7 @@ module.exports = {
   parseDelimitedMedia,
   parseMediaRemoteNowPlaying,
   parsePmsetBattery,
+  stabilizeMediaProgress,
   writeMacActivityStatusSnapshot,
   youtubeThumbnailUrl
 };
