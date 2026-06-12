@@ -85,6 +85,8 @@ assert.match(source, /onMediaSeek/, "expanded progress bar should expose media s
 assert.match(source, /mouseDragged/, "expanded progress bar should support dragging to seek");
 assert.match(source, /mediaSeekSecond/, "expanded progress bar clicks should map x-position to playback seconds");
 assert.match(source, /performMediaSeek/, "native overlay should wire progress seeking to Spotify, Music, and YouTube");
+assert.match(source, /execute javascript "\\\(escapedJs\)" in t/, "native YouTube control should use Chromium's execute-javascript-in-tab AppleScript form");
+assert.doesNotMatch(source, /execute t javascript/, "native YouTube control must not use invalid execute-tab-javascript word order");
 assert.match(source, /performYouTubeJavaScript/, "native overlay should control YouTube playback through browser JavaScript best-effort");
 assert.match(source, /chromiumYouTubeScript/, "native overlay should scan Chromium browser tabs for YouTube control targets");
 

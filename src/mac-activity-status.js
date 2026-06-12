@@ -177,7 +177,7 @@ function browserYouTubeScript(browserName) {
     'repeat with t in tabs of w',
     'set tabUrl to URL of t',
     'if tabUrl contains "youtube.com/watch" or tabUrl contains "music.youtube.com/watch" or tabUrl contains "youtu.be/" or tabUrl contains "youtube.com/shorts/" then',
-    `set payload to execute t javascript ${js}`,
+    `set payload to execute javascript ${js} in t`,
     'return "youtube-json||" & payload & "||" & tabUrl',
     'end if',
     'end repeat',
@@ -335,6 +335,7 @@ function writeMacActivityStatusSnapshot(options = {}) {
 
 module.exports = {
   buildMacActivityStatusPayload,
+  browserYouTubeScript,
   classifyClipboardText,
   collectBatteryStatus,
   collectClipboardStatus,

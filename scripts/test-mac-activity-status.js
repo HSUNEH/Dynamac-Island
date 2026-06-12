@@ -5,6 +5,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const {
+  browserYouTubeScript,
   buildMacActivityStatusPayload,
   classifyClipboardText,
   formatDuration,
@@ -51,6 +52,11 @@ assert.equal(youtubeJsonInfo.durationSeconds, 1521);
 assert.equal(youtubeJsonInfo.positionSeconds, 8);
 assert.equal(youtubeJsonInfo.playbackState, "playing");
 assert.equal(youtubeJsonInfo.artworkUrl, "https://i.ytimg.com/vi/abcDEF_1234/hqdefault.jpg");
+
+const arcYouTubeScript = browserYouTubeScript("Arc");
+assert.match(arcYouTubeScript, /execute javascript[\s\S]* in t/, "Arc/Chromium YouTube detection should use the standard execute-javascript-in-tab AppleScript form");
+assert.doesNotMatch(arcYouTubeScript, /execute t javascript/, "Arc/Chromium YouTube detection must not use the invalid execute-tab-javascript word order");
+assert.match(arcYouTubeScript, /youtube\.com\/watch/, "Arc YouTube detection should scan watch tabs");
 
 const payload = buildMacActivityStatusPayload({
   now: new Date("2026-06-11T09:00:00.000Z"),
