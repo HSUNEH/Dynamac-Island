@@ -875,6 +875,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var autoCollapseTimer: Timer?
     private var layoutRefreshGeneration = 0
     private var lastKnownNotchLayout: NotchWingLayout?
+    private var exposeRestoreTimer: Timer?
+    private var preExposeFrame: NSRect?
+    private var isExposeCentering = false
     private var expanded = false
     private var compactLayout = NotchWingLayout.compactFromEnvironment()
 
@@ -952,18 +955,69 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.activeSpaceDidChangeNotification,
             object: nil, queue: .main) { [weak self] _ in self?.showOnActiveSpace() }
+        registerExposeMotionObservers()
+    }
+
+    private func registerExposeMotionObservers() {
+        for name in ["com.apple.expose.awake", "com.apple.expose.front.awake"] {
+            DistributedNotificationCenter.default().addObserver(
+                forName: Notification.Name(name),
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                self?.animateIntoExposeCenter()
+            }
+        }
     }
 
     private func showOnActiveSpace() {
-        guard let panel else { return }
-        refreshLayoutAndFrame(reason: "active-space")
-        panel.alphaValue = 0
-        panel.orderFrontRegardless()
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.22
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            panel.animator().alphaValue = 1
+        restoreFromExposeCenter(reason: "active-space")
+    }
+
+    private func animateIntoExposeCenter() {
+        guard let panel, let islandView, let screen = panel.screen ?? NSScreen.main else { return }
+        exposeRestoreTimer?.invalidate()
+        if !isExposeCentering {
+            preExposeFrame = panel.frame
         }
+        isExposeCentering = true
+        contentFadeTimer?.invalidate()
+        islandView.contentOpacity = 0
+        let targetSize = NSSize(width: 52, height: 18)
+        let targetFrame = NSRect(
+            x: screen.frame.midX - targetSize.width / 2,
+            y: screen.frame.midY - targetSize.height / 2,
+            width: targetSize.width,
+            height: targetSize.height
+        )
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.28
+            ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.32, 0.0, 0.67, 0.0)
+            panel.animator().setFrame(targetFrame, display: true)
+            panel.animator().alphaValue = 0.42
+        }
+        exposeRestoreTimer = Timer.scheduledTimer(withTimeInterval: 1.15, repeats: false) { [weak self] _ in
+            self?.restoreFromExposeCenter(reason: "expose-delay")
+        }
+    }
+
+    private func restoreFromExposeCenter(reason: String) {
+        guard let panel, let islandView, let screen = panel.screen ?? NSScreen.main else { return }
+        exposeRestoreTimer?.invalidate()
+        let size = expanded ? NSSize(width: 520, height: 210) : compactLayout.totalSize
+        let targetFrame = reason == "active-space" ? topCenteredRect(screen: screen, size: size) : (preExposeFrame ?? topCenteredRect(screen: screen, size: size))
+        refreshLayoutAndFrame(reason: reason, applyFrame: false)
+        panel.orderFrontRegardless()
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = isExposeCentering ? 0.24 : 0.22
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            panel.animator().setFrame(targetFrame, display: true)
+            panel.animator().alphaValue = 1
+        }, completionHandler: { [weak self, weak islandView] in
+            self?.isExposeCentering = false
+            self?.preExposeFrame = nil
+            self?.fadeContent(in: islandView)
+        })
     }
 
     private func scheduleLayoutRefresh(reason: String) {
@@ -978,7 +1032,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func refreshLayoutAndFrame(reason: String) {
+    private func refreshLayoutAndFrame(reason: String, applyFrame: Bool = true) {
         guard let panel, let islandView, let screen = NSScreen.main else { return }
         let measured = NotchWingLayout.compactFromEnvironment(screen: screen)
         let resolved = resolvedLayoutForCurrentScreen(measured: measured, screen: screen)
@@ -989,7 +1043,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let size = expanded ? NSSize(width: 520, height: 210) : resolved.totalSize
         islandView.frame = NSRect(origin: .zero, size: size)
-        panel.setFrame(topCenteredRect(screen: screen, size: size), display: true)
+        if applyFrame {
+            panel.setFrame(topCenteredRect(screen: screen, size: size), display: true)
+        }
         if ProcessInfo.processInfo.environment["DYNAMAC_NATIVE_DIAG"] == "1" {
             print("DYNAMAC_LAYOUT_REFRESH reason=\(reason)")
             print(resolved.diagnosticDescription(screen: screen))

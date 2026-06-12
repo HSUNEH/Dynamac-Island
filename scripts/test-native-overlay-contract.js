@@ -42,6 +42,15 @@ assert.match(source, /toggleExpanded\(\)/, "native overlay should expose a toggl
 assert.match(source, /NSApplication\.didChangeScreenParametersNotification/, "native overlay should react to display topology and main-display changes");
 assert.match(source, /NSWorkspace\.didWakeNotification/, "native overlay should refresh layout after wake\/unlock");
 assert.match(source, /NSWorkspace\.screensDidWakeNotification/, "native overlay should refresh layout when displays wake");
+assert.match(source, /registerExposeMotionObservers/, "native overlay should listen for Mission Control and App Exposé notifications");
+assert.match(source, /com\.apple\.expose\.awake/, "native overlay should react when Mission Control starts");
+assert.match(source, /com\.apple\.expose\.front\.awake/, "native overlay should react when App Exposé starts");
+assert.match(source, /animateIntoExposeCenter/, "native overlay should animate into the screen center during Exposé instead of staying pinned at the notch");
+assert.match(source, /targetSize = NSSize\(width: 52, height: 18\)/, "Exposé motion should shrink the island into a small center capsule");
+assert.match(source, /screen\.frame\.midY - targetSize\.height \/ 2/, "Exposé motion should move the island toward the screen center like Mission Control");
+assert.match(source, /restoreFromExposeCenter/, "native overlay should restore from the center capsule after Exposé/Space transitions");
+assert.match(source, /preExposeFrame/, "native overlay should remember its original top island frame before the center-suck animation");
+assert.match(source, /refreshLayoutAndFrame\(reason: reason, applyFrame: false\)/, "Exposé restore should re-measure layout without snapping the frame before the return animation");
 assert.match(source, /scheduleLayoutRefresh/, "display and wake notifications should schedule delayed layout refreshes for stale screen data");
 assert.match(source, /refreshLayoutAndFrame/, "native overlay should re-measure notch layout and re-anchor the panel after environment changes");
 assert.match(source, /NotchWingLayout\.compactFromEnvironment\(screen: screen\)/, "layout refresh should measure the current main screen instead of reusing launch-time geometry");
