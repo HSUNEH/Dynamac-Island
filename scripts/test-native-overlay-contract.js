@@ -99,6 +99,10 @@ assert.match(source, /progressBarRect\(\)\.insetBy\(dx: -2, dy: -5\)/, "scrubber
 assert.match(source, /not the surrounding time-label whitespace/, "scrubber should document its intentionally narrow hit target");
 assert.match(source, /normalizedInteractionPoint/, "scrubber should normalize event coordinates so click and drag work reliably in flipped views");
 
+assert.match(source, /smallBackwardTick/, "smooth play time should suppress small stale provider rewinds instead of ticking 0→1→0");
+assert.match(source, /localLead > 0 && localLead < 3/, "real large backward seeks should still be accepted while tiny stale rewinds are ignored");
+assert.match(source, /play time never ticks 0→1→0/, "native overlay should document the anti-jitter playback-time contract");
+
 assert.match(source, /onMediaSeek/, "expanded progress bar should expose media seek callbacks");
 assert.match(source, /mouseDragged/, "expanded progress bar should support dragging to seek");
 assert.match(source, /mediaSeekSecond/, "expanded progress bar clicks should map x-position to playback seconds");
@@ -123,7 +127,7 @@ assert.match(source, /Media surfaces can be expensive to draw/, "native overlay 
 assert.match(source, /applyOptimisticMediaControl/, "media controls should update playback state optimistically so animations react immediately");
 assert.match(source, /optimisticPlaybackStateUntil/, "optimistic play-pause state should be protected briefly from stale provider reloads");
 assert.match(source, /replaceStatuses/, "status reloads should be merged through a reconciliation path instead of overwriting local playback state directly");
-assert.match(source, /wentBackwards/, "incoming stale positions should not make displayed play time jump backwards");
+assert.match(source, /smallBackwardTick/, "incoming stale positions should not make displayed play time jump backwards");
 assert.match(source, /isSameMedia/, "status reconciliation should only smooth updates for the same track");
 assert.match(source, /applyOptimisticSeek/, "media seek should update local progress optimistically before provider status catches up");
 assert.match(source, /scheduleFastStatusReloadBurst/, "media controls should schedule a short reload burst after provider commands");

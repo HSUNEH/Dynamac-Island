@@ -397,8 +397,12 @@ final class IslandView: NSView {
         if let index = merged.firstIndex(where: { $0.agent == "Now Playing" }), var incomingMedia = merged[index].media, let previousMedia, isSameMedia(previousMedia, incomingMedia) {
             let displayedPosition = displayPositionSeconds(previousMedia)
             let incomingPosition = incomingMedia.positionSeconds ?? 0
-            let wentBackwards = incomingMedia.playbackState == "playing" && previousMedia.playbackState == "playing" && incomingPosition + 0.75 < displayedPosition && displayedPosition - incomingPosition < 3
-            if wentBackwards {
+            let localLead = displayedPosition - incomingPosition
+            let smallBackwardTick = incomingMedia.playbackState == "playing" && previousMedia.playbackState == "playing" && localLead > 0 && localLead < 3
+            if smallBackwardTick {
+                // Provider snapshots can arrive quantized or stale while the overlay advances
+                // smoothly between reloads. Preserve the locally displayed position so the
+                // play time never ticks 0→1→0 unless the user actually seeks far backward.
                 incomingMedia.positionSeconds = displayedPosition
             }
             if Date() < optimisticPlaybackStateUntil, let optimisticPlaybackState {
