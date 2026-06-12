@@ -753,12 +753,13 @@ final class IslandView: NSView {
         let sensitivity = CGFloat(Double(ProcessInfo.processInfo.environment["DYNAMAC_PLAYING_BARS_SENSITIVITY"] ?? "1.35") ?? 1.35)
         let phase = Date().timeIntervalSince1970 * 6.2
         for index in 0..<sampleCount {
-            let progress = sampleCount > 1 ? CGFloat(index) / CGFloat(sampleCount - 1) : 0.5
-            let envelope = 0.38 + 0.62 * sin(progress * .pi)
+            // Keep every waveform sample on the same amplitude scale. Earlier versions used
+            // a center-weighted envelope, which made the first/last samples barely move and
+            // looked awkward in the tiny compact island.
             let waveA = (sin(phase + Double(index) * 0.82) + 1) / 2
             let waveB = (sin(phase * 0.63 + Double(index) * 1.47) + 1) / 2
             let mixedWave = isPlaying ? min(1, CGFloat((waveA * 0.62) + (waveB * 0.38)) * sensitivity) : 0.08
-            let heightRatio = isPlaying ? max(0.16, min(1, envelope * (0.22 + mixedWave * 0.78))) : 0.18
+            let heightRatio = isPlaying ? max(0.18, min(1, 0.22 + mixedWave * 0.78)) : 0.18
             let height = max(3, rect.height * heightRatio)
             let x = rect.midX - ((CGFloat(sampleCount) * sampleWidth + CGFloat(sampleCount - 1) * gap) / 2) + CGFloat(index) * (sampleWidth + gap)
             let y = rect.midY - height / 2

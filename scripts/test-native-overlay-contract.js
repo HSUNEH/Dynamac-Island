@@ -79,6 +79,9 @@ assert.match(source, /let width = min\(22, max\(10, maxWidth\)\)/, "single-pill 
 assert.match(source, /sampleCount = max\(2, min\(6, Int\(rect\.width \/ 4\)\)\)/, "waveform should reduce samples in narrow external-display pills");
 assert.match(source, /NSColor\.white\.withAlphaComponent/, "compact waveform should be white-only without green or mint color accents");
 assert.doesNotMatch(source, /NSColor\.systemGreen|NSColor\.systemMint/, "compact waveform should not use colored green\/mint bars");
+assert.match(source, /Keep every waveform sample on the same amplitude scale/, "compact waveform should animate every sample with the same amplitude scale, not just the center bars");
+assert.doesNotMatch(source, /let envelope =/, "compact waveform should not use a center-weighted envelope that makes first and last samples barely move");
+assert.doesNotMatch(source, /sin\(progress \* \.pi\)/, "compact waveform should avoid edge-damping based on sample position");
 assert.match(source, /Date\(\)\.timeIntervalSince1970 \* 6\.2/, "compact waveform should animate at a calmer, less distracting waveform cadence");
 assert.match(source, /artworkCache: \[String: NSImage\]/, "native overlay should cache artwork images instead of reloading network artwork every redraw");
 assert.match(source, /failedArtworkKeys = Set<String>\(\)/, "native overlay should remember failed artwork loads to avoid repeated blocking retries");
