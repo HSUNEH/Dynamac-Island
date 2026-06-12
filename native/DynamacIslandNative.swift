@@ -165,6 +165,8 @@ final class IslandView: NSView {
     private var isDraggingProgress = false
     private var optimisticPlaybackState: String?
     private var optimisticPlaybackStateUntil = Date.distantPast
+    private var artworkCache: [String: NSImage] = [:]
+    private var failedArtworkKeys = Set<String>()
 
     var contentOpacity: CGFloat = 1 {
         didSet { needsDisplay = true }
@@ -570,12 +572,23 @@ final class IslandView: NSView {
 
     private func artworkImage(_ value: String?) -> NSImage? {
         guard let value, !value.isEmpty else { return nil }
+        if let cached = artworkCache[value] { return cached }
+        if failedArtworkKeys.contains(value) { return nil }
+
+        let image: NSImage?
         if value.hasPrefix("http://") || value.hasPrefix("https://"), let url = URL(string: value), let data = try? Data(contentsOf: url, options: [.mappedIfSafe]) {
-            return NSImage(data: data)
+            image = NSImage(data: data)
+        } else {
+            let url = value.hasPrefix("file://") ? URL(string: value) : URL(fileURLWithPath: value)
+            image = url.flatMap { NSImage(contentsOf: $0) }
         }
-        let url = value.hasPrefix("file://") ? URL(string: value) : URL(fileURLWithPath: value)
-        guard let url else { return nil }
-        return NSImage(contentsOf: url)
+
+        if let image {
+            artworkCache[value] = image
+            return image
+        }
+        failedArtworkKeys.insert(value)
+        return nil
     }
 
     private func drawUprightImage(_ image: NSImage, in rect: NSRect) {
@@ -712,7 +725,7 @@ final class IslandView: NSView {
         let gap: CGFloat = 2
         let sampleWidth = max(2, min(4, (rect.width - CGFloat(sampleCount - 1) * gap) / CGFloat(sampleCount)))
         let sensitivity = CGFloat(Double(ProcessInfo.processInfo.environment["DYNAMAC_PLAYING_BARS_SENSITIVITY"] ?? "1.35") ?? 1.35)
-        let phase = Date().timeIntervalSince1970 * 8.5
+        let phase = Date().timeIntervalSince1970 * 6.2
         for index in 0..<sampleCount {
             let progress = sampleCount > 1 ? CGFloat(index) / CGFloat(sampleCount - 1) : 0.5
             let envelope = 0.38 + 0.62 * sin(progress * .pi)
