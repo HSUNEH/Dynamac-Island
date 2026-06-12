@@ -7,6 +7,7 @@ const path = require("node:path");
 const {
   browserYouTubeScript,
   CHROMIUM_YOUTUBE_BROWSERS,
+  chromiumFallbackYouTubeTitleScript,
   FIREFOX_YOUTUBE_BROWSERS,
   SAFARI_YOUTUBE_BROWSERS,
   buildMacActivityStatusPayload,
@@ -83,6 +84,9 @@ assert.match(arcYouTubeScript, /getCurrentTime/, "Chromium YouTube detection sho
 assert.match(arcYouTubeScript, /html5-main-video/, "Chromium YouTube detection should target the main YouTube video element instead of arbitrary sidebar videos");
 assert.match(arcYouTubeScript, /System Events/, "Arc/Chromium detection should fall back to window-title probing if browser tab scripting fails");
 assert.match(arcYouTubeScript, /does not contain "YouTube Studio"/, "Arc/Chromium title fallback should not treat YouTube Studio as playback");
+const arcFallbackScript = chromiumFallbackYouTubeTitleScript("Arc");
+assert.match(arcFallbackScript, /System Events/, "Arc fallback should be callable as a separate System Events script after Arc tab scripting times out");
+assert.doesNotMatch(arcFallbackScript, /tell application "Arc"/, "Arc fallback should not depend on Arc's own AppleScript dictionary after a timeout");
 assert.match(arcYouTubeScript, /youtube\.com\/watch/, "Arc YouTube detection should scan watch tabs");
 
 const safariYouTubeScript = browserYouTubeScript("Safari");

@@ -198,7 +198,7 @@ function chromiumFallbackYouTubeTitleScript(browserName) {
     'end tell',
     'end tell',
     'end try'
-  ];
+  ].join("\n");
 }
 
 function browserYouTubeScript(browserName) {
@@ -264,7 +264,7 @@ function browserYouTubeScript(browserName) {
     'end tell',
     'end if',
     'end try',
-    ...chromiumFallbackYouTubeTitleScript(browserName)
+    ...chromiumFallbackYouTubeTitleScript(browserName).split("\n")
   ].join("\n");
 }
 
@@ -425,7 +425,11 @@ function collectBrowserYouTubeMediaInfos(options = {}) {
   ];
   return browserNames
     .map((browserName) => {
-      const info = parseDelimitedMedia(runCommand("osascript", ["-e", browserYouTubeScript(browserName)]));
+      const raw = runCommand("osascript", ["-e", browserYouTubeScript(browserName)]);
+      let info = parseDelimitedMedia(raw);
+      if (!info && CHROMIUM_YOUTUBE_BROWSERS.includes(browserName)) {
+        info = parseDelimitedMedia(runCommand("osascript", ["-e", chromiumFallbackYouTubeTitleScript(browserName)]));
+      }
       return info ? { ...info, browserName } : null;
     })
     .filter(Boolean);
@@ -475,6 +479,7 @@ module.exports = {
   buildMacActivityStatusPayload,
   browserYouTubeScript,
   CHROMIUM_YOUTUBE_BROWSERS,
+  chromiumFallbackYouTubeTitleScript,
   FIREFOX_YOUTUBE_BROWSERS,
   SAFARI_YOUTUBE_BROWSERS,
   classifyClipboardText,

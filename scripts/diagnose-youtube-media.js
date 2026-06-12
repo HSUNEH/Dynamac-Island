@@ -2,6 +2,7 @@
 const { spawnSync } = require("node:child_process");
 const {
   browserYouTubeScript,
+  chromiumFallbackYouTubeTitleScript,
   CHROMIUM_YOUTUBE_BROWSERS,
   SAFARI_YOUTUBE_BROWSERS,
   FIREFOX_YOUTUBE_BROWSERS,
@@ -45,8 +46,15 @@ console.log(`Frontmost app: ${frontmostApp()}`);
 console.log("YouTube media probe:");
 for (const browser of browsers) {
   if (!appInstalled(browser)) continue;
-  const result = run("osascript", ["-e", browserYouTubeScript(browser)]);
-  const raw = result.stdout;
+  let result = run("osascript", ["-e", browserYouTubeScript(browser)]);
+  let raw = result.stdout;
+  if (!raw && CHROMIUM_YOUTUBE_BROWSERS.includes(browser)) {
+    const fallback = run("osascript", ["-e", chromiumFallbackYouTubeTitleScript(browser)]);
+    if (fallback.stdout) {
+      result = fallback;
+      raw = fallback.stdout;
+    }
+  }
   const summary = summarizeRaw(raw);
   console.log(`- ${browser}: ${summary.kind} — ${summary.summary}`);
   if (result.stderr) console.log(`  stderr: ${result.stderr.split("\n")[0]}`);
