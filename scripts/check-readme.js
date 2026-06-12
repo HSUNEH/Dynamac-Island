@@ -43,7 +43,7 @@ const requiredSnippets = [
   ["Mac activity runtime model", "`Now Playing` from Spotify/Music best-effort AppleScript plus YouTube tab scanning with page metadata/video timing/thumbnail detection, `Clipboard` from local text clipboard, and `Battery` from `pmset -g batt`"],
   ["Now Playing notch mode", "notch mode shows only album art/YouTube thumbnail/music-note fallback on the left wing plus a white waveform playing indicator on the right wing"],
   ["Now Playing non-notch compact mode", "non-notch/external-display compact mode uses one centered pill with a wider trailing white waveform so playback remains visible when the external display is the main display"],
-  ["Now Playing expanded mode", "expanded mode uses an Apple-inspired quiet media sheet: larger artwork, SF-style 17/21pt typography, split elapsed/duration labels, thin scrubber with a visible thumb plus a large invisible hit target, centered pill transport controls, draggable/clickable seek, and previous/play-pause/next vector controls"],
+  ["Now Playing expanded mode", "expanded mode uses an Apple-inspired quiet media sheet: larger artwork, SF-style 17/21pt typography, split elapsed/duration labels, thin scrubber with a visible thumb and an intentionally narrow bar-only seek target, centered pill transport controls, draggable/clickable seek, and previous/play-pause/next vector controls"],
   ["Now Playing auto collapse", "Expanded mode automatically collapses back to compact mode after 7 seconds by default"],
   ["Now Playing transition performance", "Notch-to-expanded transitions animate only the lightweight island shell, then fade media content in after resize"],
   ["fixtures only", "Fixture JSON files under `fixtures/` remain only for deterministic tests"],

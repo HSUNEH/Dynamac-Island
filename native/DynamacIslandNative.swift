@@ -157,6 +157,8 @@ final class IslandView: NSView {
     var onMediaControl: ((String, String) -> Void)?
     var onMediaSeek: ((String, Double) -> Void)?
     private var isDraggingProgress = false
+    private var optimisticPlaybackState: String?
+    private var optimisticPlaybackStateUntil = Date.distantPast
 
     var contentOpacity: CGFloat = 1 {
         didSet { needsDisplay = true }
@@ -167,12 +169,7 @@ final class IslandView: NSView {
     }
     private var statusLoadedAt = Date()
 
-    var statuses: [StatusItem] = [] {
-        didSet {
-            statusLoadedAt = Date()
-            needsDisplay = true
-        }
-    }
+    var statuses: [StatusItem] = []
     var compactLayout = NotchWingLayout.compactFromEnvironment() {
         didSet { needsDisplay = true }
     }
@@ -386,6 +383,33 @@ final class IslandView: NSView {
         statuses.first { $0.agent == "Now Playing" }?.media
     }
 
+    func replaceStatuses(_ incomingStatuses: [StatusItem]) {
+        var merged = incomingStatuses
+        let previousMedia = nowPlayingMedia()
+        if let index = merged.firstIndex(where: { $0.agent == "Now Playing" }), var incomingMedia = merged[index].media, let previousMedia, isSameMedia(previousMedia, incomingMedia) {
+            let displayedPosition = displayPositionSeconds(previousMedia)
+            let incomingPosition = incomingMedia.positionSeconds ?? 0
+            let wentBackwards = incomingMedia.playbackState == "playing" && previousMedia.playbackState == "playing" && incomingPosition + 0.75 < displayedPosition && displayedPosition - incomingPosition < 3
+            if wentBackwards {
+                incomingMedia.positionSeconds = displayedPosition
+            }
+            if Date() < optimisticPlaybackStateUntil, let optimisticPlaybackState {
+                incomingMedia.playbackState = optimisticPlaybackState
+                if optimisticPlaybackState == "playing", incomingPosition < displayedPosition {
+                    incomingMedia.positionSeconds = displayedPosition
+                }
+            }
+            merged[index].media = incomingMedia
+        }
+        statuses = merged
+        statusLoadedAt = Date()
+        needsDisplay = true
+    }
+
+    private func isSameMedia(_ lhs: MediaInfo, _ rhs: MediaInfo) -> Bool {
+        lhs.source == rhs.source && lhs.title == rhs.title && lhs.artist == rhs.artist
+    }
+
     private func updateNowPlayingMedia(_ transform: (inout MediaInfo) -> Void) {
         guard let index = statuses.firstIndex(where: { $0.agent == "Now Playing" }), statuses[index].media != nil else { return }
         transform(&statuses[index].media!)
@@ -396,9 +420,17 @@ final class IslandView: NSView {
     private func applyOptimisticMediaControl(action: String) {
         updateNowPlayingMedia { media in
             if action == "playpause" {
-                media.playbackState = media.playbackState == "playing" ? "paused" : "playing"
+                let nextState = media.playbackState == "playing" ? "paused" : "playing"
+                if nextState == "paused" {
+                    media.positionSeconds = displayPositionSeconds(media)
+                }
+                media.playbackState = nextState
+                optimisticPlaybackState = nextState
+                optimisticPlaybackStateUntil = Date().addingTimeInterval(1.4)
             } else if action == "previous" || action == "next" {
                 media.playbackState = "playing"
+                optimisticPlaybackState = nil
+                optimisticPlaybackStateUntil = .distantPast
             }
         }
     }
@@ -435,29 +467,36 @@ final class IslandView: NSView {
         let cover = expandedCoverRect()
         drawArtwork(media: media, in: cover, cornerRadius: 24, fallbackFontSize: 40)
 
-        let contentX = cover.maxX + 24
-        let contentW = bounds.width - contentX - 32
+        let content = expandedContentRect()
+        let contentX = content.minX
+        let contentW = content.width
         let labelAttrs = expandedTextAttributes(size: 11, weight: .semibold, color: NSColor(calibratedWhite: 0.64, alpha: 1), letterSpacing: 0.8)
         let titleAttrs = expandedTextAttributes(size: 21, weight: .semibold, color: .white, letterSpacing: -0.28)
         let artistAttrs = expandedTextAttributes(size: 15, weight: .regular, color: NSColor(calibratedWhite: 0.70, alpha: 1), letterSpacing: -0.12)
         let timeAttrs = expandedTextAttributes(size: 11, weight: .medium, color: NSColor(calibratedWhite: 0.56, alpha: 1), letterSpacing: 0, monospaced: true)
 
-        NSString(string: displaySourceName(media.source).uppercased()).draw(in: NSRect(x: contentX, y: 34, width: contentW, height: 14), withAttributes: labelAttrs)
-        NSString(string: media.title ?? "Nothing playing").draw(in: NSRect(x: contentX, y: 54, width: contentW, height: 50), withAttributes: titleAttrs)
-        NSString(string: media.artist?.isEmpty == false ? media.artist! : displaySourceName(media.source)).draw(in: NSRect(x: contentX, y: 106, width: contentW, height: 20), withAttributes: artistAttrs)
+        NSString(string: displaySourceName(media.source).uppercased()).draw(in: NSRect(x: contentX, y: 24, width: contentW, height: 14), withAttributes: labelAttrs)
+        NSString(string: media.title ?? "Nothing playing").draw(in: NSRect(x: contentX, y: 43, width: contentW, height: 27), withAttributes: titleAttrs)
+        NSString(string: media.artist?.isEmpty == false ? media.artist! : displaySourceName(media.source)).draw(in: NSRect(x: contentX, y: 71, width: contentW, height: 20), withAttributes: artistAttrs)
 
         let elapsedSeconds = displayPositionSeconds(media)
         let elapsed = formatSeconds(elapsedSeconds)
         let duration = media.durationLabel ?? formatSeconds(media.durationSeconds)
         let progressRect = progressBarRect()
-        NSString(string: elapsed).draw(in: NSRect(x: progressRect.minX, y: progressRect.minY - 20, width: 72, height: 14), withAttributes: timeAttrs)
-        NSString(string: duration).draw(in: NSRect(x: progressRect.maxX - 72, y: progressRect.minY - 20, width: 72, height: 14), withAttributes: rightAlignedAttributes(timeAttrs))
+        NSString(string: elapsed).draw(in: NSRect(x: progressRect.minX, y: progressRect.minY - 18, width: 72, height: 14), withAttributes: timeAttrs)
+        NSString(string: duration).draw(in: NSRect(x: progressRect.maxX - 72, y: progressRect.minY - 18, width: 72, height: 14), withAttributes: rightAlignedAttributes(timeAttrs))
         drawProgressBar(media: media, positionSeconds: elapsedSeconds, rect: progressRect)
         drawMediaControls(media: media)
     }
 
     private func expandedCoverRect() -> NSRect {
         NSRect(x: 32, y: 48, width: 120, height: 120)
+    }
+
+    private func expandedContentRect() -> NSRect {
+        let cover = expandedCoverRect()
+        let x = cover.maxX + 24
+        return NSRect(x: x, y: 24, width: bounds.width - x - 32, height: 160)
     }
 
     private func expandedTextAttributes(size: CGFloat, weight: NSFont.Weight, color: NSColor, letterSpacing: CGFloat, monospaced: Bool = false) -> [NSAttributedString.Key: Any] {
@@ -660,8 +699,8 @@ final class IslandView: NSView {
     }
 
     private func mediaControlRect(action: String) -> NSRect {
-        let centerX = bounds.midX
-        let y: CGFloat = 164
+        let centerX = expandedContentRect().midX
+        let y: CGFloat = 152
         let primarySize: CGFloat = 42
         let secondarySize: CGFloat = 34
         switch action {
@@ -672,15 +711,14 @@ final class IslandView: NSView {
     }
 
     private func progressBarRect() -> NSRect {
-        let cover = expandedCoverRect()
-        let x = cover.maxX + 24
-        return NSRect(x: x, y: 140, width: bounds.width - x - 32, height: 4)
+        let content = expandedContentRect()
+        return NSRect(x: content.minX, y: 116, width: content.width, height: 4)
     }
 
     private func progressHitRect() -> NSRect {
-        // Apple-style scrubbers are visually thin but easy to hit. Keep a 40pt target
-        // around the 4pt track so click and drag feel reliable.
-        progressBarRect().insetBy(dx: -6, dy: -18)
+        // Keep seeking intentional: only the scrubber rail/thumb area is interactive,
+        // not the surrounding time-label whitespace.
+        progressBarRect().insetBy(dx: -2, dy: -5)
     }
 
     private func normalizedInteractionPoint(_ point: NSPoint) -> NSPoint {
@@ -1038,7 +1076,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
               let payload = try? JSONDecoder().decode(StatusPayload.self, from: data) else {
             return
         }
-        islandView?.statuses = payload.statuses
+        islandView?.replaceStatuses(payload.statuses)
     }
 }
 

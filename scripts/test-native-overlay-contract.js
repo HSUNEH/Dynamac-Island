@@ -72,11 +72,14 @@ assert.doesNotMatch(source, /NSColor\.systemGreen|NSColor\.systemMint/, "compact
 assert.match(source, /Date\(\)\.timeIntervalSince1970 \* 8\.5/, "compact waveform should animate at a calmer waveform cadence");
 
 assert.match(source, /Apple-inspired media sheet/, "expanded Now Playing should follow an Apple-inspired quiet media sheet layout");
-assert.match(source, /expandedCoverRect/, "expanded layout should use a named cover rect instead of scattered magic values");
-assert.match(source, /expandedTextAttributes/, "expanded layout should centralize SF-style typography attributes");
+assert.match(source, /expandedContentRect/, "expanded layout should use a named right-side content rect for metadata, scrubber, and controls");
+assert.match(source, /NSRect\(x: contentX, y: 43, width: contentW, height: 27\)/, "expanded title should be a single-line Apple-style title block");
+assert.match(source, /NSRect\(x: contentX, y: 71, width: contentW, height: 20\)/, "expanded artist should sit directly under the title");
+assert.match(source, /let centerX = expandedContentRect\(\)\.midX/, "expanded transport controls should be centered under the metadata/scrubber area, not the whole panel");
 assert.match(source, /rightAlignedAttributes/, "expanded layout should separate elapsed and duration labels around the scrubber");
 assert.match(source, /knobSize: CGFloat = 9/, "scrubber should render a small thumb so users can see it is draggable");
-assert.match(source, /progressBarRect\(\)\.insetBy\(dx: -6, dy: -18\)/, "scrubber should keep a large invisible hit target around the thin visual track");
+assert.match(source, /progressBarRect\(\)\.insetBy\(dx: -2, dy: -5\)/, "scrubber hit target should stay close to the visible bar instead of swallowing surrounding whitespace");
+assert.match(source, /not the surrounding time-label whitespace/, "scrubber should document its intentionally narrow hit target");
 assert.match(source, /normalizedInteractionPoint/, "scrubber should normalize event coordinates so click and drag work reliably in flipped views");
 
 assert.match(source, /onMediaSeek/, "expanded progress bar should expose media seek callbacks");
@@ -93,6 +96,10 @@ assert.match(source, /fadeContent\(in:/, "native overlay should fade media conte
 assert.match(source, /Media surfaces can be expensive to draw/, "native overlay should document why media content is hidden during transitions");
 
 assert.match(source, /applyOptimisticMediaControl/, "media controls should update playback state optimistically so animations react immediately");
+assert.match(source, /optimisticPlaybackStateUntil/, "optimistic play-pause state should be protected briefly from stale provider reloads");
+assert.match(source, /replaceStatuses/, "status reloads should be merged through a reconciliation path instead of overwriting local playback state directly");
+assert.match(source, /wentBackwards/, "incoming stale positions should not make displayed play time jump backwards");
+assert.match(source, /isSameMedia/, "status reconciliation should only smooth updates for the same track");
 assert.match(source, /applyOptimisticSeek/, "media seek should update local progress optimistically before provider status catches up");
 assert.match(source, /scheduleFastStatusReloadBurst/, "media controls should schedule a short reload burst after provider commands");
 assert.match(source, /DYNAMAC_STATUS_RELOAD_MS\"\] \?\? \"250\"/, "native status reload should default to a low-latency 250ms cadence");
