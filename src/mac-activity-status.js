@@ -411,6 +411,22 @@ function frontmostApplicationName(options = {}) {
   return runCommand("osascript", ["-e", 'tell application "System Events" to name of first application process whose frontmost is true']);
 }
 
+function collectFrontmostBrowserYouTubeInfo(options = {}) {
+  if (options.frontmostBrowserMediaText !== undefined) {
+    const info = parseDelimitedMedia(options.frontmostBrowserMediaText);
+    return info ? { ...info, browserName: options.frontmostApp } : null;
+  }
+  const frontmostApp = frontmostApplicationName(options);
+  const browserNames = new Set([
+    ...CHROMIUM_YOUTUBE_BROWSERS,
+    ...SAFARI_YOUTUBE_BROWSERS,
+    ...FIREFOX_YOUTUBE_BROWSERS
+  ]);
+  if (!browserNames.has(frontmostApp)) return null;
+  const info = parseDelimitedMedia(runCommand("osascript", ["-e", chromiumFallbackYouTubeTitleScript(frontmostApp)], { timeout: 450 }));
+  return info ? { ...info, browserName: frontmostApp } : null;
+}
+
 function collectBrowserYouTubeMediaInfos(options = {}) {
   if (options.browserMediaTexts !== undefined) {
     return options.browserMediaTexts.map((entry) => {
@@ -579,6 +595,10 @@ function collectMediaStatus(options = {}) {
   if (options.mediaText !== undefined) return mediaStatusFromInfo(parseDelimitedMedia(options.mediaText));
 
   const rawMediaRemoteInfo = collectMediaRemoteInfo(options);
+  const frontmostBrowserInfo = collectFrontmostBrowserYouTubeInfo(options);
+  if (frontmostBrowserInfo?.source === "youtube") {
+    return mediaStatusFromInfo(frontmostBrowserInfo);
+  }
   if (rawMediaRemoteInfo?.playbackState === "playing" && options.forceBrowserEnrichment !== true) {
     return mediaStatusFromInfo(enrichNativeAppMediaRemoteInfo(rawMediaRemoteInfo, options));
   }
@@ -595,8 +615,8 @@ function collectMediaStatus(options = {}) {
   if (spotifyInfo || musicInfo) return mediaStatusFromInfo(spotifyInfo || musicInfo);
 
   const frontmostApp = frontmostApplicationName(options);
-  const frontmostBrowserInfo = browserInfos.find((info) => info.browserName && info.browserName === frontmostApp);
-  return mediaStatusFromInfo(frontmostBrowserInfo || browserInfos[0] || null);
+  const fallbackFrontmostBrowserInfo = browserInfos.find((info) => info.browserName && info.browserName === frontmostApp);
+  return mediaStatusFromInfo(fallbackFrontmostBrowserInfo || browserInfos[0] || null);
 }
 
 function buildMacActivityStatusPayload(options = {}) {

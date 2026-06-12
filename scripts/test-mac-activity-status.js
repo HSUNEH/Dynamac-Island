@@ -128,6 +128,24 @@ const youtubeBeatsSpotify = collectMediaStatus({
 assert.equal(youtubeBeatsSpotify.media.source, "youtube");
 assert.equal(youtubeBeatsSpotify.media.title, "Video Title");
 
+const frontmostArcTitleBeatsSpotify = collectMediaStatus({
+  frontmostApp: "Arc",
+  frontmostBrowserMediaText: "youtube-title||12시간 뒤, 여러분은 다른 사람이 됩니다. - YouTube||browser-window",
+  mediaRemoteRaw: JSON.stringify({
+    kMRMediaRemoteNowPlayingInfoClientBundleIdentifier: "com.spotify.client",
+    kMRMediaRemoteNowPlayingInfoTitle: "Crush",
+    kMRMediaRemoteNowPlayingInfoArtist: "10CM",
+    kMRMediaRemoteNowPlayingInfoDuration: 239,
+    kMRMediaRemoteNowPlayingInfoElapsedTime: 33,
+    kMRMediaRemoteNowPlayingInfoPlaybackRate: 1
+  }),
+  spotifyText,
+  musicText: ""
+});
+assert.equal(frontmostArcTitleBeatsSpotify.media.source, "youtube");
+assert.equal(frontmostArcTitleBeatsSpotify.media.title, "12시간 뒤, 여러분은 다른 사람이 됩니다.");
+assert.equal(frontmostArcTitleBeatsSpotify.media.artist, "YouTube");
+
 const arcMediaRemoteBeatsSpotify = collectMediaStatus({
   browserMediaTexts: [],
   mediaRemoteRaw: arcMediaRemoteRaw,
