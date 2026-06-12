@@ -32,9 +32,11 @@ function summarizeRaw(raw) {
   if (!raw) return { kind: "empty", summary: "no YouTube tab result" };
   const info = parseDelimitedMedia(raw);
   if (!info) return { kind: "unparsed", summary: raw.slice(0, 220) };
+  const kind = info.source === "youtube" ? (raw.startsWith("youtube-json||") ? "youtube-json" : "youtube-title") : info.source;
+  const zeroTimingHint = kind === "youtube-json" && (!info.durationSeconds || !info.positionSeconds) ? " · timing=missing" : "";
   return {
-    kind: info.source === "youtube" ? (raw.startsWith("youtube-json||") ? "youtube-json" : "youtube-title") : info.source,
-    summary: `${info.title || "untitled"} · state=${info.playbackState || "unknown"} · duration=${info.durationSeconds || 0} · position=${info.positionSeconds || 0}`
+    kind,
+    summary: `${info.title || "untitled"} · state=${info.playbackState || "unknown"} · duration=${info.durationSeconds || 0} · position=${info.positionSeconds || 0}${zeroTimingHint}`
   };
 }
 

@@ -78,6 +78,11 @@ const arcYouTubeScript = browserYouTubeScript("Arc");
 assert.match(arcYouTubeScript, /execute t javascript/, "Arc/Chromium YouTube detection should use Chrome's execute-tab-javascript AppleScript form");
 assert.doesNotMatch(arcYouTubeScript, /execute javascript[\s\S]* in t/, "Arc/Chromium YouTube detection must not use the Safari-style execute-javascript-in-tab form");
 assert.doesNotMatch(arcYouTubeScript, /execute t javascript "[^"]*\n/, "Arc/Chromium YouTube detection should pass one-line AppleScript-safe JavaScript to osascript");
+assert.match(arcYouTubeScript, /getDuration/, "Chromium YouTube detection should read duration from YouTube movie_player API before falling back to video tags");
+assert.match(arcYouTubeScript, /getCurrentTime/, "Chromium YouTube detection should read currentTime from YouTube movie_player API before falling back to video tags");
+assert.match(arcYouTubeScript, /html5-main-video/, "Chromium YouTube detection should target the main YouTube video element instead of arbitrary sidebar videos");
+assert.match(arcYouTubeScript, /System Events/, "Arc/Chromium detection should fall back to window-title probing if browser tab scripting fails");
+assert.match(arcYouTubeScript, /does not contain "YouTube Studio"/, "Arc/Chromium title fallback should not treat YouTube Studio as playback");
 assert.match(arcYouTubeScript, /youtube\.com\/watch/, "Arc YouTube detection should scan watch tabs");
 
 const safariYouTubeScript = browserYouTubeScript("Safari");

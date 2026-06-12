@@ -139,15 +139,19 @@ function appleScriptString(value) {
 
 function youtubePageProbeJavaScript() {
   return `(() => {
-    const video = document.querySelector('video');
+    const finite = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
     const meta = (selector) => document.querySelector(selector)?.content || '';
     const text = (selector) => document.querySelector(selector)?.textContent?.replace(/\\s+/g, ' ').trim() || '';
+    const player = document.getElementById('movie_player');
+    const videos = Array.from(document.querySelectorAll('video'));
+    const video = document.querySelector('#movie_player video.video-stream') || document.querySelector('video.html5-main-video') || videos.find((item) => finite(item.duration) > 0) || videos[0] || null;
     const title = text('h1 yt-formatted-string') || meta('meta[property="og:title"]') || document.title.replace(/ - YouTube$/, '').trim();
     const artist = text('#owner #channel-name a') || text('#text.ytd-channel-name') || text('ytd-channel-name a') || 'YouTube';
     const artworkUrl = meta('meta[property="og:image"]');
-    const durationSeconds = Number.isFinite(video?.duration) ? video.duration : 0;
-    const positionSeconds = Number.isFinite(video?.currentTime) ? video.currentTime : 0;
-    const playbackState = video ? (video.paused ? 'paused' : 'playing') : 'unknown';
+    const durationSeconds = finite(player?.getDuration?.()) || finite(video?.duration);
+    const positionSeconds = finite(player?.getCurrentTime?.()) || finite(video?.currentTime);
+    const playerState = Number(player?.getPlayerState?.());
+    const playbackState = playerState === 1 ? 'playing' : (playerState === 2 || playerState === 0 ? 'paused' : (video ? (video.paused ? 'paused' : 'playing') : 'unknown'));
     return JSON.stringify({ title, artist, album: 'YouTube', artworkUrl, durationSeconds, positionSeconds, playbackState });
   })()`;
 }
@@ -178,6 +182,23 @@ const SAFARI_YOUTUBE_BROWSERS = ["Safari", "Safari Technology Preview"];
 
 function youtubeUrlAppleScriptCondition(variableName = "tabUrl") {
   return `${variableName} contains "youtube.com/watch" or ${variableName} contains "music.youtube.com/watch" or ${variableName} contains "youtu.be/" or ${variableName} contains "youtube.com/shorts/"`;
+}
+
+function chromiumFallbackYouTubeTitleScript(browserName) {
+  return [
+    'try',
+    'tell application "System Events"',
+    `tell process "${browserName}"`,
+    'repeat with w in windows',
+    'set windowTitle to name of w',
+    'if windowTitle contains "YouTube" and windowTitle does not contain "YouTube Studio" then',
+    'return "youtube-title||" & windowTitle & "||" & "browser-window"',
+    'end if',
+    'end repeat',
+    'end tell',
+    'end tell',
+    'end try'
+  ];
 }
 
 function browserYouTubeScript(browserName) {
@@ -213,7 +234,7 @@ function browserYouTubeScript(browserName) {
       `tell process "${browserName}"`,
       'repeat with w in windows',
       'set windowTitle to name of w',
-      'if windowTitle contains "YouTube" then',
+      'if windowTitle contains "YouTube" and windowTitle does not contain "YouTube Studio" then',
       'return "youtube-title||" & windowTitle & "||" & "firefox-window"',
       'end if',
       'end repeat',
@@ -224,6 +245,7 @@ function browserYouTubeScript(browserName) {
   }
   if (!chromiumBrowsers.has(browserName)) return "";
   return [
+    'try',
     `if application "${browserName}" is running then`,
     `tell application "${browserName}"`,
     'repeat with w in windows',
@@ -240,7 +262,9 @@ function browserYouTubeScript(browserName) {
     'end repeat',
     'end repeat',
     'end tell',
-    'end if'
+    'end if',
+    'end try',
+    ...chromiumFallbackYouTubeTitleScript(browserName)
   ].join("\n");
 }
 
