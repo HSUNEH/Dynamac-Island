@@ -508,8 +508,13 @@ function collectMediaStatus(options = {}) {
   if (options.mediaInfo !== undefined) return mediaStatusFromInfo(normalizeMediaInfo(options.mediaInfo));
   if (options.mediaText !== undefined) return mediaStatusFromInfo(parseDelimitedMedia(options.mediaText));
 
+  const rawMediaRemoteInfo = collectMediaRemoteInfo(options);
+  if (rawMediaRemoteInfo?.playbackState === "playing" && options.forceBrowserEnrichment !== true) {
+    return mediaStatusFromInfo(rawMediaRemoteInfo);
+  }
+
   const browserInfos = collectBrowserYouTubeMediaInfos(options);
-  const mediaRemoteInfo = enrichMediaRemoteInfo(collectMediaRemoteInfo(options), browserInfos);
+  const mediaRemoteInfo = enrichMediaRemoteInfo(rawMediaRemoteInfo, browserInfos);
   if (mediaRemoteInfo?.playbackState === "playing") return mediaStatusFromInfo(mediaRemoteInfo);
 
   const playingBrowserInfo = browserInfos.find((info) => info.playbackState === "playing");

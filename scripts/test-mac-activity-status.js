@@ -137,6 +137,16 @@ assert.equal(arcMediaRemoteBeatsSpotify.media.source, "youtube");
 assert.equal(arcMediaRemoteBeatsSpotify.media.title, "Arc Video");
 assert.equal(arcMediaRemoteBeatsSpotify.media.elapsedLabel, "0:42");
 
+const mediaRemotePlayingSkipsBrowserProbe = collectMediaStatus({
+  browserMediaTexts: ["youtube-json||Slow Browser Probe||Channel||0||0||playing||https://img.example/slow.jpg||https://www.youtube.com/watch?v=slow12345"],
+  mediaRemoteRaw: arcMediaRemoteRaw,
+  spotifyText,
+  musicText: "",
+  frontmostApp: "Google Chrome"
+});
+assert.equal(mediaRemotePlayingSkipsBrowserProbe.media.title, "Arc Video");
+assert.equal(mediaRemotePlayingSkipsBrowserProbe.media.positionSeconds, 42);
+
 const frontmostArcTitleFallbackDoesNotBeatSpotify = collectMediaStatus({
   browserMediaTexts: [{ browserName: "Arc", text: "youtube-title||[Vlog] 10년차 무명 배우 브이로그 - YouTube||https://www.youtube.com/watch?v=vlog12345" }],
   mediaRemoteRaw: "",
