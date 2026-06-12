@@ -55,16 +55,21 @@ assert.doesNotMatch(source, /􀊊|􀊆|􀊄|􀊌/, "transport buttons must not d
 assert.match(source, /displayPositionSeconds/, "expanded mode should locally advance play time between status refreshes");
 assert.match(source, /startDisplayRefresh/, "native overlay should redraw frequently enough for smooth play time and compact animations");
 assert.match(source, /DYNAMAC_DISPLAY_REFRESH_MS/, "native overlay should allow tuning the display refresh interval");
-assert.match(source, /drawPlayingBars/, "compact notch mode should show a simple right-wing playing animation");
+assert.match(source, /drawPlayingBars/, "compact mode should show a right-side playing animation");
+assert.match(source, /drawPlayingWaveform/, "compact playing animation should render as a waveform, not a basic bar meter");
 assert.match(source, /rightWingRect\(in: bounds\)/, "compact playing animation should live in the right notch wing");
 assert.match(source, /compactPlayingBarsRect/, "compact playing animation should use a dedicated safe rect inside the visible right wing");
 assert.match(source, /visibleRightWingX = compactLayout\.wingWidth \+ compactLayout\.notchCutoutWidth/, "compact playing bars should avoid the notch-overlap area that clips their left edge");
 assert.match(source, /DYNAMAC_PLAYING_BARS_SENSITIVITY/, "compact playing bars should expose a sensitivity knob for tuning animation intensity");
 assert.match(source, /compactSinglePillPlayingBarsRect/, "non-notch single-pill compact mode should also show the playing animation");
 assert.match(source, /External\/non-notch displays use one centered pill/, "single-pill playing animation should document external display behavior");
+assert.match(source, /external display is main/, "single-pill waveform should explicitly protect the external-main-display case");
 assert.match(source, /bounds\.maxX - horizontalInset - width/, "single-pill playing animation should live at the trailing end of the pill");
-assert.match(source, /let barCount = 4/, "compact playing animation should use four bars for a livelier meter");
-assert.match(source, /Date\(\)\.timeIntervalSince1970 \* 10\.5/, "compact playing animation should move faster than the original low-sensitivity bars");
+assert.match(source, /let width = min\(54, max\(34, bounds\.width - 62\)\)/, "single-pill waveform should be wide enough to remain visible on external displays");
+assert.match(source, /sampleCount = max\(5, min\(9, Int\(rect\.width \/ 5\)\)\)/, "waveform should use multiple samples instead of four fixed bars");
+assert.match(source, /NSColor\.white\.withAlphaComponent/, "compact waveform should be white-only without green or mint color accents");
+assert.doesNotMatch(source, /NSColor\.systemGreen|NSColor\.systemMint/, "compact waveform should not use colored green\/mint bars");
+assert.match(source, /Date\(\)\.timeIntervalSince1970 \* 8\.5/, "compact waveform should animate at a calmer waveform cadence");
 
 assert.match(source, /Apple-inspired media sheet/, "expanded Now Playing should follow an Apple-inspired quiet media sheet layout");
 assert.match(source, /expandedCoverRect/, "expanded layout should use a named cover rect instead of scattered magic values");

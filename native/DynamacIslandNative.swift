@@ -619,37 +619,43 @@ final class IslandView: NSView {
 
     private func compactSinglePillPlayingBarsRect() -> NSRect {
         // External/non-notch displays use one centered pill, so there is no separate
-        // right wing. Keep the artwork on the left and reserve the pill's trailing end
-        // for the same activity meter so playback is visible in both compact modes.
-        let horizontalInset: CGFloat = 12
-        let verticalInset: CGFloat = 8
-        let width: CGFloat = 24
+        // right wing. Keep the artwork on the left and reserve a wider trailing waveform
+        // region so the activity indicator remains visible when an external display is main.
+        let horizontalInset: CGFloat = 10
+        let verticalInset: CGFloat = 7
+        let width = min(54, max(34, bounds.width - 62))
         return NSRect(
             x: bounds.maxX - horizontalInset - width,
             y: verticalInset,
             width: width,
-            height: max(10, bounds.height - verticalInset * 2)
+            height: max(12, bounds.height - verticalInset * 2)
         )
     }
 
     private func drawPlayingBars(media: MediaInfo, in rect: NSRect) {
+        drawPlayingWaveform(media: media, in: rect)
+    }
+
+    private func drawPlayingWaveform(media: MediaInfo, in rect: NSRect) {
         let isPlaying = media.playbackState == "playing"
-        let barCount = 4
+        let sampleCount = max(5, min(9, Int(rect.width / 5)))
         let gap: CGFloat = 2
-        let barWidth = max(3, (rect.width - CGFloat(barCount - 1) * gap) / CGFloat(barCount))
-        let sensitivity = CGFloat(Double(ProcessInfo.processInfo.environment["DYNAMAC_PLAYING_BARS_SENSITIVITY"] ?? "1.45") ?? 1.45)
-        let phase = Date().timeIntervalSince1970 * 10.5
-        for index in 0..<barCount {
-            let x = rect.minX + CGFloat(index) * (barWidth + gap)
-            let rawWave = isPlaying ? (sin(phase + Double(index) * 0.95) + 1) / 2 : 0.12
-            let boostedWave = min(1, pow(rawWave, 0.62) * sensitivity)
-            let heightRatio = isPlaying ? (0.18 + boostedWave * 0.82) : 0.22
-            let height = max(4, rect.height * CGFloat(heightRatio))
+        let sampleWidth = max(2, min(4, (rect.width - CGFloat(sampleCount - 1) * gap) / CGFloat(sampleCount)))
+        let sensitivity = CGFloat(Double(ProcessInfo.processInfo.environment["DYNAMAC_PLAYING_BARS_SENSITIVITY"] ?? "1.35") ?? 1.35)
+        let phase = Date().timeIntervalSince1970 * 8.5
+        for index in 0..<sampleCount {
+            let progress = sampleCount > 1 ? CGFloat(index) / CGFloat(sampleCount - 1) : 0.5
+            let envelope = 0.38 + 0.62 * sin(progress * .pi)
+            let waveA = (sin(phase + Double(index) * 0.82) + 1) / 2
+            let waveB = (sin(phase * 0.63 + Double(index) * 1.47) + 1) / 2
+            let mixedWave = isPlaying ? min(1, CGFloat((waveA * 0.62) + (waveB * 0.38)) * sensitivity) : 0.08
+            let heightRatio = isPlaying ? max(0.16, min(1, envelope * (0.22 + mixedWave * 0.78))) : 0.18
+            let height = max(3, rect.height * heightRatio)
+            let x = rect.midX - ((CGFloat(sampleCount) * sampleWidth + CGFloat(sampleCount - 1) * gap) / 2) + CGFloat(index) * (sampleWidth + gap)
             let y = rect.midY - height / 2
-            let alpha = isPlaying ? min(1, 0.58 + boostedWave * 0.42) : 0.38
-            let color = index % 2 == 0 ? NSColor.systemGreen : NSColor.systemMint
-            color.withAlphaComponent(alpha).setFill()
-            NSBezierPath(roundedRect: NSRect(x: x, y: y, width: barWidth, height: height), xRadius: barWidth / 2, yRadius: barWidth / 2).fill()
+            let alpha = isPlaying ? min(0.95, 0.44 + mixedWave * 0.48) : 0.30
+            NSColor.white.withAlphaComponent(alpha).setFill()
+            NSBezierPath(roundedRect: NSRect(x: x, y: y, width: sampleWidth, height: height), xRadius: sampleWidth / 2, yRadius: sampleWidth / 2).fill()
         }
     }
 
