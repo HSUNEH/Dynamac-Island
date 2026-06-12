@@ -83,8 +83,12 @@ assert.match(source, /Date\(\)\.timeIntervalSince1970 \* 8\.5/, "compact wavefor
 
 assert.match(source, /Apple-inspired media sheet/, "expanded Now Playing should follow an Apple-inspired quiet media sheet layout");
 assert.match(source, /expandedContentRect/, "expanded layout should use a named right-side content rect for metadata, scrubber, and controls");
-assert.match(source, /NSRect\(x: contentX, y: 43, width: contentW, height: 27\)/, "expanded title should be a single-line Apple-style title block");
-assert.match(source, /NSRect\(x: contentX, y: 71, width: contentW, height: 20\)/, "expanded artist should sit directly under the title");
+assert.match(source, /expandedTopContentY/, "expanded layout should compute a notch-safe metadata top inset");
+assert.match(source, /compactLayout\.usesHardwareNotchCutout \? max\(44, compactLayout\.height \+ 12\) : 24/, "expanded metadata should move below the physical notch on MacBook displays while preserving external display spacing");
+assert.match(source, /NSRect\(x: contentX, y: textTop \+ 19, width: contentW, height: 27\)/, "expanded title should be a single-line Apple-style title block below the notch-safe source label");
+assert.match(source, /NSRect\(x: contentX, y: textTop \+ 47, width: contentW, height: 20\)/, "expanded artist should sit directly under the title");
+assert.match(source, /expandedProgressY\(\)/, "expanded scrubber should follow the notch-safe metadata stack");
+assert.match(source, /expandedControlsY\(\)/, "expanded controls should follow the notch-safe metadata stack");
 assert.match(source, /let centerX = expandedContentRect\(\)\.midX/, "expanded transport controls should be centered under the metadata/scrubber area, not the whole panel");
 assert.match(source, /rightAlignedAttributes/, "expanded layout should separate elapsed and duration labels around the scrubber");
 assert.match(source, /knobSize: CGFloat = 9/, "scrubber should render a small thumb so users can see it is draggable");

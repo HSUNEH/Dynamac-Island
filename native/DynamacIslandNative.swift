@@ -473,9 +473,10 @@ final class IslandView: NSView {
         let artistAttrs = expandedTextAttributes(size: 15, weight: .regular, color: NSColor(calibratedWhite: 0.70, alpha: 1), letterSpacing: -0.12)
         let timeAttrs = expandedTextAttributes(size: 11, weight: .medium, color: NSColor(calibratedWhite: 0.56, alpha: 1), letterSpacing: 0, monospaced: true)
 
-        NSString(string: displaySourceName(media.source).uppercased()).draw(in: NSRect(x: contentX, y: 24, width: contentW, height: 14), withAttributes: labelAttrs)
-        NSString(string: media.title ?? "Nothing playing").draw(in: NSRect(x: contentX, y: 43, width: contentW, height: 27), withAttributes: titleAttrs)
-        NSString(string: media.artist?.isEmpty == false ? media.artist! : displaySourceName(media.source)).draw(in: NSRect(x: contentX, y: 71, width: contentW, height: 20), withAttributes: artistAttrs)
+        let textTop = expandedTopContentY()
+        NSString(string: displaySourceName(media.source).uppercased()).draw(in: NSRect(x: contentX, y: textTop, width: contentW, height: 14), withAttributes: labelAttrs)
+        NSString(string: media.title ?? "Nothing playing").draw(in: NSRect(x: contentX, y: textTop + 19, width: contentW, height: 27), withAttributes: titleAttrs)
+        NSString(string: media.artist?.isEmpty == false ? media.artist! : displaySourceName(media.source)).draw(in: NSRect(x: contentX, y: textTop + 47, width: contentW, height: 20), withAttributes: artistAttrs)
 
         let elapsedSeconds = displayPositionSeconds(media)
         let elapsed = formatSeconds(elapsedSeconds)
@@ -508,6 +509,21 @@ final class IslandView: NSView {
         let cover = expandedCoverRect()
         let x = cover.maxX + 24
         return NSRect(x: x, y: 24, width: bounds.width - x - 32, height: 160)
+    }
+
+    private func expandedTopContentY() -> CGFloat {
+        // On notched MacBooks the physical camera housing covers the top-center of the
+        // expanded panel. Keep the source/title/artist stack below that hardware cutout;
+        // non-notch and external displays keep the tighter Apple-style top spacing.
+        compactLayout.usesHardwareNotchCutout ? max(44, compactLayout.height + 12) : 24
+    }
+
+    private func expandedProgressY() -> CGFloat {
+        expandedTopContentY() + 92
+    }
+
+    private func expandedControlsY() -> CGFloat {
+        min(bounds.height - 50, expandedTopContentY() + 128)
     }
 
     private func expandedTextAttributes(size: CGFloat, weight: NSFont.Weight, color: NSColor, letterSpacing: CGFloat, monospaced: Bool = false) -> [NSAttributedString.Key: Any] {
@@ -715,7 +731,7 @@ final class IslandView: NSView {
 
     private func mediaControlRect(action: String) -> NSRect {
         let centerX = expandedContentRect().midX
-        let y: CGFloat = 152
+        let y = expandedControlsY()
         let primarySize: CGFloat = 42
         let secondarySize: CGFloat = 34
         switch action {
@@ -727,7 +743,7 @@ final class IslandView: NSView {
 
     private func progressBarRect() -> NSRect {
         let content = expandedContentRect()
-        return NSRect(x: content.minX, y: 116, width: content.width, height: 4)
+        return NSRect(x: content.minX, y: expandedProgressY(), width: content.width, height: 4)
     }
 
     private func progressHitRect() -> NSRect {
