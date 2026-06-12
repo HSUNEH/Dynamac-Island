@@ -61,5 +61,5 @@ for (const browser of browsers) {
   if (result.status !== 0) console.log(`  status: ${result.status}${result.error ? ` error=${result.error}` : ""}`);
 }
 
-console.log("\nIf Chrome/Arc/Brave/Edge/Vivaldi/Opera returns empty or youtube-title while a video is visibly playing, enable the browser setting/menu item named 'Allow JavaScript from Apple Events', then restart Dynamac.");
+console.log("\nIf Chrome/Arc/Brave/Edge/Vivaldi/Opera returns empty or youtube-title while a video is visibly playing, run `npm run enable:browser-apple-events`, quit/reopen the browser, then run this diagnostic again.");
 console.log("Also allow macOS Automation prompts for Dynamac/Terminal to control the target browser and System Events.");
