@@ -443,21 +443,13 @@ final class IslandView: NSView {
     }
 
     private func drawCompactNowPlaying(_ media: MediaInfo) {
-        let artSize = min(bounds.height - 8, 28)
-        let y = (bounds.height - artSize) / 2
-        let x: CGFloat
-        if compactLayout.usesHardwareNotchCutout {
-            // Notch mode intentionally avoids title/artist text; the artwork alone is the live activity.
-            x = max(4, compactLayout.wingWidth - artSize - 5)
-        } else {
-            x = 8
-        }
-        drawArtwork(media: media, in: NSRect(x: x, y: y, width: artSize, height: artSize), cornerRadius: 7, fallbackFontSize: 17)
+        let art = compactArtworkRect()
+        drawArtwork(media: media, in: art, cornerRadius: 7, fallbackFontSize: 17)
 
         if compactLayout.usesHardwareNotchCutout {
             drawPlayingBars(media: media, in: compactPlayingBarsRect())
         } else {
-            drawPlayingBars(media: media, in: compactSinglePillPlayingBarsRect())
+            drawPlayingBars(media: media, in: compactSinglePillPlayingBarsRect(afterArtwork: art))
         }
     }
 
@@ -491,6 +483,19 @@ final class IslandView: NSView {
 
     private func expandedCoverRect() -> NSRect {
         NSRect(x: 32, y: 48, width: 120, height: 120)
+    }
+
+    private func compactArtworkRect() -> NSRect {
+        let artSize = min(bounds.height - 8, 28)
+        let y = (bounds.height - artSize) / 2
+        let x: CGFloat
+        if compactLayout.usesHardwareNotchCutout {
+            // Notch mode intentionally avoids title/artist text; the artwork alone is the live activity.
+            x = max(4, compactLayout.wingWidth - artSize - 5)
+        } else {
+            x = 8
+        }
+        return NSRect(x: x, y: y, width: artSize, height: artSize)
     }
 
     private func expandedContentRect() -> NSRect {
@@ -656,18 +661,22 @@ final class IslandView: NSView {
         )
     }
 
-    private func compactSinglePillPlayingBarsRect() -> NSRect {
-        // External/non-notch displays use one centered pill, so there is no separate
-        // right wing. Keep the artwork on the left and reserve a wider trailing waveform
-        // region so the activity indicator remains visible when an external display is main.
-        let horizontalInset: CGFloat = 10
-        let verticalInset: CGFloat = 7
-        let width = min(54, max(34, bounds.width - 62))
+    private func compactSinglePillPlayingBarsRect(afterArtwork artworkRect: NSRect) -> NSRect {
+        // External/non-notch displays may still use the narrow calibrated pill width from
+        // notch tuning. Never let the waveform consume the pill or overlap the artwork;
+        // it only uses the small trailing space left after the cover plus an 8pt gap.
+        let trailingInset: CGFloat = 8
+        let gapAfterArtwork: CGFloat = 8
+        let verticalInset: CGFloat = 8
+        let startX = artworkRect.maxX + gapAfterArtwork
+        let maxWidth = max(0, bounds.maxX - trailingInset - startX)
+        let width = min(22, max(10, maxWidth))
+        let x = max(startX, bounds.maxX - trailingInset - width)
         return NSRect(
-            x: bounds.maxX - horizontalInset - width,
+            x: x,
             y: verticalInset,
-            width: width,
-            height: max(12, bounds.height - verticalInset * 2)
+            width: max(8, min(width, bounds.maxX - trailingInset - x)),
+            height: max(10, bounds.height - verticalInset * 2)
         )
     }
 
@@ -677,7 +686,7 @@ final class IslandView: NSView {
 
     private func drawPlayingWaveform(media: MediaInfo, in rect: NSRect) {
         let isPlaying = media.playbackState == "playing"
-        let sampleCount = max(5, min(9, Int(rect.width / 5)))
+        let sampleCount = max(2, min(6, Int(rect.width / 4)))
         let gap: CGFloat = 2
         let sampleWidth = max(2, min(4, (rect.width - CGFloat(sampleCount - 1) * gap) / CGFloat(sampleCount)))
         let sensitivity = CGFloat(Double(ProcessInfo.processInfo.environment["DYNAMAC_PLAYING_BARS_SENSITIVITY"] ?? "1.35") ?? 1.35)

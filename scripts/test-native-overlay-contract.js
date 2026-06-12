@@ -61,12 +61,11 @@ assert.match(source, /rightWingRect\(in: bounds\)/, "compact playing animation s
 assert.match(source, /compactPlayingBarsRect/, "compact playing animation should use a dedicated safe rect inside the visible right wing");
 assert.match(source, /visibleRightWingX = compactLayout\.wingWidth \+ compactLayout\.notchCutoutWidth/, "compact playing bars should avoid the notch-overlap area that clips their left edge");
 assert.match(source, /DYNAMAC_PLAYING_BARS_SENSITIVITY/, "compact playing bars should expose a sensitivity knob for tuning animation intensity");
-assert.match(source, /compactSinglePillPlayingBarsRect/, "non-notch single-pill compact mode should also show the playing animation");
-assert.match(source, /External\/non-notch displays use one centered pill/, "single-pill playing animation should document external display behavior");
-assert.match(source, /external display is main/, "single-pill waveform should explicitly protect the external-main-display case");
-assert.match(source, /bounds\.maxX - horizontalInset - width/, "single-pill playing animation should live at the trailing end of the pill");
-assert.match(source, /let width = min\(54, max\(34, bounds\.width - 62\)\)/, "single-pill waveform should be wide enough to remain visible on external displays");
-assert.match(source, /sampleCount = max\(5, min\(9, Int\(rect\.width \/ 5\)\)\)/, "waveform should use multiple samples instead of four fixed bars");
+assert.match(source, /compactSinglePillPlayingBarsRect\(afterArtwork artworkRect: NSRect\)/, "single-pill waveform should be laid out relative to the artwork so it cannot overlap the cover");
+assert.match(source, /Never let the waveform consume the pill or overlap the artwork/, "single-pill waveform should document the no-overlap constraint");
+assert.match(source, /gapAfterArtwork: CGFloat = 8/, "single-pill waveform should leave a gap after the album cover");
+assert.match(source, /let width = min\(22, max\(10, maxWidth\)\)/, "single-pill waveform should stay compact instead of consuming the whole pill");
+assert.match(source, /sampleCount = max\(2, min\(6, Int\(rect\.width \/ 4\)\)\)/, "waveform should reduce samples in narrow external-display pills");
 assert.match(source, /NSColor\.white\.withAlphaComponent/, "compact waveform should be white-only without green or mint color accents");
 assert.doesNotMatch(source, /NSColor\.systemGreen|NSColor\.systemMint/, "compact waveform should not use colored green\/mint bars");
 assert.match(source, /Date\(\)\.timeIntervalSince1970 \* 8\.5/, "compact waveform should animate at a calmer waveform cadence");
