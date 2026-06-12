@@ -47,10 +47,10 @@ refreshStatus({ log: true });
 fs.mkdirSync(path.dirname(inherited.DYNAMAC_STATUS_REFRESH_SIGNAL), { recursive: true });
 fs.writeFileSync(inherited.DYNAMAC_STATUS_REFRESH_SIGNAL, "0\n");
 fs.watchFile(inherited.DYNAMAC_STATUS_REFRESH_SIGNAL, { interval: 80 }, () => refreshStatus());
-const refreshIntervalMs = Number(inherited.DYNAMAC_STATUS_REFRESH_MS || 750);
+const refreshIntervalMs = Number(inherited.DYNAMAC_STATUS_REFRESH_MS || 250);
 const refreshTimer = inherited.DYNAMAC_DISABLE_STATUS_REFRESH === "1"
   ? null
-  : setInterval(refreshStatus, Number.isFinite(refreshIntervalMs) && refreshIntervalMs >= 250 ? refreshIntervalMs : 750);
+  : setInterval(refreshStatus, Number.isFinite(refreshIntervalMs) && refreshIntervalMs >= 200 ? refreshIntervalMs : 250);
 
 const native = childProcess.spawn(path.join(repoRoot, ".build/dynamac-native"), {
   cwd: repoRoot,

@@ -147,6 +147,8 @@ assert.match(nativeStartSource, /fs\.watchFile\(inherited\.DYNAMAC_STATUS_REFRES
 assert.match(nativeStartSource, /fs\.unwatchFile\(inherited\.DYNAMAC_STATUS_REFRESH_SIGNAL\)/, "native-start should unwatch the refresh signal on exit");
 assert.match(source, /requestStatusSnapshotRefresh/, "native overlay should touch the refresh signal instead of waiting for the normal writer interval");
 assert.match(source, /media\.artworkUrl = ""/, "next/previous should clear stale artwork immediately while the new track cover is being fetched");
+assert.match(nativeStartSource, /DYNAMAC_STATUS_REFRESH_MS \|\| 250/, "native-start writer should default to a 250ms refresh cadence for external Spotify track changes");
+assert.match(nativeStartSource, />= 200 \? refreshIntervalMs : 250/, "native-start should clamp invalid writer refresh intervals back to 250ms");
 assert.match(source, /DYNAMAC_STATUS_RELOAD_MS\"\] \?\? \"250\"/, "native status reload should default to a low-latency 250ms cadence");
 
 assert.match(source, /scheduleAutoCollapse/, "expanded mode should auto-collapse back to compact mode after an idle timeout");

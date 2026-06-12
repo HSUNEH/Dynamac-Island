@@ -1186,9 +1186,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func scheduleFastStatusRefreshBurst() {
         // After next/previous/play-pause the provider snapshot itself must be regenerated,
         // not just re-read. Touch a signal watched by scripts/native-start.js so new track
-        // metadata/artwork is written immediately instead of waiting for the normal 750ms loop.
+        // metadata/artwork is written immediately instead of waiting for the normal writer loop.
         requestStatusSnapshotRefresh()
-        for delay in [0.15, 0.45] {
+        for delay in [0.15, 0.45, 0.9, 1.25] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in self?.requestStatusSnapshotRefresh() }
         }
     }
@@ -1203,7 +1203,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func scheduleFastStatusReloadBurst() {
         scheduleFastStatusRefreshBurst()
-        for delay in [0.12, 0.35, 0.75] {
+        for delay in [0.12, 0.35, 0.75, 1.05, 1.35] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in self?.loadStatus() }
         }
     }

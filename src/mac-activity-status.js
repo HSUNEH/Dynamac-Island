@@ -441,7 +441,22 @@ function collectBrowserYouTubeMediaInfos(options = {}) {
     .filter(Boolean);
 }
 
-function parseMediaRemoteNowPlaying(raw) {
+function materializeMediaRemoteArtworkData(payload, options = {}) {
+  const artworkData = payload?.kMRMediaRemoteNowPlayingInfoArtworkData || payload?.artworkData || "";
+  if (!artworkData || options.cacheRemoteArtwork !== true) return "";
+  const buffer = Buffer.from(String(artworkData), "base64");
+  if (!buffer.length) return "";
+  const cacheDir = options.artworkCacheDir || path.join(process.cwd(), ".build", "artwork-cache");
+  const hash = crypto.createHash("sha1").update(buffer).digest("hex");
+  const outputPath = path.join(cacheDir, `${hash}.jpg`);
+  if (!fs.existsSync(outputPath)) {
+    fs.mkdirSync(cacheDir, { recursive: true });
+    fs.writeFileSync(outputPath, buffer);
+  }
+  return outputPath;
+}
+
+function parseMediaRemoteNowPlaying(raw, options = {}) {
   if (!raw) return null;
   let payload;
   try {
@@ -468,12 +483,13 @@ function parseMediaRemoteNowPlaying(raw) {
     bundleIdentifier.includes("spotify") ? "spotify" : (bundleIdentifier.includes("Music") ? "music" : "now-playing")
   );
   const playbackRate = Number(payload.kMRMediaRemoteNowPlayingInfoPlaybackRate ?? payload.playbackRate ?? 0);
+  const mediaRemoteArtworkUrl = materializeMediaRemoteArtworkData(payload, options);
   return normalizeMediaInfo({
     source,
     title,
     artist: payload.kMRMediaRemoteNowPlayingInfoArtist || payload.artist || (source === "youtube" ? "YouTube" : ""),
     album: payload.kMRMediaRemoteNowPlayingInfoAlbum || payload.album || (source === "youtube" ? "YouTube" : ""),
-    artworkUrl: "",
+    artworkUrl: mediaRemoteArtworkUrl,
     durationSeconds: Number(payload.kMRMediaRemoteNowPlayingInfoDuration ?? payload.duration ?? 0),
     positionSeconds: Number(payload.kMRMediaRemoteNowPlayingInfoElapsedTime ?? payload.elapsedTime ?? 0),
     playbackState: playbackRate > 0 ? "playing" : "paused",
@@ -501,8 +517,8 @@ function enrichMediaRemoteInfo(info, browserInfos = []) {
 
 function collectMediaRemoteInfo(options = {}) {
   if (options.mediaRemoteInfo !== undefined) return normalizeMediaInfo(options.mediaRemoteInfo);
-  if (options.mediaRemoteRaw !== undefined) return parseMediaRemoteNowPlaying(options.mediaRemoteRaw);
-  return parseMediaRemoteNowPlaying(runCommand("nowplaying-cli", ["get-raw"], { timeout: 900 }));
+  if (options.mediaRemoteRaw !== undefined) return parseMediaRemoteNowPlaying(options.mediaRemoteRaw, options);
+  return parseMediaRemoteNowPlaying(runCommand("nowplaying-cli", ["get-raw"], { timeout: 900 }), options);
 }
 
 function materializeArtwork(info, options = {}) {
@@ -537,6 +553,7 @@ function collectNativeAppMediaInfo(source, options = {}) {
 
 function enrichNativeAppMediaRemoteInfo(info, options = {}) {
   if (!info || !["spotify", "music"].includes(info.source)) return info;
+  if (info.artworkUrl && info.title && info.artist) return info;
   const nativeInfo = materializeArtwork(collectNativeAppMediaInfo(info.source, options), options);
   if (!nativeInfo) return info;
   return normalizeMediaInfo({

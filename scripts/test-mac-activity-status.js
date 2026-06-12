@@ -182,6 +182,26 @@ const spotifyArtworkUsesLocalCache = collectMediaStatus({
 });
 assert.equal(spotifyArtworkUsesLocalCache.media.artworkUrl, cachedArtworkPath);
 
+const mediaRemoteArtworkDir = fs.mkdtempSync(path.join(os.tmpdir(), "dynamac-mediaremote-artwork-"));
+const mediaRemoteArtworkBytes = Buffer.from("mediaremote-cover-bytes");
+const mediaRemoteArtworkRaw = JSON.stringify({
+  kMRMediaRemoteNowPlayingInfoClientBundleIdentifier: "com.spotify.client",
+  kMRMediaRemoteNowPlayingInfoTitle: "Instant Cover Song",
+  kMRMediaRemoteNowPlayingInfoArtist: "Instant Artist",
+  kMRMediaRemoteNowPlayingInfoDuration: 180,
+  kMRMediaRemoteNowPlayingInfoElapsedTime: 0,
+  kMRMediaRemoteNowPlayingInfoPlaybackRate: 1,
+  kMRMediaRemoteNowPlayingInfoArtworkData: mediaRemoteArtworkBytes.toString("base64")
+});
+const mediaRemoteArtworkStatus = collectMediaStatus({
+  mediaRemoteRaw: mediaRemoteArtworkRaw,
+  artworkCacheDir: mediaRemoteArtworkDir,
+  cacheRemoteArtwork: true
+});
+const expectedMediaRemoteArtworkPath = path.join(mediaRemoteArtworkDir, `${crypto.createHash("sha1").update(mediaRemoteArtworkBytes).digest("hex")}.jpg`);
+assert.equal(mediaRemoteArtworkStatus.media.artworkUrl, expectedMediaRemoteArtworkPath);
+assert.equal(fs.readFileSync(expectedMediaRemoteArtworkPath, "utf8"), "mediaremote-cover-bytes");
+
 const frontmostArcTitleFallbackDoesNotBeatSpotify = collectMediaStatus({
   browserMediaTexts: [{ browserName: "Arc", text: "youtube-title||[Vlog] 10년차 무명 배우 브이로그 - YouTube||https://www.youtube.com/watch?v=vlog12345" }],
   mediaRemoteRaw: "",
