@@ -553,7 +553,6 @@ function collectNativeAppMediaInfo(source, options = {}) {
 
 function enrichNativeAppMediaRemoteInfo(info, options = {}) {
   if (!info || !["spotify", "music"].includes(info.source)) return info;
-  if (info.artworkUrl && info.title && info.artist) return info;
   const nativeInfo = materializeArtwork(collectNativeAppMediaInfo(info.source, options), options);
   if (!nativeInfo) return info;
   return normalizeMediaInfo({
@@ -561,10 +560,15 @@ function enrichNativeAppMediaRemoteInfo(info, options = {}) {
     title: nativeInfo.title || info.title,
     artist: nativeInfo.artist || info.artist,
     album: nativeInfo.album || info.album,
-    artworkUrl: nativeInfo.artworkUrl || info.artworkUrl || "",
+    // Prefer MediaRemote artwork data when present because it is already the exact current
+    // cover bytes; use native app artwork URL/cache only as fallback.
+    artworkUrl: info.artworkUrl || nativeInfo.artworkUrl || "",
     durationSeconds: nativeInfo.durationSeconds || info.durationSeconds,
-    positionSeconds: info.positionSeconds || nativeInfo.positionSeconds,
-    playbackState: info.playbackState || nativeInfo.playbackState,
+    // Spotify's MediaRemote elapsed field can stay pinned at 0 while Apple's own menu
+    // keeps ticking from a private live clock. Spotify/Music AppleScript exposes the
+    // live player position, so use that for our displayed playtime.
+    positionSeconds: Number.isFinite(nativeInfo.positionSeconds) ? nativeInfo.positionSeconds : info.positionSeconds,
+    playbackState: nativeInfo.playbackState || info.playbackState,
     pageUrl: info.pageUrl || nativeInfo.pageUrl || "",
     bundleIdentifier: info.bundleIdentifier
   });

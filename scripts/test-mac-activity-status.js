@@ -195,11 +195,14 @@ const mediaRemoteArtworkRaw = JSON.stringify({
 });
 const mediaRemoteArtworkStatus = collectMediaStatus({
   mediaRemoteRaw: mediaRemoteArtworkRaw,
+  spotifyText: "spotify||Instant Cover Song||Instant Artist||Instant Album||https://i.scdn.co/image/fallback-cover||180000||84.25||playing",
+  musicText: "",
   artworkCacheDir: mediaRemoteArtworkDir,
   cacheRemoteArtwork: true
 });
 const expectedMediaRemoteArtworkPath = path.join(mediaRemoteArtworkDir, `${crypto.createHash("sha1").update(mediaRemoteArtworkBytes).digest("hex")}.jpg`);
 assert.equal(mediaRemoteArtworkStatus.media.artworkUrl, expectedMediaRemoteArtworkPath);
+assert.equal(mediaRemoteArtworkStatus.media.positionSeconds, 84.25);
 assert.equal(fs.readFileSync(expectedMediaRemoteArtworkPath, "utf8"), "mediaremote-cover-bytes");
 
 const frontmostArcTitleFallbackDoesNotBeatSpotify = collectMediaStatus({
