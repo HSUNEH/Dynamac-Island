@@ -40,7 +40,7 @@ const requiredSnippets = [
   ["notch anchored current state", "Notch-attached floating overlay, not a normal movable app window"],
   ["physical display anchoring", "pins `y` to the physical top edge"],
   ["native display adaptation", "Display topology changes, wake/unlock, and display-wake events trigger delayed notch re-measurement plus frame re-anchoring"],
-  ["Mac activity status source", "native `npm run native:start` writes and refreshes a local Mac activity snapshot in `.build/status.json` while running, using a low-latency default refresh loop"],
+  ["Mac activity status source", "native `npm run native:start` writes and refreshes a local Mac activity snapshot in `.build/status.json` while running, using a low-latency default refresh loop plus a native-to-writer refresh signal"],
   ["Mac activity runtime model", "`Now Playing` from macOS MediaRemote/`nowplaying-cli` current playback first, then Spotify/Music best-effort AppleScript plus YouTube tab scanning across Safari, Chrome/Chromium-family browsers, and a Firefox-family title fallback with page metadata/video timing/thumbnail detection where the browser exposes tab JavaScript; `Clipboard` from local text clipboard, and `Battery` from `pmset -g batt`"],
   ["YouTube arbitration and permissions", "Run `npm run diagnose:youtube` to see which browser probe is blocked, and `npm run enable:browser-apple-events` to patch Chromium profile preferences when JavaScript-from-Apple-Events is disabled; if Arc exists but has no profile yet, the helper seeds a minimal `snuffles` profile"],
   ["Now Playing notch mode", "notch mode shows only album art/YouTube thumbnail/music-note fallback on the left wing plus a white waveform playing indicator on the right wing"],

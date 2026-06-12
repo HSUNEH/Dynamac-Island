@@ -32,6 +32,7 @@ run("npm", ["run", "native:build"]);
 
 const inherited = { ...loadCalibrationEnv(), ...process.env };
 inherited.DYNAMAC_STATUS_FILE = inherited.DYNAMAC_STATUS_FILE || path.join(repoRoot, ".build/status.json");
+inherited.DYNAMAC_STATUS_REFRESH_SIGNAL = inherited.DYNAMAC_STATUS_REFRESH_SIGNAL || path.join(repoRoot, ".build/status.refresh");
 
 function refreshStatus({ log = false } = {}) {
   try {
@@ -43,6 +44,9 @@ function refreshStatus({ log = false } = {}) {
 }
 
 refreshStatus({ log: true });
+fs.mkdirSync(path.dirname(inherited.DYNAMAC_STATUS_REFRESH_SIGNAL), { recursive: true });
+fs.writeFileSync(inherited.DYNAMAC_STATUS_REFRESH_SIGNAL, "0\n");
+fs.watchFile(inherited.DYNAMAC_STATUS_REFRESH_SIGNAL, { interval: 80 }, () => refreshStatus());
 const refreshIntervalMs = Number(inherited.DYNAMAC_STATUS_REFRESH_MS || 750);
 const refreshTimer = inherited.DYNAMAC_DISABLE_STATUS_REFRESH === "1"
   ? null
@@ -56,6 +60,7 @@ const native = childProcess.spawn(path.join(repoRoot, ".build/dynamac-native"), 
 
 native.on("exit", (code, signal) => {
   if (refreshTimer) clearInterval(refreshTimer);
+  fs.unwatchFile(inherited.DYNAMAC_STATUS_REFRESH_SIGNAL);
   if (signal) process.kill(process.pid, signal);
   process.exit(code ?? 0);
 });

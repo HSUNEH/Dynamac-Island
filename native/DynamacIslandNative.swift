@@ -1178,7 +1178,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         """
     }
 
+    private func scheduleFastStatusRefreshBurst() {
+        // After next/previous/play-pause the provider snapshot itself must be regenerated,
+        // not just re-read. Touch a signal watched by scripts/native-start.js so new track
+        // metadata/artwork is written immediately instead of waiting for the normal 750ms loop.
+        requestStatusSnapshotRefresh()
+        for delay in [0.15, 0.45] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in self?.requestStatusSnapshotRefresh() }
+        }
+    }
+
+    private func requestStatusSnapshotRefresh() {
+        guard let signalPath = ProcessInfo.processInfo.environment["DYNAMAC_STATUS_REFRESH_SIGNAL"] else { return }
+        let url = URL(fileURLWithPath: signalPath)
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let marker = "\(Date().timeIntervalSince1970)\n"
+        try? marker.write(to: url, atomically: true, encoding: .utf8)
+    }
+
     private func scheduleFastStatusReloadBurst() {
+        scheduleFastStatusRefreshBurst()
         for delay in [0.12, 0.35, 0.75] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in self?.loadStatus() }
         }

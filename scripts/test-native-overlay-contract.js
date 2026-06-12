@@ -6,6 +6,8 @@ const path = require("node:path");
 
 const sourcePath = path.resolve("native/DynamacIslandNative.swift");
 const source = fs.readFileSync(sourcePath, "utf8");
+const nativeStartPath = path.resolve("scripts/native-start.js");
+const nativeStartSource = fs.readFileSync(nativeStartPath, "utf8");
 
 assert.match(source, /NSPanel\(/, "native overlay should use NSPanel instead of an Electron BrowserWindow");
 assert.match(source, /styleMask:\s*\[\.borderless, \.nonactivatingPanel\]/, "native panel should be borderless and non-activating");
@@ -138,6 +140,12 @@ assert.match(source, /smallBackwardTick/, "incoming stale positions should not m
 assert.match(source, /isSameMedia/, "status reconciliation should only smooth updates for the same track");
 assert.match(source, /applyOptimisticSeek/, "media seek should update local progress optimistically before provider status catches up");
 assert.match(source, /scheduleFastStatusReloadBurst/, "media controls should schedule a short reload burst after provider commands");
+assert.match(source, /scheduleFastStatusRefreshBurst/, "media controls should force the status writer to regenerate current metadata/artwork after track changes");
+assert.match(source, /DYNAMAC_STATUS_REFRESH_SIGNAL/, "native overlay and native-start should share a refresh signal file for immediate provider snapshots");
+assert.match(nativeStartSource, /DYNAMAC_STATUS_REFRESH_SIGNAL/, "native-start should expose a refresh signal file to the native overlay");
+assert.match(nativeStartSource, /fs\.watchFile\(inherited\.DYNAMAC_STATUS_REFRESH_SIGNAL, \{ interval: 80 \}, \(\) => refreshStatus\(\)\)/, "native-start should regenerate the provider snapshot immediately when the native overlay touches the refresh signal");
+assert.match(nativeStartSource, /fs\.unwatchFile\(inherited\.DYNAMAC_STATUS_REFRESH_SIGNAL\)/, "native-start should unwatch the refresh signal on exit");
+assert.match(source, /requestStatusSnapshotRefresh/, "native overlay should touch the refresh signal instead of waiting for the normal writer interval");
 assert.match(source, /DYNAMAC_STATUS_RELOAD_MS\"\] \?\? \"250\"/, "native status reload should default to a low-latency 250ms cadence");
 
 assert.match(source, /scheduleAutoCollapse/, "expanded mode should auto-collapse back to compact mode after an idle timeout");
