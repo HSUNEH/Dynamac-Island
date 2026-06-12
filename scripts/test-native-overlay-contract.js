@@ -115,6 +115,11 @@ assert.match(source, /staleZeroFallback/, "native overlay should treat same-trac
 assert.match(macActivitySource, /backwardJump > 0\.25 && backwardJump <= 12/, "Mac activity writer should only stabilize real backward provider jumps, not every small collection lag");
 assert.match(source, /play time never ticks 0→1→0 or 1:08→1:05/, "native overlay should document the anti-jitter playback-time contract");
 
+assert.match(source, /onOpenMediaSource/, "expanded artwork and metadata should expose a source-open callback");
+assert.match(source, /mediaOpenSourceRect\(\)\.contains\(location\)/, "expanded artwork/source/title/artist click area should open the media source instead of collapsing");
+assert.match(source, /expandedCoverRect\(\)[\s\S]*\.union\(expandedSourceRect\(\)\)[\s\S]*\.union\(expandedTitleRect\(\)\)[\s\S]*\.union\(expandedArtistRect\(\)\)/, "media source hit area should include artwork, source, title, and artist text");
+assert.match(source, /tell application \\\"Spotify\\\" to activate/, "Spotify media source clicks should activate/open Spotify");
+assert.match(source, /NSWorkspace\.shared\.open\(url\)/, "YouTube media source clicks should open the page URL when available");
 assert.match(source, /onMediaSeek/, "expanded progress bar should expose media seek callbacks");
 assert.match(source, /mouseDragged/, "expanded progress bar should support dragging to seek");
 assert.match(source, /mediaSeekSecond/, "expanded progress bar clicks should map x-position to playback seconds");

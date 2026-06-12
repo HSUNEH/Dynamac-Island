@@ -162,6 +162,7 @@ final class IslandView: NSView {
     var onToggle: (() -> Void)?
     var onMediaControl: ((String, String) -> Void)?
     var onMediaSeek: ((String, Double) -> Void)?
+    var onOpenMediaSource: ((MediaInfo) -> Void)?
     var onExpandedInteraction: (() -> Void)?
     private var isDraggingProgress = false
     private var optimisticPlaybackState: String?
@@ -198,6 +199,11 @@ final class IslandView: NSView {
             applyOptimisticMediaControl(action: action)
             onExpandedInteraction?()
             onMediaControl?(action, media.source ?? "")
+            return
+        }
+        if expanded, let media = nowPlayingMedia(), mediaOpenSourceRect().contains(location) {
+            onExpandedInteraction?()
+            onOpenMediaSource?(media)
             return
         }
         onToggle?()
@@ -535,6 +541,14 @@ final class IslandView: NSView {
     private func expandedArtistRect() -> NSRect {
         let content = expandedContentRect()
         return NSRect(x: content.minX, y: expandedTopContentY() + 49, width: content.width, height: 24)
+    }
+
+    private func mediaOpenSourceRect() -> NSRect {
+        expandedCoverRect()
+            .union(expandedSourceRect())
+            .union(expandedTitleRect())
+            .union(expandedArtistRect())
+            .insetBy(dx: -4, dy: -4)
     }
 
     private func expandedElapsedRect(progressRect: NSRect) -> NSRect {
@@ -913,6 +927,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         view.onToggle = { [weak self] in self?.toggleExpanded() }
         view.onMediaControl = { [weak self] action, source in self?.performMediaControl(action: action, source: source) }
         view.onMediaSeek = { [weak self] source, seconds in self?.performMediaSeek(source: source, seconds: seconds) }
+        view.onOpenMediaSource = { [weak self] media in self?.openMediaSource(media) }
         view.onExpandedInteraction = { [weak self] in self?.scheduleAutoCollapse() }
         panel.contentView = view
         panel.orderFrontRegardless()
@@ -1073,6 +1088,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             width: size.width,
             height: size.height
         )
+    }
+
+    private func openMediaSource(_ media: MediaInfo) {
+        switch media.source {
+        case "spotify":
+            runAppleScript("tell application \"Spotify\" to activate")
+        case "music":
+            runAppleScript("tell application \"Music\" to activate")
+        case "youtube":
+            if let pageUrl = media.pageUrl, let url = URL(string: pageUrl) {
+                NSWorkspace.shared.open(url)
+            }
+        default:
+            return
+        }
     }
 
     private func performMediaControl(action: String, source: String) {
