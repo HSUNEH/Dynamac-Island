@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const assert = require("node:assert");
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -146,6 +147,40 @@ const mediaRemotePlayingSkipsBrowserProbe = collectMediaStatus({
 });
 assert.equal(mediaRemotePlayingSkipsBrowserProbe.media.title, "Arc Video");
 assert.equal(mediaRemotePlayingSkipsBrowserProbe.media.positionSeconds, 42);
+
+const spotifyMediaRemoteRaw = JSON.stringify({
+  kMRMediaRemoteNowPlayingInfoClientBundleIdentifier: "com.spotify.client",
+  kMRMediaRemoteNowPlayingInfoTitle: "Next Song",
+  kMRMediaRemoteNowPlayingInfoArtist: "Next Artist",
+  kMRMediaRemoteNowPlayingInfoAlbum: "Next Album",
+  kMRMediaRemoteNowPlayingInfoDuration: 200,
+  kMRMediaRemoteNowPlayingInfoElapsedTime: 1.2,
+  kMRMediaRemoteNowPlayingInfoPlaybackRate: 1
+});
+const spotifyArtworkEnrichedFromNativeApp = collectMediaStatus({
+  browserMediaTexts: ["youtube-json||Should Not Poll||Channel||0||0||playing||https://img.example/slow.jpg||https://www.youtube.com/watch?v=slow12345"],
+  mediaRemoteRaw: spotifyMediaRemoteRaw,
+  spotifyText: "spotify||Next Song||Next Artist||Next Album||https://i.scdn.co/image/next-cover||200000||1.2||playing",
+  musicText: "",
+  frontmostApp: "Google Chrome"
+});
+assert.equal(spotifyArtworkEnrichedFromNativeApp.media.source, "spotify");
+assert.equal(spotifyArtworkEnrichedFromNativeApp.media.title, "Next Song");
+assert.equal(spotifyArtworkEnrichedFromNativeApp.media.artworkUrl, "https://i.scdn.co/image/next-cover");
+assert.equal(spotifyArtworkEnrichedFromNativeApp.media.positionSeconds, 1.2);
+
+const cachedArtworkDir = fs.mkdtempSync(path.join(os.tmpdir(), "dynamac-artwork-cache-"));
+const cachedArtworkUrl = "https://i.scdn.co/image/pre-cached-next-cover";
+const cachedArtworkPath = path.join(cachedArtworkDir, `${crypto.createHash("sha1").update(cachedArtworkUrl).digest("hex")}.img`);
+fs.writeFileSync(cachedArtworkPath, "fake image bytes");
+const spotifyArtworkUsesLocalCache = collectMediaStatus({
+  mediaRemoteRaw: spotifyMediaRemoteRaw,
+  spotifyText: `spotify||Next Song||Next Artist||Next Album||${cachedArtworkUrl}||200000||1.2||playing`,
+  musicText: "",
+  artworkCacheDir: cachedArtworkDir,
+  cacheRemoteArtwork: true
+});
+assert.equal(spotifyArtworkUsesLocalCache.media.artworkUrl, cachedArtworkPath);
 
 const frontmostArcTitleFallbackDoesNotBeatSpotify = collectMediaStatus({
   browserMediaTexts: [{ browserName: "Arc", text: "youtube-title||[Vlog] 10년차 무명 배우 브이로그 - YouTube||https://www.youtube.com/watch?v=vlog12345" }],

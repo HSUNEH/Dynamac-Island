@@ -1,4 +1,5 @@
 const childProcess = require("node:child_process");
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 
@@ -504,13 +505,61 @@ function collectMediaRemoteInfo(options = {}) {
   return parseMediaRemoteNowPlaying(runCommand("nowplaying-cli", ["get-raw"], { timeout: 900 }));
 }
 
+function materializeArtwork(info, options = {}) {
+  if (!info?.artworkUrl || options.cacheRemoteArtwork !== true) return info;
+  if (!/^https?:\/\//i.test(info.artworkUrl)) return info;
+
+  const cacheDir = options.artworkCacheDir || path.join(process.cwd(), ".build", "artwork-cache");
+  const hash = crypto.createHash("sha1").update(info.artworkUrl).digest("hex");
+  const outputPath = path.join(cacheDir, `${hash}.img`);
+  if (!fs.existsSync(outputPath)) {
+    fs.mkdirSync(cacheDir, { recursive: true });
+    const tmpPath = `${outputPath}.tmp`;
+    runCommand("curl", ["-L", "--max-time", "1.2", "--silent", "--show-error", "--output", tmpPath, info.artworkUrl], { timeout: 1600 });
+    if (fs.existsSync(tmpPath) && fs.statSync(tmpPath).size > 0) {
+      fs.renameSync(tmpPath, outputPath);
+    } else if (fs.existsSync(tmpPath)) {
+      fs.rmSync(tmpPath, { force: true });
+    }
+  }
+  return fs.existsSync(outputPath) ? { ...info, artworkUrl: outputPath } : info;
+}
+
+function collectNativeAppMediaInfo(source, options = {}) {
+  if (source === "spotify") {
+    return parseDelimitedMedia(options.spotifyText ?? runCommand("osascript", ["-e", spotifyScript()], { timeout: 700 }));
+  }
+  if (source === "music") {
+    return parseDelimitedMedia(options.musicText ?? runCommand("osascript", ["-e", musicScript()], { timeout: 700 }));
+  }
+  return null;
+}
+
+function enrichNativeAppMediaRemoteInfo(info, options = {}) {
+  if (!info || !["spotify", "music"].includes(info.source)) return info;
+  const nativeInfo = materializeArtwork(collectNativeAppMediaInfo(info.source, options), options);
+  if (!nativeInfo) return info;
+  return normalizeMediaInfo({
+    ...info,
+    title: nativeInfo.title || info.title,
+    artist: nativeInfo.artist || info.artist,
+    album: nativeInfo.album || info.album,
+    artworkUrl: nativeInfo.artworkUrl || info.artworkUrl || "",
+    durationSeconds: nativeInfo.durationSeconds || info.durationSeconds,
+    positionSeconds: info.positionSeconds || nativeInfo.positionSeconds,
+    playbackState: info.playbackState || nativeInfo.playbackState,
+    pageUrl: info.pageUrl || nativeInfo.pageUrl || "",
+    bundleIdentifier: info.bundleIdentifier
+  });
+}
+
 function collectMediaStatus(options = {}) {
   if (options.mediaInfo !== undefined) return mediaStatusFromInfo(normalizeMediaInfo(options.mediaInfo));
   if (options.mediaText !== undefined) return mediaStatusFromInfo(parseDelimitedMedia(options.mediaText));
 
   const rawMediaRemoteInfo = collectMediaRemoteInfo(options);
   if (rawMediaRemoteInfo?.playbackState === "playing" && options.forceBrowserEnrichment !== true) {
-    return mediaStatusFromInfo(rawMediaRemoteInfo);
+    return mediaStatusFromInfo(enrichNativeAppMediaRemoteInfo(rawMediaRemoteInfo, options));
   }
 
   const browserInfos = collectBrowserYouTubeMediaInfos(options);
@@ -520,8 +569,8 @@ function collectMediaStatus(options = {}) {
   const playingBrowserInfo = browserInfos.find((info) => info.playbackState === "playing");
   if (playingBrowserInfo) return mediaStatusFromInfo(playingBrowserInfo);
 
-  const spotifyInfo = parseDelimitedMedia(options.spotifyText ?? runCommand("osascript", ["-e", spotifyScript()]));
-  const musicInfo = parseDelimitedMedia(options.musicText ?? runCommand("osascript", ["-e", musicScript()]));
+  const spotifyInfo = materializeArtwork(parseDelimitedMedia(options.spotifyText ?? runCommand("osascript", ["-e", spotifyScript()])), options);
+  const musicInfo = materializeArtwork(parseDelimitedMedia(options.musicText ?? runCommand("osascript", ["-e", musicScript()])), options);
   if (spotifyInfo || musicInfo) return mediaStatusFromInfo(spotifyInfo || musicInfo);
 
   const frontmostApp = frontmostApplicationName(options);
@@ -546,7 +595,7 @@ function buildMacActivityStatusPayload(options = {}) {
 function writeMacActivityStatusSnapshot(options = {}) {
   const outputPath = options.outputPath;
   if (!outputPath) throw new Error("outputPath is required");
-  const payload = buildMacActivityStatusPayload(options);
+  const payload = buildMacActivityStatusPayload({ ...options, cacheRemoteArtwork: options.cacheRemoteArtwork ?? true });
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   fs.writeFileSync(outputPath, `${JSON.stringify(payload, null, 2)}\n`);
   return { ok: true, outputPath, payload };

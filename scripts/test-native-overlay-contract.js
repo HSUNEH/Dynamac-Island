@@ -146,6 +146,7 @@ assert.match(nativeStartSource, /DYNAMAC_STATUS_REFRESH_SIGNAL/, "native-start s
 assert.match(nativeStartSource, /fs\.watchFile\(inherited\.DYNAMAC_STATUS_REFRESH_SIGNAL, \{ interval: 80 \}, \(\) => refreshStatus\(\)\)/, "native-start should regenerate the provider snapshot immediately when the native overlay touches the refresh signal");
 assert.match(nativeStartSource, /fs\.unwatchFile\(inherited\.DYNAMAC_STATUS_REFRESH_SIGNAL\)/, "native-start should unwatch the refresh signal on exit");
 assert.match(source, /requestStatusSnapshotRefresh/, "native overlay should touch the refresh signal instead of waiting for the normal writer interval");
+assert.match(source, /media\.artworkUrl = ""/, "next/previous should clear stale artwork immediately while the new track cover is being fetched");
 assert.match(source, /DYNAMAC_STATUS_RELOAD_MS\"\] \?\? \"250\"/, "native status reload should default to a low-latency 250ms cadence");
 
 assert.match(source, /scheduleAutoCollapse/, "expanded mode should auto-collapse back to compact mode after an idle timeout");

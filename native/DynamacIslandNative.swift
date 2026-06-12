@@ -444,6 +444,11 @@ final class IslandView: NSView {
                 optimisticPlaybackState = nextState
                 optimisticPlaybackStateUntil = Date().addingTimeInterval(1.4)
             } else if action == "previous" || action == "next" {
+                // Do not keep drawing the previous track's cover while Spotify/MediaRemote
+                // catches up. Clear the stale artwork immediately, then the forced snapshot
+                // refresh burst will replace it with the new track's cover.
+                media.artworkUrl = ""
+                media.positionSeconds = 0
                 media.playbackState = "playing"
                 optimisticPlaybackState = nil
                 optimisticPlaybackStateUntil = .distantPast
