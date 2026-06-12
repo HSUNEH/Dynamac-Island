@@ -162,6 +162,7 @@ final class IslandView: NSView {
     var onToggle: (() -> Void)?
     var onMediaControl: ((String, String) -> Void)?
     var onMediaSeek: ((String, Double) -> Void)?
+    var onExpandedInteraction: (() -> Void)?
     private var isDraggingProgress = false
     private var optimisticPlaybackState: String?
     private var optimisticPlaybackStateUntil = Date.distantPast
@@ -189,11 +190,13 @@ final class IslandView: NSView {
         if expanded, let media = nowPlayingMedia(), let seekSeconds = mediaSeekSecond(at: location, media: media) {
             isDraggingProgress = true
             applyOptimisticSeek(seconds: seekSeconds)
+            onExpandedInteraction?()
             onMediaSeek?(media.source ?? "", seekSeconds)
             return
         }
         if expanded, let action = mediaControlAction(at: location), let media = nowPlayingMedia() {
             applyOptimisticMediaControl(action: action)
+            onExpandedInteraction?()
             onMediaControl?(action, media.source ?? "")
             return
         }
@@ -205,6 +208,7 @@ final class IslandView: NSView {
         let location = convert(event.locationInWindow, from: nil)
         if let seekSeconds = mediaSeekSecond(at: location, media: media) {
             applyOptimisticSeek(seconds: seekSeconds)
+            onExpandedInteraction?()
             onMediaSeek?(media.source ?? "", seekSeconds)
         }
     }
@@ -902,6 +906,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         view.onToggle = { [weak self] in self?.toggleExpanded() }
         view.onMediaControl = { [weak self] action, source in self?.performMediaControl(action: action, source: source) }
         view.onMediaSeek = { [weak self] source, seconds in self?.performMediaSeek(source: source, seconds: seconds) }
+        view.onExpandedInteraction = { [weak self] in self?.scheduleAutoCollapse() }
         panel.contentView = view
         panel.orderFrontRegardless()
 
@@ -1047,7 +1052,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func scheduleAutoCollapse() {
         autoCollapseTimer?.invalidate()
-        let seconds = Double(ProcessInfo.processInfo.environment["DYNAMAC_EXPANDED_AUTO_COLLAPSE_SECONDS"] ?? "7").flatMap { $0 > 0 ? $0 : nil } ?? 7
+        let seconds = Double(ProcessInfo.processInfo.environment["DYNAMAC_EXPANDED_AUTO_COLLAPSE_SECONDS"] ?? "5").flatMap { $0 > 0 ? $0 : nil } ?? 5
         autoCollapseTimer = Timer.scheduledTimer(withTimeInterval: seconds, repeats: false) { [weak self] _ in
             guard let self, self.expanded else { return }
             self.toggleExpanded()

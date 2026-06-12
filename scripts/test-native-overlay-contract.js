@@ -137,8 +137,10 @@ assert.match(source, /applyOptimisticSeek/, "media seek should update local prog
 assert.match(source, /scheduleFastStatusReloadBurst/, "media controls should schedule a short reload burst after provider commands");
 assert.match(source, /DYNAMAC_STATUS_RELOAD_MS\"\] \?\? \"250\"/, "native status reload should default to a low-latency 250ms cadence");
 
-assert.match(source, /scheduleAutoCollapse/, "expanded mode should auto-collapse back to compact mode after a timeout");
-assert.match(source, /DYNAMAC_EXPANDED_AUTO_COLLAPSE_SECONDS\"\] \?\? \"7\"/, "expanded auto-collapse should default to 7 seconds and be tunable");
-assert.match(source, /autoCollapseTimer\?\.invalidate\(\)/, "manual toggles should cancel any pending auto-collapse timer");
+assert.match(source, /scheduleAutoCollapse/, "expanded mode should auto-collapse back to compact mode after an idle timeout");
+assert.match(source, /DYNAMAC_EXPANDED_AUTO_COLLAPSE_SECONDS\"\] \?\? \"5\"/, "expanded auto-collapse should default to 5 seconds and be tunable");
+assert.match(source, /onExpandedInteraction/, "expanded media interactions should reset the auto-collapse idle timer");
+assert.match(source, /view\.onExpandedInteraction = \{ \[weak self\] in self\?\.scheduleAutoCollapse\(\) \}/, "the app controller should reschedule auto-collapse after the last expanded interaction");
+assert.match(source, /autoCollapseTimer\?\.invalidate\(\)/, "manual toggles and interaction resets should cancel any pending auto-collapse timer");
 
 console.log("Native overlay contract test passed.");
