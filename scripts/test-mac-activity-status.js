@@ -11,6 +11,9 @@ const {
   SAFARI_YOUTUBE_BROWSERS,
   buildMacActivityStatusPayload,
   classifyClipboardText,
+  collectBatteryStatus,
+  collectClipboardStatus,
+  collectMediaStatus,
   formatDuration,
   parseDelimitedMedia,
   parsePmsetBattery,
@@ -32,7 +35,8 @@ assert.equal(classifyClipboardText("hello").task, "Text copied · 5 chars");
 assert.equal(formatDuration(65.9), "1:05");
 assert.equal(youtubeThumbnailUrl("https://www.youtube.com/watch?v=abcDEF_1234"), "https://img.youtube.com/vi/abcDEF_1234/hqdefault.jpg");
 
-const spotifyInfo = parseDelimitedMedia("spotify||Song Title||Artist Name||Album Name||https://i.scdn.co/image/abc||240000||42.4||playing");
+const spotifyText = "spotify||Song Title||Artist Name||Album Name||https://i.scdn.co/image/abc||240000||42.4||playing";
+const spotifyInfo = parseDelimitedMedia(spotifyText);
 assert.equal(spotifyInfo.source, "spotify");
 assert.equal(spotifyInfo.durationSeconds, 240);
 assert.equal(spotifyInfo.positionSeconds, 42.4);
@@ -47,7 +51,8 @@ const youtubeInfo = parseDelimitedMedia("youtube||Video Title||||YouTube||||0||0
 assert.equal(youtubeInfo.source, "youtube");
 assert.equal(youtubeInfo.artworkUrl, "https://img.youtube.com/vi/abcDEF_1234/hqdefault.jpg");
 
-const youtubeJsonInfo = parseDelimitedMedia('youtube-json||{"title":"Video Title","artist":"Channel","album":"YouTube","artworkUrl":"https://i.ytimg.com/vi/abcDEF_1234/hqdefault.jpg","durationSeconds":1521,"positionSeconds":8,"playbackState":"playing"}||https://www.youtube.com/watch?v=abcDEF_1234');
+const youtubePlayingText = 'youtube-json||{"title":"Video Title","artist":"Channel","album":"YouTube","artworkUrl":"https://i.ytimg.com/vi/abcDEF_1234/hqdefault.jpg","durationSeconds":1521,"positionSeconds":8,"playbackState":"playing"}||https://www.youtube.com/watch?v=abcDEF_1234';
+const youtubeJsonInfo = parseDelimitedMedia(youtubePlayingText);
 assert.equal(youtubeJsonInfo.source, "youtube");
 assert.equal(youtubeJsonInfo.title, "Video Title");
 assert.equal(youtubeJsonInfo.artist, "Channel");
@@ -81,6 +86,32 @@ const firefoxYouTubeScript = browserYouTubeScript("Firefox");
 assert.match(firefoxYouTubeScript, /System Events/, "Firefox fallback should use System Events because Firefox does not expose tab JavaScript via AppleScript");
 assert.match(firefoxYouTubeScript, /youtube-title/, "Firefox fallback should return title-based YouTube metadata");
 assert.doesNotMatch(firefoxYouTubeScript, /execute javascript|do JavaScript/, "Firefox fallback must not pretend to execute tab JavaScript");
+
+const youtubeBeatsSpotify = collectMediaStatus({
+  browserMediaTexts: [youtubePlayingText],
+  spotifyText,
+  musicText: "",
+  frontmostApp: "Spotify"
+});
+assert.equal(youtubeBeatsSpotify.media.source, "youtube");
+assert.equal(youtubeBeatsSpotify.media.title, "Video Title");
+
+const frontmostArcTitleFallbackBeatsSpotify = collectMediaStatus({
+  browserMediaTexts: [{ browserName: "Arc", text: "youtube-title||[Vlog] 10년차 무명 배우 브이로그 - YouTube||https://www.youtube.com/watch?v=vlog12345" }],
+  spotifyText,
+  musicText: "",
+  frontmostApp: "Arc"
+});
+assert.equal(frontmostArcTitleFallbackBeatsSpotify.media.source, "youtube");
+assert.equal(frontmostArcTitleFallbackBeatsSpotify.media.title, "[Vlog] 10년차 무명 배우 브이로그");
+
+const backgroundYoutubeFallbackDoesNotBeatSpotify = collectMediaStatus({
+  browserMediaTexts: ["youtube-title||Old tab - YouTube||https://www.youtube.com/watch?v=old12345"],
+  spotifyText,
+  musicText: "",
+  frontmostApp: "Spotify"
+});
+assert.equal(backgroundYoutubeFallbackDoesNotBeatSpotify.media.source, "spotify");
 
 const payload = buildMacActivityStatusPayload({
   now: new Date("2026-06-11T09:00:00.000Z"),

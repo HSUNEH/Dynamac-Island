@@ -190,8 +190,12 @@ function browserYouTubeScript(browserName) {
       'repeat with t in tabs of w',
       'set tabUrl to URL of t',
       `if ${youtubeUrlAppleScriptCondition("tabUrl")} then`,
+      'try',
       `set payload to do JavaScript ${js} in t`,
       'return "youtube-json||" & payload & "||" & tabUrl',
+      'on error',
+      'return "youtube-title||" & (name of t) & "||" & tabUrl',
+      'end try',
       'end if',
       'end repeat',
       'end repeat',
@@ -223,8 +227,12 @@ function browserYouTubeScript(browserName) {
     'repeat with t in tabs of w',
     'set tabUrl to URL of t',
     `if ${youtubeUrlAppleScriptCondition("tabUrl")} then`,
+    'try',
     `set payload to execute javascript ${js} in t`,
     'return "youtube-json||" & payload & "||" & tabUrl',
+    'on error',
+    'return "youtube-title||" & (title of t) & "||" & tabUrl',
+    'end try',
     'end if',
     'end repeat',
     'end repeat',
@@ -370,20 +378,47 @@ function mediaStatusFromInfo(info) {
   };
 }
 
-function collectMediaStatus(options = {}) {
-  if (options.mediaInfo !== undefined) return mediaStatusFromInfo(normalizeMediaInfo(options.mediaInfo));
-  if (options.mediaText !== undefined) return mediaStatusFromInfo(parseDelimitedMedia(options.mediaText));
+function frontmostApplicationName(options = {}) {
+  if (options.frontmostApp !== undefined) return options.frontmostApp;
+  return runCommand("osascript", ["-e", 'tell application "System Events" to name of first application process whose frontmost is true']);
+}
 
+function collectBrowserYouTubeMediaInfos(options = {}) {
+  if (options.browserMediaTexts !== undefined) {
+    return options.browserMediaTexts.map((entry) => {
+      const text = typeof entry === "string" ? entry : entry.text;
+      const info = parseDelimitedMedia(text);
+      return info ? { ...info, browserName: typeof entry === "string" ? undefined : entry.browserName } : null;
+    }).filter(Boolean);
+  }
   const browserNames = [
     ...CHROMIUM_YOUTUBE_BROWSERS,
     ...SAFARI_YOUTUBE_BROWSERS,
     ...FIREFOX_YOUTUBE_BROWSERS
   ];
-  const raw = runCommand("osascript", ["-e", spotifyScript()])
-    || runCommand("osascript", ["-e", musicScript()])
-    || browserNames.map((browser) => runCommand("osascript", ["-e", browserYouTubeScript(browser)])).find(Boolean)
-    || "";
-  return mediaStatusFromInfo(parseDelimitedMedia(raw));
+  return browserNames
+    .map((browserName) => {
+      const info = parseDelimitedMedia(runCommand("osascript", ["-e", browserYouTubeScript(browserName)]));
+      return info ? { ...info, browserName } : null;
+    })
+    .filter(Boolean);
+}
+
+function collectMediaStatus(options = {}) {
+  if (options.mediaInfo !== undefined) return mediaStatusFromInfo(normalizeMediaInfo(options.mediaInfo));
+  if (options.mediaText !== undefined) return mediaStatusFromInfo(parseDelimitedMedia(options.mediaText));
+
+  const browserInfos = collectBrowserYouTubeMediaInfos(options);
+  const playingBrowserInfo = browserInfos.find((info) => info.playbackState === "playing");
+  if (playingBrowserInfo) return mediaStatusFromInfo(playingBrowserInfo);
+
+  const frontmostApp = frontmostApplicationName(options);
+  const frontmostBrowserInfo = browserInfos.find((info) => info.browserName && info.browserName === frontmostApp);
+  if (frontmostBrowserInfo) return mediaStatusFromInfo(frontmostBrowserInfo);
+
+  const spotifyInfo = parseDelimitedMedia(options.spotifyText ?? runCommand("osascript", ["-e", spotifyScript()]));
+  const musicInfo = parseDelimitedMedia(options.musicText ?? runCommand("osascript", ["-e", musicScript()]));
+  return mediaStatusFromInfo(spotifyInfo || musicInfo || browserInfos[0] || null);
 }
 
 function buildMacActivityStatusPayload(options = {}) {
