@@ -15,6 +15,7 @@ const {
   classifyClipboardText,
   collectBatteryStatus,
   collectClipboardStatus,
+  collectMediaCandidates,
   collectMediaStatus,
   formatDuration,
   parseDelimitedMedia,
@@ -77,11 +78,28 @@ const arcMediaRemoteRaw = JSON.stringify({
   kMRMediaRemoteNowPlayingInfoPlaybackRate: 1
 });
 const arcMediaRemoteInfo = parseMediaRemoteNowPlaying(arcMediaRemoteRaw);
-assert.equal(arcMediaRemoteInfo.source, "youtube");
+assert.equal(arcMediaRemoteInfo.source, "browser-media");
 assert.equal(arcMediaRemoteInfo.title, "Arc Video");
 assert.equal(arcMediaRemoteInfo.positionSeconds, 42);
 assert.equal(arcMediaRemoteInfo.durationSeconds, 321);
 assert.equal(arcMediaRemoteInfo.playbackState, "playing");
+
+const serviceBundleExpectations = [
+  ["com.tidal.desktop", "tidal"],
+  ["com.kakao.melon", "melon"],
+  ["com.ktmusic.genie", "genie"],
+  ["com.google.YouTubeMusic", "youtube-music"]
+];
+for (const [bundleIdentifier, expectedSource] of serviceBundleExpectations) {
+  const parsed = parseMediaRemoteNowPlaying(JSON.stringify({
+    kMRMediaRemoteNowPlayingInfoClientBundleIdentifier: bundleIdentifier,
+    kMRMediaRemoteNowPlayingInfoTitle: `${expectedSource} title`,
+    kMRMediaRemoteNowPlayingInfoArtist: `${expectedSource} artist`,
+    kMRMediaRemoteNowPlayingInfoPlaybackRate: 1
+  }));
+  assert.equal(parsed.source, expectedSource);
+  assert.equal(parsed.playbackState, "playing");
+}
 
 assert.deepEqual(CHROMIUM_YOUTUBE_BROWSERS.includes("Google Chrome"), true);
 assert.deepEqual(CHROMIUM_YOUTUBE_BROWSERS.includes("Arc"), true);
@@ -119,18 +137,55 @@ assert.match(firefoxYouTubeScript, /System Events/, "Firefox fallback should use
 assert.match(firefoxYouTubeScript, /youtube-title/, "Firefox fallback should return title-based YouTube metadata");
 assert.doesNotMatch(firefoxYouTubeScript, /execute javascript|do JavaScript/, "Firefox fallback must not pretend to execute tab JavaScript");
 
-const youtubeBeatsSpotify = collectMediaStatus({
+const candidatesIncludeGenericPlayingSources = collectMediaCandidates({
   browserMediaTexts: [youtubePlayingText],
   mediaRemoteRaw: "",
   spotifyText,
   musicText: "",
   frontmostApp: "Spotify"
 });
-assert.equal(youtubeBeatsSpotify.media.source, "youtube");
-assert.equal(youtubeBeatsSpotify.media.title, "Video Title");
+assert.deepEqual(candidatesIncludeGenericPlayingSources.filter((item) => item.playbackState === "playing").map((item) => item.source), ["youtube", "spotify"]);
 
-const frontmostChromePlayerBeatsSpotify = collectMediaStatus({
+const previousSpotifyFirstPayload = {
+  statuses: [{
+    agent: "Now Playing",
+    updatedAt: "2026-06-12T12:00:00.000Z",
+    media: {
+      source: "spotify",
+      title: "Song Title",
+      artist: "Artist Name",
+      playbackState: "playing",
+      firstSeenAt: "2026-06-12T12:00:00.000Z"
+    }
+  }]
+};
+const youtubeDoesNotBeatAlreadyPlayingSpotify = collectMediaStatus({
+  browserMediaTexts: [youtubePlayingText],
+  mediaRemoteRaw: "",
+  spotifyText,
+  musicText: "",
   frontmostApp: "Google Chrome",
+  previousPayload: previousSpotifyFirstPayload,
+  now: new Date("2026-06-12T12:00:05.000Z")
+});
+assert.equal(youtubeDoesNotBeatAlreadyPlayingSpotify.media.source, "spotify");
+assert.equal(youtubeDoesNotBeatAlreadyPlayingSpotify.media.title, "Song Title");
+
+const previousYouTubeFirstPayload = {
+  statuses: [{
+    agent: "Now Playing",
+    updatedAt: "2026-06-12T12:00:00.000Z",
+    media: {
+      source: "youtube",
+      title: "Video Title",
+      artist: "Channel",
+      playbackState: "playing",
+      firstSeenAt: "2026-06-12T12:00:00.000Z"
+    }
+  }]
+};
+const alreadyPlayingYouTubeStaysSelectedAgainstSpotify = collectMediaStatus({
+  frontmostApp: "Spotify",
   frontmostBrowserMediaText: youtubePlayingText,
   mediaRemoteRaw: JSON.stringify({
     kMRMediaRemoteNowPlayingInfoClientBundleIdentifier: "com.spotify.client",
@@ -141,11 +196,13 @@ const frontmostChromePlayerBeatsSpotify = collectMediaStatus({
     kMRMediaRemoteNowPlayingInfoPlaybackRate: 1
   }),
   spotifyText,
-  musicText: ""
+  musicText: "",
+  previousPayload: previousYouTubeFirstPayload,
+  now: new Date("2026-06-12T12:00:05.000Z")
 });
-assert.equal(frontmostChromePlayerBeatsSpotify.media.source, "youtube");
-assert.equal(frontmostChromePlayerBeatsSpotify.media.title, "Video Title");
-assert.equal(frontmostChromePlayerBeatsSpotify.media.positionSeconds, 8);
+assert.equal(alreadyPlayingYouTubeStaysSelectedAgainstSpotify.media.source, "youtube");
+assert.equal(alreadyPlayingYouTubeStaysSelectedAgainstSpotify.media.title, "Video Title");
+assert.equal(alreadyPlayingYouTubeStaysSelectedAgainstSpotify.media.positionSeconds, 8);
 
 const frontmostArcTitleDoesNotBeatSpotify = collectMediaStatus({
   frontmostApp: "Arc",
@@ -171,9 +228,23 @@ const arcMediaRemoteBeatsSpotify = collectMediaStatus({
   musicText: "",
   frontmostApp: "Spotify"
 });
-assert.equal(arcMediaRemoteBeatsSpotify.media.source, "youtube");
+assert.equal(arcMediaRemoteBeatsSpotify.media.source, "browser-media");
 assert.equal(arcMediaRemoteBeatsSpotify.media.title, "Arc Video");
 assert.equal(arcMediaRemoteBeatsSpotify.media.elapsedLabel, "0:42");
+
+const plainArcMediaRemoteEnrichedBySpaceTabs = collectMediaStatus({
+  browserMediaTexts: [],
+  arcSpaceMediaTexts: ["youtube-title||Arc Video - YouTube||https://www.youtube.com/watch?v=arcPlain123"],
+  mediaRemoteRaw: arcMediaRemoteRaw,
+  spotifyText: "",
+  musicText: "",
+  frontmostApp: "Arc"
+});
+assert.equal(plainArcMediaRemoteEnrichedBySpaceTabs.media.source, "youtube");
+assert.equal(plainArcMediaRemoteEnrichedBySpaceTabs.media.title, "Arc Video");
+assert.equal(plainArcMediaRemoteEnrichedBySpaceTabs.media.pageUrl, "https://www.youtube.com/watch?v=arcPlain123");
+assert.equal(plainArcMediaRemoteEnrichedBySpaceTabs.media.artworkUrl, "https://img.youtube.com/vi/arcPlain123/hqdefault.jpg");
+assert.equal(plainArcMediaRemoteEnrichedBySpaceTabs.media.playbackState, "playing");
 
 const mediaRemotePlayingSkipsBrowserProbe = collectMediaStatus({
   cdpMediaText: "",

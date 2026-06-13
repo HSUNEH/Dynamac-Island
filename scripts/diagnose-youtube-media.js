@@ -3,6 +3,7 @@ const { spawnSync } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 const {
+  arcSpaceYouTubeTabsScript,
   browserYouTubeScript,
   chromiumFallbackYouTubeTitleScript,
   CHROMIUM_YOUTUBE_BROWSERS,
@@ -88,8 +89,13 @@ for (const browser of browsers) {
   let result;
   let raw;
   if (browser === "Arc") {
-    result = run("osascript", ["-e", chromiumFallbackYouTubeTitleScript(browser)]);
-    raw = result.stdout;
+    result = run("osascript", ["-e", arcSpaceYouTubeTabsScript(browser)]);
+    raw = result.stdout.split(/\r?\n/).find(Boolean) || "";
+    if (!raw) {
+      const fallback = run("osascript", ["-e", chromiumFallbackYouTubeTitleScript(browser)]);
+      result = fallback;
+      raw = fallback.stdout;
+    }
   } else {
     result = run("osascript", ["-e", browserYouTubeScript(browser)]);
     raw = result.stdout;
@@ -112,5 +118,5 @@ for (const browser of browsers) {
   if (result.status !== 0) console.log(`  status: ${result.status}${result.error ? ` error=${result.error}` : ""}`);
 }
 
-console.log("\nFor Arc/Chrome extension-player mode, run Dynamac with `npm run native:start`, relaunch Arc-Snuffles with `npm run start:arc-media` or Chrome with `npm run start:chrome-media`, allow YouTube loopback access to `127.0.0.1` when Arc asks, reload the YouTube tab, then play YouTube; Local YouTube bridge should become `youtube-json`.");
-console.log("CDP and Apple Events browser probes remain compatibility paths; title-only probes do not beat active native players.");
+console.log("\nNormal Arc path: Dynamac can read YouTube/YouTube Music tab title+URL from Arc's active Space without loading an extension, then merge that with macOS MediaRemote when Arc is the current playing app.");
+console.log("Extension/CDP paths are optional precision upgrades: use `npm run start:arc-media` or `npm run start:chrome-media` when you need direct page duration/currentTime/channel heartbeat; allow Media loopback access to `127.0.0.1`, reload the media tab, then Local YouTube bridge should become `youtube-json`.");

@@ -202,6 +202,28 @@ function chromiumFallbackYouTubeTitleScript(browserName) {
   ].join("\n");
 }
 
+function arcSpaceYouTubeTabsScript(browserName = "Arc") {
+  return [
+    'try',
+    `if application "${browserName}" is running then`,
+    `tell application "${browserName}"`,
+    'set outputLines to {}',
+    'repeat with t in tabs of active space of front window',
+    'try',
+    'set tabUrl to URL of t',
+    `if ${youtubeUrlAppleScriptCondition("tabUrl")} then`,
+    'set end of outputLines to "youtube-title||" & (title of t) & "||" & tabUrl',
+    'end if',
+    'end try',
+    'end repeat',
+    'set AppleScript\'s text item delimiters to linefeed',
+    'return outputLines as text',
+    'end tell',
+    'end if',
+    'end try'
+  ].join("\n");
+}
+
 function browserYouTubeScript(browserName) {
   const js = appleScriptString(youtubePageProbeJavaScript());
   const chromiumBrowsers = new Set(CHROMIUM_YOUTUBE_BROWSERS);
@@ -336,7 +358,11 @@ function normalizeMediaInfo(info) {
     durationSeconds: Number.isFinite(Number(info.durationSeconds)) ? Number(info.durationSeconds) : 0,
     positionSeconds: Number.isFinite(Number(info.positionSeconds)) ? Number(info.positionSeconds) : 0,
     playbackState: info.playbackState || "unknown",
-    pageUrl: info.pageUrl || ""
+    pageUrl: info.pageUrl || "",
+    browserName: info.browserName || "",
+    appName: info.appName || "",
+    bundleIdentifier: info.bundleIdentifier || "",
+    firstSeenAt: info.firstSeenAt || ""
   };
 }
 
@@ -364,13 +390,15 @@ function youtubeThumbnailUrl(url) {
   return id ? `https://img.youtube.com/vi/${id}/hqdefault.jpg` : "";
 }
 
-function mediaStatusFromInfo(info) {
+function mediaStatusFromInfo(info, candidates = []) {
+  const normalizedCandidates = candidates.map((candidate) => normalizeMediaInfo(candidate)).filter(Boolean);
   if (!info) {
     return {
       agent: "Now Playing",
       state: "idle",
       task: "Nothing playing",
-      detail: "No active Spotify, Music, or YouTube playback surface was detected.",
+      detail: "No active media playback surface was detected.",
+      candidates: normalizedCandidates,
       media: {
         source: "none",
         title: "Nothing playing",
@@ -380,7 +408,8 @@ function mediaStatusFromInfo(info) {
         durationSeconds: 0,
         positionSeconds: 0,
         playbackState: "idle",
-        pageUrl: ""
+        pageUrl: "",
+        firstSeenAt: ""
       }
     };
   }
@@ -389,7 +418,8 @@ function mediaStatusFromInfo(info) {
     agent: "Now Playing",
     state: info.playbackState === "paused" ? "idle" : "running",
     task: truncate(info.title, 48),
-    detail: info.artist ? truncate(info.artist, 80) : (info.source === "youtube" ? "YouTube" : truncate(info.album, 80)),
+    detail: info.artist ? truncate(info.artist, 80) : (info.source === "youtube" || info.source === "browser-media" ? "Browser media" : truncate(info.album, 80)),
+    candidates: normalizedCandidates,
     media: {
       source: info.source,
       title: info.title,
@@ -401,7 +431,11 @@ function mediaStatusFromInfo(info) {
       playbackState: info.playbackState || "unknown",
       elapsedLabel: formatDuration(info.positionSeconds),
       durationLabel: formatDuration(info.durationSeconds),
-      pageUrl: info.pageUrl || ""
+      pageUrl: info.pageUrl || "",
+      browserName: info.browserName || "",
+      appName: info.appName || "",
+      bundleIdentifier: info.bundleIdentifier || "",
+      firstSeenAt: info.firstSeenAt || ""
     }
   };
 }
@@ -484,14 +518,16 @@ function collectBrowserYouTubeMediaInfos(options = {}) {
   return browserNames
     .map((browserName) => {
       if (browserName === "Arc") {
-        const fallbackInfo = parseDelimitedMedia(runCommand("osascript", ["-e", chromiumFallbackYouTubeTitleScript(browserName)]));
+        const spaceInfos = collectArcSpaceYouTubeMediaInfos(options);
+        if (spaceInfos[0]) return spaceInfos[0];
+        const fallbackInfo = parseDelimitedMedia(runCommand("osascript", ["-e", chromiumFallbackYouTubeTitleScript(browserName)], { timeout: 650 }));
         if (fallbackInfo) return { ...fallbackInfo, browserName };
         return null;
       }
-      const raw = runCommand("osascript", ["-e", browserYouTubeScript(browserName)]);
+      const raw = runCommand("osascript", ["-e", browserYouTubeScript(browserName)], { timeout: 650 });
       let info = parseDelimitedMedia(raw);
       if (!info && CHROMIUM_YOUTUBE_BROWSERS.includes(browserName)) {
-        info = parseDelimitedMedia(runCommand("osascript", ["-e", chromiumFallbackYouTubeTitleScript(browserName)]));
+        info = parseDelimitedMedia(runCommand("osascript", ["-e", chromiumFallbackYouTubeTitleScript(browserName)], { timeout: 500 }));
       }
       return info ? { ...info, browserName } : null;
     })
@@ -513,6 +549,30 @@ function materializeMediaRemoteArtworkData(payload, options = {}) {
   return outputPath;
 }
 
+function mediaRemoteSourceFromBundle(bundleIdentifier = "") {
+  const bundle = String(bundleIdentifier || "").toLowerCase();
+  const browserBundles = new Set([
+    "com.google.chrome",
+    "com.google.chrome.canary",
+    "org.chromium.chromium",
+    "company.thebrowser.browser",
+    "com.brave.browser",
+    "com.microsoft.edgemac",
+    "com.vivaldi.vivaldi",
+    "com.operasoftware.opera",
+    "com.operasoftware.operagx",
+    "com.apple.safari"
+  ]);
+  if (browserBundles.has(bundle)) return "browser-media";
+  if (bundle.includes("spotify")) return "spotify";
+  if (bundle.includes("tidal")) return "tidal";
+  if (bundle.includes("melon")) return "melon";
+  if (bundle.includes("genie")) return "genie";
+  if (bundle.includes("youtube") && bundle.includes("music")) return "youtube-music";
+  if (bundle.includes("music") || bundle === "com.apple.music" || bundle === "com.apple.itunes") return "music";
+  return "now-playing";
+}
+
 function parseMediaRemoteNowPlaying(raw, options = {}) {
   if (!raw) return null;
   let payload;
@@ -524,21 +584,7 @@ function parseMediaRemoteNowPlaying(raw, options = {}) {
   const title = payload.kMRMediaRemoteNowPlayingInfoTitle || payload.title || "";
   if (!title) return null;
   const bundleIdentifier = payload.kMRMediaRemoteNowPlayingInfoClientBundleIdentifier || payload.bundleIdentifier || "";
-  const browserBundles = new Set([
-    "com.google.Chrome",
-    "com.google.Chrome.canary",
-    "org.chromium.Chromium",
-    "company.thebrowser.Browser",
-    "com.brave.Browser",
-    "com.microsoft.edgemac",
-    "com.vivaldi.Vivaldi",
-    "com.operasoftware.Opera",
-    "com.operasoftware.OperaGX",
-    "com.apple.Safari"
-  ]);
-  const source = browserBundles.has(bundleIdentifier) ? "youtube" : (
-    bundleIdentifier.includes("spotify") ? "spotify" : (bundleIdentifier.includes("Music") ? "music" : "now-playing")
-  );
+  const source = mediaRemoteSourceFromBundle(bundleIdentifier);
   const playbackRate = Number(payload.kMRMediaRemoteNowPlayingInfoPlaybackRate ?? payload.playbackRate ?? 0);
   const mediaRemoteArtworkUrl = materializeMediaRemoteArtworkData(payload, options);
   return normalizeMediaInfo({
@@ -555,6 +601,24 @@ function parseMediaRemoteNowPlaying(raw, options = {}) {
   });
 }
 
+function collectArcSpaceYouTubeMediaInfos(options = {}) {
+  const isFixtureRun = options.arcSpaceMediaTexts === undefined && (
+    options.browserMediaTexts !== undefined ||
+    options.frontmostBrowserMediaText !== undefined ||
+    options.mediaRemoteRaw !== undefined ||
+    options.mediaRemoteInfo !== undefined ||
+    options.spotifyText !== undefined ||
+    options.musicText !== undefined ||
+    options.cdpMediaText !== undefined ||
+    options.youtubeBridgeInfo !== undefined
+  );
+  if (isFixtureRun) return [];
+  const rawTexts = options.arcSpaceMediaTexts !== undefined
+    ? options.arcSpaceMediaTexts
+    : String(runCommand("osascript", ["-e", arcSpaceYouTubeTabsScript("Arc")], { timeout: 900 }) || "").split(/\r?\n/).filter(Boolean);
+  return rawTexts.map((entry) => parseDelimitedMedia(typeof entry === "string" ? entry : entry.text)).filter(Boolean).map((info) => ({ ...info, browserName: "Arc", probe: "arc-space-tabs" }));
+}
+
 function enrichMediaRemoteInfo(info, browserInfos = []) {
   if (!info) return null;
   const matchingBrowser = browserInfos.find((browserInfo) => {
@@ -565,6 +629,7 @@ function enrichMediaRemoteInfo(info, browserInfos = []) {
   });
   return normalizeMediaInfo({
     ...info,
+    source: info.source === "browser-media" && matchingBrowser?.source === "youtube" ? (String(matchingBrowser.pageUrl || "").includes("music.youtube.com") ? "youtube-music" : "youtube") : info.source,
     artworkUrl: info.artworkUrl || matchingBrowser?.artworkUrl || "",
     pageUrl: info.pageUrl || matchingBrowser?.pageUrl || "",
     artist: info.artist || matchingBrowser?.artist || "",
@@ -631,41 +696,93 @@ function enrichNativeAppMediaRemoteInfo(info, options = {}) {
   });
 }
 
+function mediaIdentityKey(info) {
+  if (!info) return "";
+  return [info.source || "unknown", info.bundleIdentifier || info.browserName || info.appName || "", info.title || "", info.artist || ""].join("||");
+}
+
+function previousMediaRecords(previousPayload = {}) {
+  const nowPlaying = previousPayload.statuses?.find((status) => status.agent === "Now Playing") || {};
+  return [nowPlaying.media, ...(nowPlaying.candidates || [])].filter(Boolean);
+}
+
+function attachFirstSeenAt(candidates, options = {}) {
+  const now = (options.now || new Date()).toISOString();
+  const previousByKey = new Map(previousMediaRecords(options.previousPayload).map((item) => [mediaIdentityKey(item), item]));
+  return candidates.map((candidate) => {
+    const normalized = normalizeMediaInfo(candidate);
+    const previous = previousByKey.get(mediaIdentityKey(normalized));
+    return {
+      ...normalized,
+      firstSeenAt: previous?.firstSeenAt || (previous?.playbackState === "playing" ? previous?.updatedAt : "") || now
+    };
+  });
+}
+
+function dedupeMediaCandidates(candidates) {
+  const byKey = new Map();
+  for (const candidate of candidates.map((item) => normalizeMediaInfo(item)).filter(Boolean)) {
+    const key = mediaIdentityKey(candidate);
+    if (!key) continue;
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, candidate);
+      continue;
+    }
+    const merged = normalizeMediaInfo({
+      ...existing,
+      ...candidate,
+      artworkUrl: existing.artworkUrl || candidate.artworkUrl,
+      pageUrl: existing.pageUrl || candidate.pageUrl,
+      firstSeenAt: existing.firstSeenAt || candidate.firstSeenAt,
+      positionSeconds: Math.max(Number(existing.positionSeconds || 0), Number(candidate.positionSeconds || 0)),
+      playbackState: existing.playbackState === "playing" || candidate.playbackState === "playing" ? "playing" : (candidate.playbackState || existing.playbackState)
+    });
+    byKey.set(key, merged);
+  }
+  return Array.from(byKey.values());
+}
+
+function collectMediaCandidates(options = {}) {
+  const rawMediaRemoteInfo = collectMediaRemoteInfo(options);
+  const broadBrowserInfos = collectBrowserYouTubeMediaInfos(options);
+  const arcSpaceInfos = collectArcSpaceYouTubeMediaInfos(options);
+  const candidates = [];
+  const frontmostBrowserInfo = collectFrontmostBrowserYouTubeInfo(options);
+  if (frontmostBrowserInfo) candidates.push(frontmostBrowserInfo);
+  const cdpBrowserInfo = collectChromeDevToolsYouTubeInfo(options);
+  if (cdpBrowserInfo) candidates.push(cdpBrowserInfo);
+  const bridgeBrowserInfo = collectYouTubeBridgeInfo(options);
+  if (bridgeBrowserInfo) candidates.push(bridgeBrowserInfo);
+  candidates.push(...broadBrowserInfos, ...arcSpaceInfos);
+  const mediaRemoteInfo = enrichNativeAppMediaRemoteInfo(enrichMediaRemoteInfo(rawMediaRemoteInfo, [...broadBrowserInfos, ...arcSpaceInfos]), options);
+  if (mediaRemoteInfo) candidates.push(mediaRemoteInfo);
+  const spotifyInfo = materializeArtwork(parseDelimitedMedia(options.spotifyText ?? runCommand("osascript", ["-e", spotifyScript()])), options);
+  const musicInfo = materializeArtwork(parseDelimitedMedia(options.musicText ?? runCommand("osascript", ["-e", musicScript()])), options);
+  if (spotifyInfo) candidates.push(spotifyInfo);
+  if (musicInfo) candidates.push(musicInfo);
+  return attachFirstSeenAt(dedupeMediaCandidates(candidates), options);
+}
+
+function selectFirstPlayingMediaCandidate(candidates) {
+  const playing = candidates.filter((candidate) => candidate.playbackState === "playing");
+  const pool = playing.length ? playing : (candidates.filter((candidate) => candidate.playbackState === "paused").length ? candidates.filter((candidate) => candidate.playbackState === "paused") : candidates);
+  if (!pool.length) return null;
+  return [...pool].sort((left, right) => {
+    const leftTime = Date.parse(left.firstSeenAt || "") || Number.MAX_SAFE_INTEGER;
+    const rightTime = Date.parse(right.firstSeenAt || "") || Number.MAX_SAFE_INTEGER;
+    if (leftTime !== rightTime) return leftTime - rightTime;
+    return candidates.indexOf(left) - candidates.indexOf(right);
+  })[0];
+}
+
 function collectMediaStatus(options = {}) {
   if (options.mediaInfo !== undefined) return mediaStatusFromInfo(normalizeMediaInfo(options.mediaInfo));
   if (options.mediaText !== undefined) return mediaStatusFromInfo(parseDelimitedMedia(options.mediaText));
 
-  const rawMediaRemoteInfo = collectMediaRemoteInfo(options);
-  const frontmostBrowserInfo = collectFrontmostBrowserYouTubeInfo(options);
-  if (frontmostBrowserInfo?.source === "youtube" && frontmostBrowserInfo.playbackState === "playing") {
-    return mediaStatusFromInfo(frontmostBrowserInfo);
-  }
-  const cdpBrowserInfo = collectChromeDevToolsYouTubeInfo(options);
-  if (cdpBrowserInfo?.source === "youtube" && cdpBrowserInfo.playbackState === "playing") {
-    return mediaStatusFromInfo(cdpBrowserInfo);
-  }
-  const bridgeBrowserInfo = collectYouTubeBridgeInfo(options);
-  if (bridgeBrowserInfo?.source === "youtube" && bridgeBrowserInfo.playbackState === "playing") {
-    return mediaStatusFromInfo(bridgeBrowserInfo);
-  }
-  if (rawMediaRemoteInfo?.playbackState === "playing" && options.forceBrowserEnrichment !== true) {
-    return mediaStatusFromInfo(enrichNativeAppMediaRemoteInfo(rawMediaRemoteInfo, options));
-  }
-
-  const browserInfos = collectBrowserYouTubeMediaInfos(options);
-  const mediaRemoteInfo = enrichMediaRemoteInfo(rawMediaRemoteInfo, browserInfos);
-  if (mediaRemoteInfo?.playbackState === "playing") return mediaStatusFromInfo(mediaRemoteInfo);
-
-  const playingBrowserInfo = browserInfos.find((info) => info.playbackState === "playing");
-  if (playingBrowserInfo) return mediaStatusFromInfo(playingBrowserInfo);
-
-  const spotifyInfo = materializeArtwork(parseDelimitedMedia(options.spotifyText ?? runCommand("osascript", ["-e", spotifyScript()])), options);
-  const musicInfo = materializeArtwork(parseDelimitedMedia(options.musicText ?? runCommand("osascript", ["-e", musicScript()])), options);
-  if (spotifyInfo || musicInfo) return mediaStatusFromInfo(spotifyInfo || musicInfo);
-
-  const frontmostApp = frontmostApplicationName(options);
-  const fallbackFrontmostBrowserInfo = browserInfos.find((info) => info.browserName && info.browserName === frontmostApp);
-  return mediaStatusFromInfo(fallbackFrontmostBrowserInfo || browserInfos[0] || null);
+  const candidates = collectMediaCandidates(options);
+  const selected = selectFirstPlayingMediaCandidate(candidates);
+  return mediaStatusFromInfo(selected, candidates);
 }
 
 function buildMacActivityStatusPayload(options = {}) {
@@ -730,6 +847,7 @@ function writeMacActivityStatusSnapshot(options = {}) {
 
 module.exports = {
   buildMacActivityStatusPayload,
+  arcSpaceYouTubeTabsScript,
   browserYouTubeScript,
   CHROMIUM_YOUTUBE_BROWSERS,
   chromiumFallbackYouTubeTitleScript,
@@ -738,6 +856,7 @@ module.exports = {
   classifyClipboardText,
   collectBatteryStatus,
   collectClipboardStatus,
+  collectMediaCandidates,
   collectMediaStatus,
   formatDuration,
   parseDelimitedMedia,
