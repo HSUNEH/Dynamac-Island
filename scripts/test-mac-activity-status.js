@@ -128,7 +128,25 @@ const youtubeBeatsSpotify = collectMediaStatus({
 assert.equal(youtubeBeatsSpotify.media.source, "youtube");
 assert.equal(youtubeBeatsSpotify.media.title, "Video Title");
 
-const frontmostArcTitleBeatsSpotify = collectMediaStatus({
+const frontmostChromePlayerBeatsSpotify = collectMediaStatus({
+  frontmostApp: "Google Chrome",
+  frontmostBrowserMediaText: youtubePlayingText,
+  mediaRemoteRaw: JSON.stringify({
+    kMRMediaRemoteNowPlayingInfoClientBundleIdentifier: "com.spotify.client",
+    kMRMediaRemoteNowPlayingInfoTitle: "Crush",
+    kMRMediaRemoteNowPlayingInfoArtist: "10CM",
+    kMRMediaRemoteNowPlayingInfoDuration: 239,
+    kMRMediaRemoteNowPlayingInfoElapsedTime: 33,
+    kMRMediaRemoteNowPlayingInfoPlaybackRate: 1
+  }),
+  spotifyText,
+  musicText: ""
+});
+assert.equal(frontmostChromePlayerBeatsSpotify.media.source, "youtube");
+assert.equal(frontmostChromePlayerBeatsSpotify.media.title, "Video Title");
+assert.equal(frontmostChromePlayerBeatsSpotify.media.positionSeconds, 8);
+
+const frontmostArcTitleDoesNotBeatSpotify = collectMediaStatus({
   frontmostApp: "Arc",
   frontmostBrowserMediaText: "youtube-title||12시간 뒤, 여러분은 다른 사람이 됩니다. - YouTube||browser-window",
   mediaRemoteRaw: JSON.stringify({
@@ -142,40 +160,8 @@ const frontmostArcTitleBeatsSpotify = collectMediaStatus({
   spotifyText,
   musicText: ""
 });
-assert.equal(frontmostArcTitleBeatsSpotify.media.source, "youtube");
-assert.equal(frontmostArcTitleBeatsSpotify.media.title, "12시간 뒤, 여러분은 다른 사람이 됩니다.");
-assert.equal(frontmostArcTitleBeatsSpotify.media.artist, "YouTube");
-
-const frontmostArcProcessUrlBeatsSpotify = collectMediaStatus({
-  frontmostApp: "Arc",
-  frontmostBrowserMediaText: "",
-  arcProcessText: "/Users/sunbot/Applications/Arc-Snuffles.app/Contents/MacOS/Arc https://www.youtube.com/watch?v=jNQXAC9IVRw",
-  youtubeMetadataByUrl: {
-    "https://www.youtube.com/watch?v=jNQXAC9IVRw": {
-      title: "Me at the zoo",
-      author_name: "jawed",
-      thumbnail_url: "https://i.ytimg.com/vi/jNQXAC9IVRw/hqdefault.jpg",
-      durationSeconds: 19
-    }
-  },
-  mediaRemoteRaw: JSON.stringify({
-    kMRMediaRemoteNowPlayingInfoClientBundleIdentifier: "com.spotify.client",
-    kMRMediaRemoteNowPlayingInfoTitle: "Crush",
-    kMRMediaRemoteNowPlayingInfoArtist: "10CM",
-    kMRMediaRemoteNowPlayingInfoDuration: 239,
-    kMRMediaRemoteNowPlayingInfoElapsedTime: 33,
-    kMRMediaRemoteNowPlayingInfoPlaybackRate: 1
-  }),
-  spotifyText,
-  musicText: ""
-});
-assert.equal(frontmostArcProcessUrlBeatsSpotify.media.source, "youtube");
-assert.equal(frontmostArcProcessUrlBeatsSpotify.media.title, "Me at the zoo");
-assert.equal(frontmostArcProcessUrlBeatsSpotify.media.artist, "jawed");
-assert.equal(frontmostArcProcessUrlBeatsSpotify.media.durationSeconds, 19);
-assert.equal(frontmostArcProcessUrlBeatsSpotify.media.playbackState, "playing");
-assert.equal(frontmostArcProcessUrlBeatsSpotify.media.pageUrl, "https://www.youtube.com/watch?v=jNQXAC9IVRw");
-assert.equal(frontmostArcProcessUrlBeatsSpotify.media.artworkUrl, "https://i.ytimg.com/vi/jNQXAC9IVRw/hqdefault.jpg");
+assert.equal(frontmostArcTitleDoesNotBeatSpotify.media.source, "spotify");
+assert.equal(frontmostArcTitleDoesNotBeatSpotify.media.title, "Song Title");
 
 const arcMediaRemoteBeatsSpotify = collectMediaStatus({
   browserMediaTexts: [],
@@ -189,6 +175,7 @@ assert.equal(arcMediaRemoteBeatsSpotify.media.title, "Arc Video");
 assert.equal(arcMediaRemoteBeatsSpotify.media.elapsedLabel, "0:42");
 
 const mediaRemotePlayingSkipsBrowserProbe = collectMediaStatus({
+  cdpMediaText: "",
   browserMediaTexts: ["youtube-json||Slow Browser Probe||Channel||0||0||playing||https://img.example/slow.jpg||https://www.youtube.com/watch?v=slow12345"],
   mediaRemoteRaw: arcMediaRemoteRaw,
   spotifyText,
@@ -197,6 +184,56 @@ const mediaRemotePlayingSkipsBrowserProbe = collectMediaStatus({
 });
 assert.equal(mediaRemotePlayingSkipsBrowserProbe.media.title, "Arc Video");
 assert.equal(mediaRemotePlayingSkipsBrowserProbe.media.positionSeconds, 42);
+
+const cdpYouTubeBeatsSpotifyMediaRemote = collectMediaStatus({
+  cdpMediaText: youtubePlayingText,
+  browserMediaTexts: [],
+  mediaRemoteRaw: JSON.stringify({
+    kMRMediaRemoteNowPlayingInfoClientBundleIdentifier: "com.spotify.client",
+    kMRMediaRemoteNowPlayingInfoTitle: "Crush",
+    kMRMediaRemoteNowPlayingInfoArtist: "10CM",
+    kMRMediaRemoteNowPlayingInfoDuration: 239,
+    kMRMediaRemoteNowPlayingInfoElapsedTime: 33,
+    kMRMediaRemoteNowPlayingInfoPlaybackRate: 1
+  }),
+  spotifyText,
+  musicText: "",
+  frontmostApp: "Spotify"
+});
+assert.equal(cdpYouTubeBeatsSpotifyMediaRemote.media.source, "youtube");
+assert.equal(cdpYouTubeBeatsSpotifyMediaRemote.media.title, "Video Title");
+assert.equal(cdpYouTubeBeatsSpotifyMediaRemote.media.positionSeconds, 8);
+
+const bridgeYouTubeBeatsSpotifyMediaRemote = collectMediaStatus({
+  cdpMediaText: "",
+  youtubeBridgeInfo: {
+    source: "youtube",
+    title: "Bridge Arc Video",
+    artist: "Arc Channel",
+    album: "YouTube",
+    artworkUrl: "https://i.ytimg.com/vi/bridge/hqdefault.jpg",
+    durationSeconds: 600,
+    positionSeconds: 123.5,
+    playbackState: "playing",
+    pageUrl: "https://www.youtube.com/watch?v=bridge123"
+  },
+  mediaRemoteRaw: JSON.stringify({
+    kMRMediaRemoteNowPlayingInfoClientBundleIdentifier: "com.spotify.client",
+    kMRMediaRemoteNowPlayingInfoTitle: "Crush",
+    kMRMediaRemoteNowPlayingInfoArtist: "10CM",
+    kMRMediaRemoteNowPlayingInfoDuration: 239,
+    kMRMediaRemoteNowPlayingInfoElapsedTime: 33,
+    kMRMediaRemoteNowPlayingInfoPlaybackRate: 1
+  }),
+  spotifyText,
+  musicText: "",
+  frontmostApp: "Spotify"
+});
+assert.equal(bridgeYouTubeBeatsSpotifyMediaRemote.media.source, "youtube");
+assert.equal(bridgeYouTubeBeatsSpotifyMediaRemote.media.title, "Bridge Arc Video");
+assert.equal(bridgeYouTubeBeatsSpotifyMediaRemote.media.positionSeconds, 123.5);
+assert.match(sourceText, /youtube-media\.json/, "media collector should read the local YouTube media bridge before falling back to MediaRemote-only players");
+assert.match(sourceText, /probe-youtube-cdp\.js/, "media collector should query the Chrome DevTools Protocol probe before falling back to broad browser scans");
 
 const spotifyMediaRemoteRaw = JSON.stringify({
   kMRMediaRemoteNowPlayingInfoClientBundleIdentifier: "com.spotify.client",

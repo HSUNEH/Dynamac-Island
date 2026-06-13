@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 const { spawnSync } = require("node:child_process");
+const fs = require("node:fs");
+const path = require("node:path");
 const {
   browserYouTubeScript,
   chromiumFallbackYouTubeTitleScript,
@@ -63,6 +65,17 @@ function arcWindowTitles() {
 
 const browsers = [...CHROMIUM_YOUTUBE_BROWSERS, ...SAFARI_YOUTUBE_BROWSERS, ...FIREFOX_YOUTUBE_BROWSERS];
 console.log(`Frontmost app: ${frontmostApp()}`);
+const cdpRaw = run(process.execPath, [require("node:path").join(__dirname, "probe-youtube-cdp.js")]).stdout;
+const cdpSummary = summarizeRaw(cdpRaw);
+console.log(`CDP YouTube probe: ${cdpSummary.kind} — ${cdpSummary.summary}`);
+const bridgePath = process.env.DYNAMAC_YOUTUBE_MEDIA_FILE || path.join(process.cwd(), ".build", "youtube-media.json");
+let bridgeRaw = "";
+try {
+  const bridgePayload = JSON.parse(fs.readFileSync(bridgePath, "utf8"));
+  bridgeRaw = `youtube-json||${JSON.stringify(bridgePayload)}||${bridgePayload.pageUrl || ""}`;
+} catch (_) {}
+const bridgeSummary = summarizeRaw(bridgeRaw);
+console.log(`Local YouTube bridge: ${bridgeSummary.kind} — ${bridgeSummary.summary}`);
 const mediaRemote = parseMediaRemoteNowPlaying(run("nowplaying-cli", ["get-raw"]).stdout);
 if (mediaRemote) {
   console.log(`MediaRemote current: ${mediaRemote.source} — ${mediaRemote.title} · state=${mediaRemote.playbackState} · duration=${mediaRemote.durationSeconds} · position=${mediaRemote.positionSeconds}`);
@@ -99,5 +112,5 @@ for (const browser of browsers) {
   if (result.status !== 0) console.log(`  status: ${result.status}${result.error ? ` error=${result.error}` : ""}`);
 }
 
-console.log("\nIf Chrome/Arc/Brave/Edge/Vivaldi/Opera returns empty or youtube-title while a video is visibly playing, run `npm run enable:browser-apple-events`, quit/reopen the browser, then run this diagnostic again.");
-console.log("Also allow macOS Automation prompts for Dynamac/Terminal to control the target browser and System Events.");
+console.log("\nFor Arc/Chrome extension-player mode, run Dynamac with `npm run native:start`, relaunch the browser with `npm run start:arc-media` or `npm run start:chrome-media`, then play YouTube; Local YouTube bridge should become `youtube-json`.");
+console.log("CDP and Apple Events browser probes remain compatibility paths; title-only probes do not beat active native players.");

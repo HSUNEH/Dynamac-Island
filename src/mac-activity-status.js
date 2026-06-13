@@ -349,11 +349,6 @@ function parseYouTubeWindowTitle(windowTitle) {
   return cleaned || "YouTube";
 }
 
-function extractFirstYouTubeUrl(text) {
-  const match = String(text || "").match(/https?:\/\/(?:www\.)?(?:youtube\.com\/(?:watch\?[^\s"']*v=|shorts\/)[^\s"']+|youtu\.be\/[^\s"']+|music\.youtube\.com\/watch\?[^\s"']*v=[^\s"']+)/i);
-  return match ? match[0] : "";
-}
-
 function youtubeVideoId(url) {
   const text = String(url || "");
   const watchMatch = text.match(/[?&]v=([A-Za-z0-9_-]{6,})/);
@@ -367,63 +362,6 @@ function youtubeVideoId(url) {
 function youtubeThumbnailUrl(url) {
   const id = youtubeVideoId(url);
   return id ? `https://img.youtube.com/vi/${id}/hqdefault.jpg` : "";
-}
-
-const youtubeMetadataCache = new Map();
-
-function parseYouTubeDurationFromHtml(html) {
-  const text = String(html || "");
-  const approxMatch = text.match(/"approxDurationMs":"(\d+)"/);
-  if (approxMatch) return Math.round(Number(approxMatch[1]) / 1000);
-  const lengthMatch = text.match(/"lengthSeconds":"(\d+)"/);
-  return lengthMatch ? Number(lengthMatch[1]) : 0;
-}
-
-function collectYouTubeMetadata(pageUrl, options = {}) {
-  if (!pageUrl) return null;
-  if (options.youtubeMetadataByUrl && Object.prototype.hasOwnProperty.call(options.youtubeMetadataByUrl, pageUrl)) {
-    return options.youtubeMetadataByUrl[pageUrl];
-  }
-  if (youtubeMetadataCache.has(pageUrl)) return youtubeMetadataCache.get(pageUrl);
-
-  let metadata = null;
-  const encodedUrl = encodeURIComponent(pageUrl);
-  const oembedRaw = runCommand("curl", ["-L", "--max-time", "2", "--silent", "--show-error", `https://www.youtube.com/oembed?format=json&url=${encodedUrl}`], { timeout: 2400 });
-  if (oembedRaw) {
-    try {
-      metadata = JSON.parse(oembedRaw);
-    } catch (_error) {
-      metadata = null;
-    }
-  }
-
-  const watchHtml = runCommand("curl", ["-L", "--max-time", "5", "--silent", "--show-error", "-A", "Mozilla/5.0", pageUrl], { timeout: 6200, maxBuffer: 4 * 1024 * 1024 });
-  const durationSeconds = parseYouTubeDurationFromHtml(watchHtml);
-  if (metadata || durationSeconds) {
-    metadata = { ...(metadata || {}), durationSeconds };
-    youtubeMetadataCache.set(pageUrl, metadata);
-  }
-  return metadata;
-}
-
-function collectArcProcessYouTubeInfo(options = {}) {
-  const processText = options.arcProcessText ?? runCommand("ps", ["axo", "command"], { timeout: 450 });
-  const lines = String(processText || "").split("\n");
-  const arcLine = lines.find((line) => /\/Arc(?:\s|$)/.test(line) && /youtube\.com\/watch|music\.youtube\.com\/watch|youtu\.be\/|youtube\.com\/shorts\//i.test(line));
-  const pageUrl = extractFirstYouTubeUrl(arcLine || "");
-  if (!pageUrl) return null;
-  const metadata = collectYouTubeMetadata(pageUrl, options) || {};
-  return normalizeMediaInfo({
-    source: "youtube",
-    title: metadata.title || "YouTube",
-    artist: metadata.author_name || metadata.author || "YouTube",
-    album: "YouTube",
-    artworkUrl: metadata.thumbnail_url || youtubeThumbnailUrl(pageUrl),
-    durationSeconds: Number(metadata.durationSeconds || 0),
-    positionSeconds: 0,
-    playbackState: "playing",
-    pageUrl
-  });
 }
 
 function mediaStatusFromInfo(info) {
@@ -474,30 +412,60 @@ function frontmostApplicationName(options = {}) {
 }
 
 function collectFrontmostBrowserYouTubeInfo(options = {}) {
+  const frontmostApp = frontmostApplicationName(options);
   if (options.frontmostBrowserMediaText !== undefined) {
     const info = parseDelimitedMedia(options.frontmostBrowserMediaText);
-    if (info) return { ...info, browserName: options.frontmostApp };
-    if (options.frontmostApp === "Arc") {
-      const arcProcessInfo = collectArcProcessYouTubeInfo(options);
-      if (arcProcessInfo) return { ...arcProcessInfo, browserName: options.frontmostApp };
-    }
+    if (info) return { ...info, browserName: frontmostApp || options.frontmostApp };
     return null;
   }
   if (options.browserMediaTexts !== undefined) return null;
-  const frontmostApp = frontmostApplicationName(options);
   const browserNames = new Set([
     ...CHROMIUM_YOUTUBE_BROWSERS,
     ...SAFARI_YOUTUBE_BROWSERS,
     ...FIREFOX_YOUTUBE_BROWSERS
   ]);
   if (!browserNames.has(frontmostApp)) return null;
-  const info = parseDelimitedMedia(runCommand("osascript", ["-e", chromiumFallbackYouTubeTitleScript(frontmostApp)], { timeout: 450 }));
+
+  // Arc's AppleScript tab APIs can hang at the app-window level on macOS 26; Arc
+  // timing/currentTime must come from CDP instead of this frontmost fast path.
+  const script = frontmostApp === "Arc"
+    ? chromiumFallbackYouTubeTitleScript(frontmostApp)
+    : browserYouTubeScript(frontmostApp);
+  const info = parseDelimitedMedia(runCommand("osascript", ["-e", script], { timeout: frontmostApp === "Arc" ? 450 : 2200 }));
   if (info) return { ...info, browserName: frontmostApp };
-  if (frontmostApp === "Arc") {
-    const arcProcessInfo = collectArcProcessYouTubeInfo(options);
-    if (arcProcessInfo) return { ...arcProcessInfo, browserName: frontmostApp };
-  }
   return null;
+}
+
+function collectChromeDevToolsYouTubeInfo(options = {}) {
+  if (options.cdpMediaText !== undefined) {
+    const info = parseDelimitedMedia(options.cdpMediaText);
+    return info ? { ...info, browserName: "Chrome DevTools Protocol" } : null;
+  }
+  const ports = options.cdpPorts || process.env.DYNAMAC_CDP_PORTS || process.env.DYNAMAC_CHROME_DEBUG_PORTS || "";
+  const probePath = path.join(__dirname, "..", "scripts", "probe-youtube-cdp.js");
+  const raw = runCommand(process.execPath, ports ? [probePath, String(ports)] : [probePath], { timeout: 1800 });
+  const info = parseDelimitedMedia(raw);
+  return info ? { ...info, browserName: "Chrome DevTools Protocol" } : null;
+}
+
+function collectYouTubeBridgeInfo(options = {}) {
+  if (options.youtubeBridgeInfo !== undefined) return normalizeMediaInfo(options.youtubeBridgeInfo);
+  if (options.youtubeBridgeRaw !== undefined) {
+    try {
+      return normalizeMediaInfo(JSON.parse(String(options.youtubeBridgeRaw || "{}")));
+    } catch (_error) {
+      return null;
+    }
+  }
+  const mediaPath = options.youtubeBridgePath || process.env.DYNAMAC_YOUTUBE_MEDIA_FILE || path.join(process.cwd(), ".build", "youtube-media.json");
+  try {
+    const stat = fs.statSync(mediaPath);
+    const maxAgeMs = Number(options.youtubeBridgeMaxAgeMs ?? process.env.DYNAMAC_YOUTUBE_MEDIA_MAX_AGE_MS ?? 3500);
+    if (Number.isFinite(maxAgeMs) && maxAgeMs > 0 && Date.now() - stat.mtimeMs > maxAgeMs) return null;
+    return normalizeMediaInfo(JSON.parse(fs.readFileSync(mediaPath, "utf8")));
+  } catch (_error) {
+    return null;
+  }
 }
 
 function collectBrowserYouTubeMediaInfos(options = {}) {
@@ -669,8 +637,16 @@ function collectMediaStatus(options = {}) {
 
   const rawMediaRemoteInfo = collectMediaRemoteInfo(options);
   const frontmostBrowserInfo = collectFrontmostBrowserYouTubeInfo(options);
-  if (frontmostBrowserInfo?.source === "youtube") {
+  if (frontmostBrowserInfo?.source === "youtube" && frontmostBrowserInfo.playbackState === "playing") {
     return mediaStatusFromInfo(frontmostBrowserInfo);
+  }
+  const cdpBrowserInfo = collectChromeDevToolsYouTubeInfo(options);
+  if (cdpBrowserInfo?.source === "youtube" && cdpBrowserInfo.playbackState === "playing") {
+    return mediaStatusFromInfo(cdpBrowserInfo);
+  }
+  const bridgeBrowserInfo = collectYouTubeBridgeInfo(options);
+  if (bridgeBrowserInfo?.source === "youtube" && bridgeBrowserInfo.playbackState === "playing") {
+    return mediaStatusFromInfo(bridgeBrowserInfo);
   }
   if (rawMediaRemoteInfo?.playbackState === "playing" && options.forceBrowserEnrichment !== true) {
     return mediaStatusFromInfo(enrichNativeAppMediaRemoteInfo(rawMediaRemoteInfo, options));

@@ -61,6 +61,22 @@ function acquireSingleInstanceLock() {
 
 const lockFd = acquireSingleInstanceLock();
 let lastStatusPayload = null;
+let youtubeBridge = null;
+
+function startYouTubeBridge() {
+  if (inherited.DYNAMAC_DISABLE_YOUTUBE_BRIDGE === "1") return null;
+  const child = childProcess.spawn(process.execPath, [path.join(repoRoot, "scripts/youtube-media-bridge-server.js")], {
+    cwd: repoRoot,
+    env: inherited,
+    stdio: ["ignore", "inherit", "inherit"]
+  });
+  child.on("exit", (code, signal) => {
+    if (code !== 0 && signal !== "SIGTERM") console.error(`YouTube media bridge exited: code=${code} signal=${signal || ""}`);
+  });
+  return child;
+}
+
+youtubeBridge = startYouTubeBridge();
 
 function refreshStatus({ log = false } = {}) {
   try {
@@ -89,6 +105,7 @@ const native = childProcess.spawn(path.join(repoRoot, ".build/dynamac-native"), 
 
 function cleanup() {
   if (refreshTimer) clearInterval(refreshTimer);
+  if (youtubeBridge && youtubeBridge.exitCode === null) youtubeBridge.kill("SIGTERM");
   fs.unwatchFile(inherited.DYNAMAC_STATUS_REFRESH_SIGNAL);
   try { fs.closeSync(lockFd); } catch (_) {}
   fs.rmSync(lockPath, { force: true });
