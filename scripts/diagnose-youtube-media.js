@@ -112,5 +112,5 @@ for (const browser of browsers) {
   if (result.status !== 0) console.log(`  status: ${result.status}${result.error ? ` error=${result.error}` : ""}`);
 }
 
-console.log("\nFor Arc/Chrome extension-player mode, run Dynamac with `npm run native:start`, relaunch the browser with `npm run start:arc-media` or `npm run start:chrome-media`, then play YouTube; Local YouTube bridge should become `youtube-json`.");
+console.log("\nFor Arc/Chrome extension-player mode, run Dynamac with `npm run native:start`, relaunch Arc-Snuffles with `npm run start:arc-media` or Chrome with `npm run start:chrome-media`, allow YouTube loopback access to `127.0.0.1` when Arc asks, reload the YouTube tab, then play YouTube; Local YouTube bridge should become `youtube-json`.");
 console.log("CDP and Apple Events browser probes remain compatibility paths; title-only probes do not beat active native players.");

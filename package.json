@@ -13,7 +13,7 @@
     "status:write": "node scripts/write-mac-activity-status.js .build/status.json",
     "diagnose:youtube": "node scripts/diagnose-youtube-media.js",
     "youtube-bridge": "node scripts/youtube-media-bridge-server.js",
-    "start:arc-media": "open -na Arc --args --load-extension=\"$PWD/extensions/youtube-media-bridge\"",
+    "start:arc-media": "node scripts/start-arc-media.js",
     "start:chrome-media": "open -na 'Google Chrome' --args --load-extension=\"$PWD/extensions/youtube-media-bridge\"",
     "start:arc-cdp": "open -na Arc --args --remote-debugging-port=9222",
     "measure:spotify-artwork": "node scripts/measure-spotify-artwork-latency.js",
