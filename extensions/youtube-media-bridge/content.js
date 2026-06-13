@@ -1,6 +1,8 @@
 (() => {
   const endpoint = "http://127.0.0.1:17654/youtube-media";
   let lastSignature = "";
+  let lastPublishAt = 0;
+  const heartbeatMs = 2500;
 
   const finite = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
   const meta = (selector) => document.querySelector(selector)?.content || "";
@@ -46,8 +48,10 @@
       durationSeconds: Math.floor(payload.durationSeconds),
       pageUrl: payload.pageUrl
     });
-    if (signature === lastSignature) return;
+    const shouldHeartbeat = Date.now() - lastPublishAt >= heartbeatMs;
+    if (signature === lastSignature && !shouldHeartbeat) return;
     lastSignature = signature;
+    lastPublishAt = Date.now();
     try {
       await fetch(endpoint, {
         method: "POST",
