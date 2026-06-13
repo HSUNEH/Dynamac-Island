@@ -15,11 +15,14 @@
 
 const assert = require("node:assert");
 const childProcess = require("node:child_process");
+const os = require("node:os");
+const path = require("node:path");
 const {
   runCommand,
   chromiumFallbackYouTubeTitleScript,
   browserYouTubeScript,
-  collectMediaCandidates
+  collectMediaCandidates,
+  writeMacActivityStatusSnapshot
 } = require("../src/mac-activity-status");
 
 // 1. A command that never returns must be killed at the timeout, return "",
@@ -82,6 +85,17 @@ const spotifyCandidate = candidates.find((candidate) => candidate.source === "sp
 assert.ok(
   spotifyCandidate && spotifyCandidate.playbackState === "playing",
   "a failing/empty browser probe must not suppress the playing Spotify source"
+);
+
+// 4. native-start seeds the first refresh with `previousPayload: null`. The
+//    snapshot writer must tolerate that and write a payload instead of
+//    throwing, otherwise status.json never updates and the overlay freezes on
+//    a stale snapshot.
+const snapshotPath = path.join(os.tmpdir(), `dynamac-probe-isolation-snapshot-${process.pid}.json`);
+const firstSnapshot = writeMacActivityStatusSnapshot({ outputPath: snapshotPath, previousPayload: null });
+assert.ok(
+  firstSnapshot && firstSnapshot.payload && Array.isArray(firstSnapshot.payload.statuses),
+  "first refresh with previousPayload:null must write a payload, not throw"
 );
 
 console.log("browser probe isolation checks passed.");

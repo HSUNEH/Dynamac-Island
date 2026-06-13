@@ -716,8 +716,11 @@ function mediaIdentityKey(info) {
   return [info.source || "unknown", info.bundleIdentifier || info.browserName || info.appName || "", info.title || "", info.artist || ""].join("||");
 }
 
-function previousMediaRecords(previousPayload = {}) {
-  const nowPlaying = previousPayload.statuses?.find((status) => status.agent === "Now Playing") || {};
+function previousMediaRecords(previousPayload) {
+  // native-start seeds the first refresh with `previousPayload: null`, and a
+  // default parameter only fills `undefined` — so guard null explicitly or the
+  // very first snapshot throws and status.json never gets written.
+  const nowPlaying = (previousPayload || {}).statuses?.find((status) => status.agent === "Now Playing") || {};
   return [nowPlaying.media, ...(nowPlaying.candidates || [])].filter(Boolean);
 }
 
