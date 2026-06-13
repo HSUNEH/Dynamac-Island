@@ -9,6 +9,11 @@ function runCommand(command, args, options = {}) {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
       timeout: 2200,
+      // SIGTERM cannot dislodge an osascript blocked inside a System Events
+      // Apple Event, so a stalled browser probe would otherwise linger past the
+      // timeout, pile up as orphans, and eventually wedge the synchronous
+      // refresh loop. SIGKILL guarantees the stuck child is reaped on timeout.
+      killSignal: "SIGKILL",
       ...options
     }).trim();
   } catch (_error) {
@@ -186,8 +191,14 @@ function youtubeUrlAppleScriptCondition(variableName = "tabUrl") {
 }
 
 function chromiumFallbackYouTubeTitleScript(browserName) {
+  // Guard on `is running` so a non-running browser returns instantly instead of
+  // making System Events UI-script a dead process, and wrap the window
+  // enumeration in `with timeout` so a running-but-unresponsive browser aborts
+  // the Apple Event itself rather than hanging until the external kill.
   return [
     'try',
+    `if application "${browserName}" is running then`,
+    'with timeout of 2 seconds',
     'tell application "System Events"',
     `tell process "${browserName}"`,
     'repeat with w in windows',
@@ -198,6 +209,8 @@ function chromiumFallbackYouTubeTitleScript(browserName) {
     'end repeat',
     'end tell',
     'end tell',
+    'end timeout',
+    'end if',
     'end try'
   ].join("\n");
 }
@@ -253,6 +266,7 @@ function browserYouTubeScript(browserName) {
   if (firefoxBrowsers.has(browserName)) {
     return [
       `if application "${browserName}" is running then`,
+      'with timeout of 2 seconds',
       'tell application "System Events"',
       `tell process "${browserName}"`,
       'repeat with w in windows',
@@ -263,6 +277,7 @@ function browserYouTubeScript(browserName) {
       'end repeat',
       'end tell',
       'end tell',
+      'end timeout',
       'end if'
     ].join("\n");
   }
@@ -846,6 +861,7 @@ function writeMacActivityStatusSnapshot(options = {}) {
 }
 
 module.exports = {
+  runCommand,
   buildMacActivityStatusPayload,
   arcSpaceYouTubeTabsScript,
   browserYouTubeScript,
