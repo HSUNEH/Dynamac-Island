@@ -9,7 +9,7 @@ Apple's Dynamic Island is a compact live-activity surface around the camera/sens
 Dynamac Island follows that pattern for this Mac:
 
 - **Small state:** collapsed native wings beside the hardware notch for the current most important activity.
-- **Live activity:** general Mac utility signals that work without Hermes: Now Playing, local Timer, clipboard, battery/charging, and later shelf/drop, volume/brightness HUD, calendar, and reminders.
+- **Live activity:** general Mac utility signals that work without Hermes: Now Playing, local Timer, clipboard, battery/charging, Activity Router ranking, and later shelf/drop, volume/brightness HUD, calendar, and reminders.
 - **Quick expansion:** click expansion for Now Playing detail and playback controls without opening a full app.
 - **Multiple activities:** future rotation/swipe-like switching between active signals.
 
@@ -22,6 +22,7 @@ Dynamac Island follows that pattern for this Mac:
 - Native compact shape: on notched MacBook displays, the hardware notch area remains transparent and Dynamac paints only left/right wings beside the notch so it attaches to the occluded area instead of covering it; on non-notch/external displays, Dynamac uses one normal compact pill instead of leaving an empty center gap. Display topology changes, wake/unlock, and display-wake events trigger delayed notch re-measurement plus frame re-anchoring so the compact shape adapts after monitor connects/disconnects or main-display handoff. Mission Control and App Exposé start events animate the island into a tiny screen-center capsule before restoring it to the notch/top-center position, matching the system's windows-pull-in motion instead of leaving the overlay pinned at the notch.
 - Runtime status source: Electron development watches `status/status.json`; native `npm run native:start` writes and refreshes a local Mac activity snapshot in `.build/status.json` while running, using a low-latency default refresh loop plus a native-to-writer refresh signal so play/pause and next/previous track metadata/artwork changes reach the island quickly; Spotify/Music MediaRemote snapshots are enriched with native app artwork and remote covers are materialized into a local `.build/artwork-cache` file before the native overlay reads them, instead of making the UI thread fetch CDN artwork.
 - Local Timer MVP: Dynamac supports one local active timer as the first non-media live activity. Starting a timer creates a deterministic `Timer` status item with `durationSeconds`, `remainingSeconds`, lifecycle `state`, `startedAt`, `updatedAt`, `displayText`, `error`, and `replacedPrevious`; starting a second timer replaces a currently running timer and marks the new status with `replacedPrevious: true`. Stop and reset keep the Timer status serializable for inspection while releasing active compact overlay priority; reset immediately restores `remainingSeconds` to the original duration and stamps fresh `startedAt`/`updatedAt` timestamps. The native overlay can render the active Timer status directly in compact and expanded modes. Sound, system notifications, history, sync, and broader DynamicLake actions are deferred.
+- Activity Router core: `src/activity-router.js` normalizes status items into deterministic local activities with stable `activityId`, `activityType`, `priority`, timestamps, transient expiry, status payload, compact/expanded surface summaries, source, metadata, reveal-ready path, and persistence flags. Compact selection uses the priority order volume/brightness HUD > clipboard > shelf/drop > timer > now playing > battery/future passive, then updated recency, creation time, and ID for deterministic ties. This is testable core logic only: native global volume/brightness event capture, native drag capture, Finder reveal actions, and clipboard history persistence are not implied by the router.
 - Mac activity snapshot model: `Now Playing` collects media candidates from macOS MediaRemote/`nowplaying-cli`, Spotify/Music AppleScript enrichment, normal Arc active-Space YouTube/YouTube Music tab title+URL probes, browser YouTube/YouTube Music surfaces, CDP (`127.0.0.1:9222-9225`, configurable with `DYNAMAC_CDP_PORTS`), and the optional local browser media bridge (`127.0.0.1:17654`). The selected compact item is no longer chosen by a hard-coded service priority: while multiple surfaces are playing, Dynamac keeps the candidate that was already playing first (`firstSeenAt`) until it stops, then falls through to the next active candidate. MediaRemote bundle IDs are normalized into generic sources such as `spotify`, `music`, `tidal`, `melon`, `genie`, `youtube-music`, `browser-media`, or `now-playing`; service-specific probes only enrich missing artwork/page metadata. Normal Arc does not require `--load-extension`: Dynamac reads YouTube tab title/URL from Arc's active Space and merges it with MediaRemote when Arc is the current playing app. `npm run start:arc-media` remains available as a precision upgrade that launches ST's normal Arc profile/account with the bridge extension in a dedicated Snuffles Space for direct page duration/currentTime/channel heartbeat. To force browser-extension mode for Arc or Chrome, launch with `npm run start:arc-media` or `npm run start:chrome-media`, allow YouTube/Media loopback access to `127.0.0.1` when Arc asks, reload the media tab, then run `npm run diagnose:youtube`. `Clipboard` comes from the local text clipboard, and `Battery` from `pmset -g batt`. Hermes runtime status remains an optional/dev provider, not the default product surface.
 - Now Playing native UI: notch mode shows only album art/YouTube thumbnail/music-note fallback on the left wing plus a white waveform playing indicator on the right wing; non-notch/external-display compact mode uses one centered pill with a compact trailing white waveform that stays after the artwork without consuming the pill; expanded mode keeps Dynamac's existing dark/media colors but borrows only the Apple DESIGN.md form language: product-first larger artwork, quiet chrome, 8pt rhythm, SF-style 17/21pt typography, notch-safe metadata placement on MacBook displays so the physical camera housing does not cover source/title text, split elapsed/duration labels, thin scrubber with a visible thumb and an intentionally narrow bar-only seek target, centered pill transport controls, draggable/clickable seek, and previous/play-pause/next vector controls. In expanded mode, clicking the album art or source/title/artist text opens the media source app/page, including activating Spotify for Spotify playback. Expanded mode automatically collapses back to compact mode after 5 seconds of no expanded-mode interaction by default. Notch-to-expanded transitions animate only the lightweight island shell, then fade media content in after resize so artwork-heavy Now Playing surfaces do not stutter.
 - Validation model: each status item needs `agent`, `state`, `task`, `updatedAt`, and `detail`.
@@ -272,18 +273,41 @@ When the countdown reaches zero, the Timer remains visible and serializable as c
 
 Persistence and status expectations are intentionally local-first: Timer state is represented only by local files/status payloads and testable pure timer logic. There is no cloud sync, no account state, no paid service, no invasive macOS permission, and no notification/sound requirement for this MVP.
 
+### Volume HUD Core Model
+
+`src/volume-hud-status.js` implements the first DynaKeys-adjacent HUD slice as deterministic pure logic. It accepts observed local output-volume input changes (`level`, `muted`, `deviceName`, `source`, `observedAt`) and returns one transient `Volume` activity with stable `activityId`, `activityType`, `priority`, `createdAt`, `updatedAt`, `expiresAt`, `isTransient`, serializable `status`, compact and expanded surfaces, local `source`, metadata, empty `revealReadyPath`, and `persisted: false`.
+
+The model keeps repeated changes inside a short burst as one activity, derives `initial`/`up`/`down`/`steady`/`muted`/`unmuted` transitions from the previous observed value, and starts a fresh activity after expiry so old volume state does not leak into later HUD bursts. It is covered by `npm run test:volume-hud-status` and included in `npm run check`.
+
+Deferred: native global volume-key capture, brightness-key capture, global shortcut/action launchers, and direct compact-overlay routing of this HUD are not enabled by this slice. The model is ready for a future safe local observer without adding credentials, cloud sync, paid APIs, history persistence, or invasive permissions by default.
+
 ### Deferred DynamicLake-Inspired Features
 
 The Timer MVP deliberately does not import the broader DynamicLake-inspired feature set. The following items are out of scope for the Timer MVP and should remain deferred to later slices:
 
 - DynaDrop-style file drop, conversion, AirDrop/share-link, transcript, upload, and right-click actions are out of scope.
 - DynaClip-style Finder companion, file shelf, clipboard history, and quick handoff workflows are out of scope.
-- DynaKeys-style keyboard shortcuts, global command palettes, hotkey automation, and action launchers are out of scope.
+- DynaKeys-style keyboard shortcuts, global command palettes, hotkey automation, brightness capture, native key observers, and action launchers are out of scope; only the volume HUD core status logic is implemented in this slice.
 - DynaGlance-style calendar, weather, reminder, message, and multi-widget glance cards are out of scope.
 - Call/meeting modules, notification mirroring, system notification delivery, and sound alerts are out of scope.
 - Liquid Glass visual themes, external-display theme packs, timer history, multi-timer queues, expanded action controls, and third-party integrations are out of scope.
 
 Those deferred modules can use the Timer's local status contract as a future pattern, but they must not be required for starting, stopping, resetting, completing, or verifying one local Timer status item.
+
+## Activity Router MVP
+
+The Activity Router is the first shared DynamicLake-inspired core slice for choosing the compact surface. It is deliberately pure/testable JavaScript in `src/activity-router.js` rather than native event capture. Given local status items, it normalizes activity metadata and ranks compact eligibility in this deterministic order:
+
+1. DynaKeys-style transient volume/brightness HUD statuses.
+2. DynaClip-style clipboard activity from the current local clipboard classification.
+3. DynaDrop/Shelf-style local shelf/drop status with optional `revealReadyPath` metadata.
+4. Local Timer status.
+5. Now Playing media status.
+6. Battery and future passive activities.
+
+Ties are deterministic: higher priority wins, then newer `updatedAt`, older `createdAt`, and stable `activityId`. Transient activities with an expired `expiresAt` are removed from compact eligibility. The generated Mac activity payload includes an `activityRouter` object with `rankedActivities` and the selected `compactSurface`, while preserving the existing `statuses` array consumed by the current Electron/native overlay paths.
+
+Current implemented behavior is status/routing only. DynaKeys does not yet install global keyboard hooks or native volume/brightness observers; DynaClip does not persist clipboard history across restarts; DynaDrop/Shelf does not claim native drag capture or Finder reveal UI. Any shelf fixture/status should describe reveal readiness only when a validated path is already available, and the UI must not imply drag-and-drop works until a safe native pattern is added.
 
 ## Status File
 
@@ -402,6 +426,7 @@ npm run check-readme
 npm run smoke:launch
 npm run test:notch-position
 npm run test:mac-activity-status
+npm run test:activity-router
 npm run test:timer-status-store
 npm run test:timer-start-cli
 npm run test:timer-docs
@@ -420,7 +445,8 @@ Expected results:
 - `check-readme` passes when this README documents the current notch island concept, scope, runbook, validation commands, and roadmap.
 - `smoke:launch` passes after `npm install` when Electron can open the real app window, finish loading `src/index.html`, and quit automatically.
 - `test:notch-position` passes when the overlay is centered on the physical display bounds and pinned to `y=0`.
-- `test:mac-activity-status` passes when the app can generate default Now Playing, Clipboard, and Battery status entries.
+- `test:mac-activity-status` passes when the app can generate default Now Playing, Clipboard, and Battery status entries plus an Activity Router compact-surface snapshot.
+- `test:activity-router` passes when volume/brightness HUD, clipboard, shelf/drop, timer, Now Playing, battery, and future passive activities rank deterministically with expiry and tie-break semantics.
 - `test:timer-status-store` passes when starting/writing/stopping/resetting a Timer produces native-loadable Timer status models, including reset state with full restored duration and fresh reset timestamps.
 - `test:timer-docs` passes when the Timer MVP Behavior section documents start, running overlay/status, completion, and local-first persistence/status expectations.
 - `test:native-timer-status-serialization` passes when the native AppKit smoke path decodes running, stopped, and reset Timer fixtures, selects the active Timer before background media, releases inactive stopped/reset timers to fallback/media presentation, and preserves `id`, `durationSeconds`, `remainingSeconds`, lifecycle `state`, `startedAt`, `updatedAt`, `displayText`, `error`, and `replacedPrevious` for the overlay contract.

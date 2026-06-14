@@ -475,6 +475,8 @@ assert.equal(payload.statuses[0].media.durationLabel, "4:00");
 assert.equal(payload.statuses[1].task, "Link copied · 21 chars");
 assert.equal(payload.statuses[2].task, "Charging 82%");
 assert.equal(payload.statuses.every((status) => status.updatedAt === "2026-06-11T09:00:00.000Z"), true);
+assert.equal(payload.activityRouter.compactSurface.activityType, "clipboard");
+assert.deepEqual(payload.activityRouter.rankedActivities.map((activity) => activity.activityType), ["clipboard", "nowPlaying", "battery"]);
 
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "dynamac-mac-activity-"));
 const outputPath = path.join(tempDir, "status.json");
