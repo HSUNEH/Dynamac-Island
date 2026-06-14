@@ -1,5 +1,7 @@
 (function timerUiFactory(root) {
   const TIMER_AGENT = "Timer";
+  const timerCountdown = root.DynamacTimerCountdown ||
+    (typeof require === "function" ? require("./timer-countdown") : null);
 
   function isTimerStatus(status) {
     return Boolean(
@@ -9,21 +11,21 @@
     );
   }
 
-  function createTimerViewModel(status) {
+  function createTimerViewModel(status, options = {}) {
     if (!isTimerStatus(status)) {
       throw new Error("Timer status is required");
     }
 
     const timer = status.timer && typeof status.timer === "object" ? status.timer : {};
-    const durationSeconds = positiveInteger(timer.durationSeconds, 0);
-    const remainingSeconds = clamp(positiveInteger(timer.remainingSeconds, 0), 0, durationSeconds || Number.MAX_SAFE_INTEGER);
-    const elapsedSeconds = Math.max(0, durationSeconds - remainingSeconds);
-    const progressPercent = durationSeconds > 0
-      ? clamp(Math.round((elapsedSeconds / durationSeconds) * 100), 0, 100)
-      : 0;
     const timerState = String(timer.state || status.state || "idle");
+    const countdownNow = options.now || status.now || timer.updatedAt || status.updatedAt || new Date();
+    const countdown = timerCountdown.createTimerCountdown({
+      ...timer,
+      state: timerState
+    }, { now: countdownNow });
     const stateLabel = titleCase(timerState);
     const isRunning = status.state === "running" && timerState === "running";
+    const canReset = timerState === "running" || timerState === "stopped";
 
     return {
       agent: TIMER_AGENT,
@@ -33,13 +35,14 @@
       detail: status.detail,
       updatedAt: status.updatedAt,
       timerId: String(timer.id || ""),
-      durationSeconds,
-      remainingSeconds,
-      remainingText: formatClock(remainingSeconds),
-      progressPercent,
-      progressLabel: `${progressPercent}% elapsed`,
+      durationSeconds: countdown.durationSeconds,
+      remainingSeconds: countdown.remainingSeconds,
+      remainingText: countdown.compactText,
+      progressPercent: countdown.progressPercent,
+      progressLabel: `${countdown.progressPercent}% elapsed`,
       isRunning,
-      canReset: isRunning,
+      canReset,
+      canStop: isRunning,
       replacedPrevious: timer.replacedPrevious === true,
       cssClass: `status-card timer ${escapeAttribute(status.state)}`,
       dotClass: `state-dot ${escapeAttribute(status.state)}`,
@@ -65,8 +68,14 @@
   }
 
   function renderTimerStateView(viewModel) {
+    const stopControl = viewModel.canStop
+      ? `<button class="timer-stop-button" type="button" data-action="timer-stop" data-timer-id="${escapeAttribute(viewModel.timerId)}" aria-label="Stop running timer">Stop</button>`
+      : "";
     const resetControl = viewModel.canReset
       ? `<button class="timer-reset-button" type="button" data-action="timer-reset" data-timer-id="${escapeAttribute(viewModel.timerId)}" aria-label="Reset running timer">Reset</button>`
+      : "";
+    const timerControls = stopControl || resetControl
+      ? `<span class="timer-controls">${stopControl}${resetControl}</span>`
       : "";
 
     return `
@@ -75,7 +84,7 @@
           <span class="${escapeAttribute(viewModel.dotClass)}"></span>
           <strong>${TIMER_AGENT}</strong>
           <span>${escapeHtml(viewModel.stateLabel)}</span>
-          ${resetControl}
+          ${timerControls}
         </div>
         <h2>${escapeHtml(viewModel.task)}</h2>
         <p>${escapeHtml(viewModel.detail)}</p>
@@ -104,26 +113,9 @@
   }
 
   function formatClock(totalSeconds) {
-    const seconds = positiveInteger(totalSeconds, 0);
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const remainder = seconds % 60;
-
-    if (hours > 0) {
-      return `${hours}:${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`;
-    }
-
-    return `${minutes}:${String(remainder).padStart(2, "0")}`;
+    return timerCountdown.formatTimerClock(totalSeconds);
   }
 
-  function positiveInteger(value, fallback) {
-    const number = Number(value);
-    return Number.isSafeInteger(number) && number >= 0 ? number : fallback;
-  }
-
-  function clamp(value, min, max) {
-    return Math.max(min, Math.min(max, value));
-  }
 
   function titleCase(value) {
     const stringValue = String(value || "");

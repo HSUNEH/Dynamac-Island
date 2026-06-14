@@ -244,8 +244,14 @@ h1 {
   white-space: nowrap;
 }
 
-.timer-reset-button {
+.timer-controls {
   margin-left: auto;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.timer-reset-button,
+.timer-stop-button {
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 999px;
   padding: 4px 10px;
@@ -255,7 +261,8 @@ h1 {
   cursor: pointer;
 }
 
-.timer-reset-button:hover {
+.timer-reset-button:hover,
+.timer-stop-button:hover {
   background: rgba(255, 255, 255, 0.14);
 }
 

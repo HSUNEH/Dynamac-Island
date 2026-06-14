@@ -11,6 +11,7 @@ const timerStatus = {
   state: "running",
   task: "Timer · 4m 30s remaining",
   updatedAt: "2026-06-14T00:00:00.000Z",
+  now: "2026-06-14T00:00:30.000Z",
   detail: "4m 30s remaining of 5m.",
   timer: {
     id: "timer-ui-component-test",
@@ -25,7 +26,9 @@ const timerStatus = {
   }
 };
 
-const viewModel = timerUi.createTimerViewModel(timerStatus);
+const viewModel = timerUi.createTimerViewModel(timerStatus, {
+  now: "2026-06-14T00:00:30.250Z"
+});
 assert.equal(viewModel.agent, "Timer");
 assert.equal(viewModel.remainingText, "4:30", "compact timer time should use clock text");
 assert.equal(viewModel.progressPercent, 10, "progress should reflect elapsed/duration");
@@ -48,6 +51,27 @@ const statusCardHtml = timerUi.renderTimerStateView(viewModel);
 assert.match(statusCardHtml, /data-agent="Timer"/, "expanded card should identify Timer");
 assert.match(statusCardHtml, /Timer · 4m 30s remaining/, "expanded card should keep status task text");
 assert.match(statusCardHtml, /aria-valuenow="10"/, "expanded card should reuse deterministic timer progress");
+
+const pausedTimerStatus = {
+  ...timerStatus,
+  state: "idle",
+  task: "Timer · 4m 30s remaining",
+  detail: "4m 30s remaining of 5m.",
+  timer: {
+    ...timerStatus.timer,
+    state: "stopped"
+  }
+};
+const pausedViewModel = timerUi.createTimerViewModel(pausedTimerStatus, {
+  now: "2026-06-14T00:04:00.000Z"
+});
+assert.equal(pausedViewModel.isRunning, false, "paused Timer should not be treated as running");
+assert.equal(pausedViewModel.canReset, true, "paused Timer should expose the reset control");
+assert.match(
+  timerUi.renderTimerStateView(pausedViewModel),
+  /data-action="timer-reset"/,
+  "paused Timer card should render a reset action"
+);
 
 function makeElement() {
   return {

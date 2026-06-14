@@ -168,13 +168,36 @@ async function resetTimerFromUi(timerId) {
   }
 }
 
+async function stopTimerFromUi(timerId) {
+  if (!window.dynamacTimer || typeof window.dynamacTimer.stop !== "function") {
+    return;
+  }
+
+  const result = await window.dynamacTimer.stop({ timerId });
+  if (!result || !result.payload) return;
+
+  if (result.payload.ok) {
+    renderStatuses(result.payload);
+  } else {
+    renderError(result.payload);
+  }
+}
+
 content.addEventListener("click", (event) => {
   const target = event.target && typeof event.target.closest === "function"
-    ? event.target.closest('[data-action="timer-reset"]')
+    ? event.target.closest('[data-action="timer-reset"], [data-action="timer-stop"]')
     : null;
 
   if (!target) return;
-  resetTimerFromUi(target.getAttribute("data-timer-id"));
+  const action = target.getAttribute("data-action");
+  const timerId = target.getAttribute("data-timer-id");
+
+  if (action === "timer-stop") {
+    stopTimerFromUi(timerId);
+    return;
+  }
+
+  resetTimerFromUi(timerId);
 });
 
 reload.addEventListener("click", refresh);

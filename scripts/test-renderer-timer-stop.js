@@ -33,21 +33,21 @@ const source = makeElement();
 const reload = makeElement();
 const modeToggle = makeElement();
 
-const pausedPayload = {
+const runningPayload = {
   ok: true,
   source: "status/status.json",
   statuses: [
     {
       agent: "Timer",
-      state: "idle",
+      state: "running",
       task: "Timer · 4m 30s remaining",
       updatedAt: "2026-06-14T00:00:30.000Z",
       detail: "4m 30s remaining of 5m.",
       timer: {
-        id: "timer-ui-reset-test",
+        id: "timer-ui-stop-test",
         durationSeconds: 300,
         remainingSeconds: 270,
-        state: "stopped",
+        state: "running",
         startedAt: "2026-06-14T00:00:00.000Z",
         updatedAt: "2026-06-14T00:00:30.000Z",
         displayText: "5m",
@@ -58,28 +58,25 @@ const pausedPayload = {
   ]
 };
 
-const resetPayload = {
+const stoppedPayload = {
   ok: true,
   source: "status/status.json",
   statuses: [
     {
       agent: "Timer",
       state: "idle",
-      task: "Timer · 5m remaining",
-      updatedAt: "2026-06-14T00:01:00.000Z",
-      detail: "5m remaining of 5m.",
+      task: "Timer · 4m 30s remaining",
+      updatedAt: "2026-06-14T00:00:30.000Z",
+      detail: "Stopped with 4m 30s remaining of 5m.",
       timer: {
-        ...pausedPayload.statuses[0].timer,
-        remainingSeconds: 300,
-        state: "reset",
-        startedAt: "2026-06-14T00:01:00.000Z",
-        updatedAt: "2026-06-14T00:01:00.000Z"
+        ...runningPayload.statuses[0].timer,
+        state: "stopped"
       }
     }
   ]
 };
 
-const resetCalls = [];
+const stopCalls = [];
 const context = {
   window: {
     DynamacPillView: {
@@ -111,13 +108,13 @@ const context = {
     },
     DynamacTimerUi: timerUi,
     dynamacStatus: {
-      async read() { return pausedPayload; },
+      async read() { return runningPayload; },
       onUpdate() {}
     },
     dynamacTimer: {
-      async reset(options) {
-        resetCalls.push(options);
-        return { ok: true, payload: resetPayload };
+      async stop(options) {
+        stopCalls.push(options);
+        return { ok: true, payload: stoppedPayload };
       }
     }
   },
@@ -130,8 +127,8 @@ vm.createContext(context);
 vm.runInContext(fs.readFileSync(path.resolve("src/renderer.js"), "utf8"), context);
 
 setImmediate(() => {
-  assert.match(content.innerHTML, /data-action="timer-reset"/, "paused Timer card should render a reset action");
-  assert.match(content.innerHTML, /data-timer-id="timer-ui-reset-test"/, "reset action should carry the paused timer id");
+  assert.match(content.innerHTML, /data-action="timer-stop"/, "running Timer card should render a stop action");
+  assert.match(content.innerHTML, /data-timer-id="timer-ui-stop-test"/, "stop action should carry the running timer id");
 
   content.listeners.click({
     target: {
@@ -139,9 +136,9 @@ setImmediate(() => {
         assert.equal(selector, '[data-action="timer-reset"], [data-action="timer-stop"]');
         return {
           getAttribute(name) {
-            if (name === "data-action") return "timer-reset";
+            if (name === "data-action") return "timer-stop";
             assert.equal(name, "data-timer-id");
-            return "timer-ui-reset-test";
+            return "timer-ui-stop-test";
           }
         };
       }
@@ -149,10 +146,10 @@ setImmediate(() => {
   });
 
   setImmediate(() => {
-    assert.deepEqual(resetCalls, [{ timerId: "timer-ui-reset-test" }], "clicking Reset should invoke the reset operation with the timer id");
-    assert.equal(summary.textContent, "All systems settled", "reset response should re-render the returned Timer status");
-    assert.doesNotMatch(content.innerHTML, /data-action="timer-reset"/, "reset Timer card should not keep the running-only reset button");
-    assert.match(content.innerHTML, /Timer · 5m remaining/, "reset response should show restored duration text");
-    console.log("Renderer Timer reset interaction test passed.");
+    assert.deepEqual(stopCalls, [{ timerId: "timer-ui-stop-test" }], "clicking Stop should invoke the native Timer stop request payload");
+    assert.equal(summary.textContent, "All systems settled", "stop response should re-render returned Timer status");
+    assert.doesNotMatch(content.innerHTML, /data-action="timer-stop"/, "stopped Timer card should not keep the running-only stop button");
+    assert.match(content.innerHTML, /Stopped with 4m 30s remaining of 5m\./, "stop response should show stopped status detail");
+    console.log("Renderer Timer stop interaction test passed.");
   });
 });
