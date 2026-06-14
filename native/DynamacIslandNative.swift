@@ -43,6 +43,12 @@ struct TimerCompactOverlayViewModel {
     var isPaused: Bool
 }
 
+struct TimerRenderedNotchOutput {
+    var compactText: String
+    var expandedTitle: String
+    var progressPercent: Double
+}
+
 struct MediaInfo: Decodable {
     var source: String?
     var title: String?
@@ -452,6 +458,20 @@ final class IslandView: NSView {
     fileprivate func activeTimerCompactViewModel() -> TimerCompactOverlayViewModel? {
         guard let status = selectedActiveTimerStatus(), let timer = status.timer else { return nil }
         return compactTimerViewModel(status: status, timer: timer)
+    }
+
+    fileprivate func activeTimerRenderedNotchOutput() -> TimerRenderedNotchOutput? {
+        guard let status = selectedActiveTimerStatus(), let timer = status.timer else { return nil }
+        let remainingSeconds = displayRemainingSeconds(timer: timer)
+        let compactViewModel = compactTimerViewModel(status: status, timer: timer)
+        let duration = max(timer.durationSeconds, 0)
+        let elapsed = min(max(duration - max(remainingSeconds, 0), 0), duration)
+        let progressPercent = duration > 0 ? (elapsed / duration) * 100 : 0
+        return TimerRenderedNotchOutput(
+            compactText: "⏱ \(compactViewModel.remainingText)",
+            expandedTitle: formatSeconds(remainingSeconds),
+            progressPercent: progressPercent
+        )
     }
 
     private func compactTimerViewModel(status: StatusItem, timer: TimerInfo) -> TimerCompactOverlayViewModel {
@@ -1653,6 +1673,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let compactViewModel = islandView?.activeTimerCompactViewModel()
+        let renderedTimerOutput = islandView?.activeTimerRenderedNotchOutput()
         let presentation: String
         if compactViewModel != nil {
             presentation = "timer"
@@ -1682,7 +1703,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 "compactRemainingText=\(compactViewModel?.remainingText ?? "")",
                 "compactLifecycleState=\(compactViewModel?.lifecycleState ?? "")",
                 "compactIsRunning=\(compactViewModel?.isRunning == true ? "true" : "false")",
-                "compactIsPaused=\(compactViewModel?.isPaused == true ? "true" : "false")"
+                "compactIsPaused=\(compactViewModel?.isPaused == true ? "true" : "false")",
+                "renderedCompactText=\(renderedTimerOutput?.compactText ?? "")",
+                "renderedExpandedTitle=\(renderedTimerOutput?.expandedTitle ?? "")",
+                "renderedProgressPercent=\(String(format: "%.2f", renderedTimerOutput?.progressPercent ?? 0))"
             ].joined(separator: " "))
             return
         }

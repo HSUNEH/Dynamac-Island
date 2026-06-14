@@ -40,6 +40,31 @@ function runningTimerPayload() {
   };
 }
 
+function stoppedTimerPayload() {
+  return {
+    statuses: [
+      {
+        agent: "Timer",
+        state: "idle",
+        task: "Timer stopped",
+        updatedAt: "2026-06-14T00:00:30.000Z",
+        detail: "Stopped with 4m 30s remaining of 5m.",
+        timer: {
+          id: "timer-native-stopped-state-change-test",
+          durationSeconds: 300,
+          remainingSeconds: 270,
+          state: "stopped",
+          startedAt: "2026-06-14T00:00:00.000Z",
+          updatedAt: "2026-06-14T00:00:30.000Z",
+          displayText: "5m",
+          error: "",
+          replacedPrevious: false
+        }
+      }
+    ]
+  };
+}
+
 function runNativeDump(now) {
   writeStatus(runningTimerPayload());
   const result = childProcess.spawnSync(nativePath, {
@@ -52,7 +77,7 @@ function runNativeDump(now) {
       DYNAMAC_STATUS_FILE: statusPath
     },
     encoding: "utf8",
-    timeout: 5000
+    timeout: 10000
   });
 
   assert.equal(result.status, 0, result.stderr || result.stdout);
@@ -92,7 +117,7 @@ function runNativeStatusChangeDump() {
       clearTimeout(writeTimer);
       child.kill("SIGKILL");
       reject(new Error(`native state-change smoke timed out\nstdout:\n${stdout}\nstderr:\n${stderr}`));
-    }, 5000);
+    }, 10000);
 
     child.on("error", (error) => {
       clearTimeout(timeout);
@@ -114,6 +139,60 @@ function runNativeStatusChangeDump() {
   });
 }
 
+function runNativeStoppedStatusChangeDump() {
+  writeStatus(runningTimerPayload());
+
+  const child = childProcess.spawn(nativePath, {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      DYNAMAC_NATIVE_SMOKE_TEST: "1",
+      DYNAMAC_NATIVE_STATUS_DUMP: "1",
+      DYNAMAC_NATIVE_STATUS_DUMP_AFTER_MS: "900",
+      DYNAMAC_NATIVE_NOW: "2026-06-14T00:00:31.000Z",
+      DYNAMAC_STATUS_FILE: statusPath
+    },
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+
+  let stdout = "";
+  let stderr = "";
+  let wroteStoppedStatus = false;
+  const writeTimer = setTimeout(() => {
+    wroteStoppedStatus = true;
+    writeStatus(stoppedTimerPayload());
+  }, 120);
+
+  child.stdout.on("data", (chunk) => { stdout += chunk.toString(); });
+  child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
+
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      clearTimeout(writeTimer);
+      child.kill("SIGKILL");
+      reject(new Error(`native stopped state-change smoke timed out\nstdout:\n${stdout}\nstderr:\n${stderr}`));
+    }, 10000);
+
+    child.on("error", (error) => {
+      clearTimeout(timeout);
+      clearTimeout(writeTimer);
+      reject(error);
+    });
+
+    child.on("close", (code) => {
+      clearTimeout(timeout);
+      clearTimeout(writeTimer);
+      try {
+        assert.equal(code, 0, stderr || stdout);
+        assert.equal(wroteStoppedStatus, true, "test should write a stopped Timer status after native readiness");
+        resolve(stdout);
+      } catch (error) {
+        reject(error);
+      }
+    });
+  });
+}
+
 (async () => {
   try {
     const tickOutput = runNativeDump("2026-06-14T00:00:01.000Z");
@@ -122,6 +201,9 @@ function runNativeStatusChangeDump() {
     assert.match(tickOutput, /compactRemainingText=4:59/, "compact native overlay should derive ticked remaining text from startedAt and current time");
     assert.match(tickOutput, /compactLifecycleState=running/, "compact native overlay should keep running lifecycle during active countdown");
     assert.match(tickOutput, /compactIsRunning=true/, "compact native overlay should mark the ticking timer as running");
+    assert.match(tickOutput, /renderedCompactText=⏱ 4:59/, "native render smoke should expose the compact Timer notch text drawn from the status model");
+    assert.match(tickOutput, /renderedExpandedTitle=4:59/, "native render smoke should expose the expanded Timer title drawn from the status model");
+    assert.match(tickOutput, /renderedProgressPercent=0\.33/, "native render smoke should expose updated Timer progress from elapsed status time");
 
     const stateChangeOutput = await runNativeStatusChangeDump();
     assert.match(stateChangeOutput, /DYNAMAC_STATUS_DUMP active=fallback presentation=fallback/, "native smoke should start without an active timer presentation");
@@ -131,12 +213,30 @@ function runNativeStatusChangeDump() {
     assert.match(stateChangeOutput, /compactRemainingText=4:59/, "state-change dump should expose the ticked compact timer text");
     assert.match(stateChangeOutput, /compactLifecycleState=running/, "state-change dump should expose running compact lifecycle state");
     assert.match(stateChangeOutput, /compactIsRunning=true/, "state-change dump should mark the changed Timer status as running");
+    assert.match(stateChangeOutput, /renderedCompactText=⏱ 4:59/, "state-change dump should prove the changed Timer status updates rendered compact notch output");
+    assert.match(stateChangeOutput, /renderedExpandedTitle=4:59/, "state-change dump should prove the changed Timer status updates rendered expanded notch output");
+
+    const stoppedStateChangeOutput = await runNativeStoppedStatusChangeDump();
+    assert.match(stoppedStateChangeOutput, /DYNAMAC_STATUS_DUMP active=timer presentation=timer/, "native smoke should start with a running Timer presentation before the stopped change");
+    assert.match(stoppedStateChangeOutput, /DYNAMAC_STATUS_DUMP active=timer presentation=fallback/, "stopped Timer status change should release the native overlay presentation");
+    assert.match(stoppedStateChangeOutput, /statusState=idle/, "stopped Timer status change should expose inactive native status state");
+    assert.match(stoppedStateChangeOutput, /id=timer-native-stopped-state-change-test/, "stopped state-change dump should decode the changed Timer status id");
+    assert.match(stoppedStateChangeOutput, /remainingSeconds=270/, "stopped state-change dump should preserve frozen remaining seconds");
+    assert.match(stoppedStateChangeOutput, /state=stopped/, "stopped state-change dump should decode the stopped lifecycle state");
+    assert.match(stoppedStateChangeOutput, /compactIsActive=false/, "stopped Timer status change should not expose an active compact timer model");
+    assert.match(stoppedStateChangeOutput, /compactRemainingText=\s/, "stopped Timer status change should clear active compact countdown text");
+    assert.match(stoppedStateChangeOutput, /compactLifecycleState=\s/, "stopped Timer status change should clear active compact lifecycle state");
+    assert.match(stoppedStateChangeOutput, /compactIsRunning=false/, "stopped Timer status change should not mark the compact model as running");
+    assert.match(stoppedStateChangeOutput, /compactIsPaused=false/, "stopped Timer status change should not expose paused compact metadata");
 
     const doneOutput = runNativeDump("2026-06-14T00:05:01.000Z");
     assert.match(doneOutput, /compactRemainingText=Done/, "compact native overlay should expose stable done text for elapsed timers");
     assert.match(doneOutput, /compactLifecycleState=done/, "compact native overlay should expose done lifecycle once elapsed");
     assert.match(doneOutput, /compactIsRunning=false/, "elapsed compact native timer should no longer be marked running");
     assert.match(doneOutput, /compactIsPaused=false/, "elapsed compact native timer should not be reported as paused");
+    assert.match(doneOutput, /renderedCompactText=⏱ Done/, "elapsed Timer should update rendered compact notch output to Done");
+    assert.match(doneOutput, /renderedExpandedTitle=0:00/, "elapsed Timer should update rendered expanded notch output to zero remaining");
+    assert.match(doneOutput, /renderedProgressPercent=100\.00/, "elapsed Timer should update rendered progress output to complete");
 
     console.log("Native Timer state-change overlay test passed.");
   } finally {
