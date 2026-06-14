@@ -19,6 +19,15 @@ function normalizeClipboardText(text) {
   return String(text || "").replace(/\0/g, "").trim();
 }
 
+function isValidHttpUrl(text) {
+  try {
+    const url = new URL(text);
+    return (url.protocol === "http:" || url.protocol === "https:") && Boolean(url.hostname);
+  } catch (_error) {
+    return false;
+  }
+}
+
 function classifyClipboardText(text) {
   const clean = normalizeClipboardText(text);
   if (!clean) {
@@ -33,7 +42,7 @@ function classifyClipboardText(text) {
 
   let classification = "text";
   let type = "Text";
-  if (/^https?:\/\//i.test(clean)) {
+  if (isValidHttpUrl(clean)) {
     classification = "link";
     type = "Link";
   } else if (/^file:\/\//i.test(clean) || clean.startsWith("/")) {
@@ -199,6 +208,7 @@ module.exports = {
   clipboardActivityToNativeStatus,
   createClipboardActivityState,
   inactiveClipboardStatus,
+  isValidHttpUrl,
   normalizeClipboardText,
   textSignature
 };

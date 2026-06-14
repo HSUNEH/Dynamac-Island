@@ -88,6 +88,13 @@ assert.match(empty.status.detail, /No text clipboard content/);
 const pathClass = classifyClipboardText("/Users/st/file.txt");
 assert.equal(pathClass.classification, "path");
 assert.equal(pathClass.label, "Path copied · 18 chars");
+const validUrlClass = classifyClipboardText("https://example.com/a?b=1#frag");
+assert.equal(validUrlClass.classification, "link", "valid URL strings should classify as URL/link content");
+assert.equal(validUrlClass.label, "Link copied · 30 chars");
+for (const invalidUrl of ["https://", "http://", "https:// example.com"]) {
+  const invalidUrlClass = classifyClipboardText(invalidUrl);
+  assert.equal(invalidUrlClass.classification, "text", `invalid URL string should remain plain text: ${invalidUrl}`);
+}
 const textClass = classifyClipboardText("hello");
 assert.equal(textClass.classification, "text");
 assert.equal(textClass.label, "Text copied · 5 chars");
