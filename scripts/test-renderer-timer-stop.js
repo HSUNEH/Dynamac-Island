@@ -77,6 +77,10 @@ const stoppedPayload = {
 };
 
 const stopCalls = [];
+const resetCalls = [];
+const startCalls = [];
+let statusReadCalls = 0;
+let statusUpdateRegistrations = 0;
 const context = {
   window: {
     DynamacPillView: {
@@ -108,10 +112,23 @@ const context = {
     },
     DynamacTimerUi: timerUi,
     dynamacStatus: {
-      async read() { return runningPayload; },
-      onUpdate() {}
+      async read() {
+        statusReadCalls += 1;
+        return runningPayload;
+      },
+      onUpdate() {
+        statusUpdateRegistrations += 1;
+      }
     },
     dynamacTimer: {
+      async start(options) {
+        startCalls.push(options);
+        throw new Error("Stop control must not dispatch Timer start");
+      },
+      async reset(options) {
+        resetCalls.push(options);
+        throw new Error("Stop control must not dispatch Timer reset");
+      },
       async stop(options) {
         stopCalls.push(options);
         return { ok: true, payload: stoppedPayload };
@@ -129,6 +146,8 @@ vm.runInContext(fs.readFileSync(path.resolve("src/renderer.js"), "utf8"), contex
 setImmediate(() => {
   assert.match(content.innerHTML, /data-action="timer-stop"/, "running Timer card should render a stop action");
   assert.match(content.innerHTML, /data-timer-id="timer-ui-stop-test"/, "stop action should carry the running timer id");
+  assert.equal(statusReadCalls, 1, "initial render should read status exactly once");
+  assert.equal(statusUpdateRegistrations, 1, "renderer should register one status-update listener on load");
 
   content.listeners.click({
     target: {
@@ -147,6 +166,10 @@ setImmediate(() => {
 
   setImmediate(() => {
     assert.deepEqual(stopCalls, [{ timerId: "timer-ui-stop-test" }], "clicking Stop should invoke the native Timer stop request payload");
+    assert.deepEqual(resetCalls, [], "clicking Stop must not dispatch Timer reset");
+    assert.deepEqual(startCalls, [], "clicking Stop must not dispatch Timer start");
+    assert.equal(statusReadCalls, 1, "clicking Stop should render the returned payload without issuing an unrelated status read");
+    assert.equal(statusUpdateRegistrations, 1, "clicking Stop should not register or dispatch unrelated status updates");
     assert.equal(summary.textContent, "All systems settled", "stop response should re-render returned Timer status");
     assert.doesNotMatch(content.innerHTML, /data-action="timer-stop"/, "stopped Timer card should not keep the running-only stop button");
     assert.match(content.innerHTML, /Stopped with 4m 30s remaining of 5m\./, "stop response should show stopped status detail");
