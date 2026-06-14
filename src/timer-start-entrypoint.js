@@ -1,5 +1,6 @@
 const { parseTimerDuration } = require("./timer-duration");
 const { startTimer } = require("./timer-state");
+const { writeTimerStatusSnapshot } = require("./timer-status-store");
 
 function startTimerFromInput(timerState, rawInput, options = {}) {
   const parseDuration = options.parseDuration || parseTimerDuration;
@@ -16,10 +17,22 @@ function startTimerFromInput(timerState, rawInput, options = {}) {
   }
 
   const timer = start(timerState, parsedDuration, options);
-  return {
+  const result = {
     ok: true,
     timer
   };
+
+  if (options.statusPath || options.writeStatusSnapshot) {
+    const writeStatus = options.writeStatusSnapshot || writeTimerStatusSnapshot;
+    result.status = writeStatus({
+      outputPath: options.statusPath,
+      timer,
+      now: options.statusNow || options.now,
+      fs: options.fs
+    });
+  }
+
+  return result;
 }
 
 module.exports = {

@@ -113,4 +113,41 @@ assert.deepEqual(realResult.timer, {
 });
 assert.strictEqual(realState.activeTimer, realResult.timer, "real path should record the active timer");
 
+const statusWriteState = createTimerState();
+const statusWrites = [];
+const statusWriteResult = startTimerFromInput(statusWriteState, "45s", {
+  id: "timer-status-write-path",
+  now: () => "2026-06-14T00:02:00.000Z",
+  statusNow: "2026-06-14T00:02:05.000Z",
+  statusPath: "/tmp/dynamac-status.json",
+  writeStatusSnapshot: (snapshot) => {
+    statusWrites.push(snapshot);
+    return {
+      outputPath: snapshot.outputPath,
+      payload: {
+        statuses: [
+          {
+            agent: "Timer",
+            state: "running",
+            task: "Timer · 40s remaining",
+            updatedAt: "2026-06-14T00:02:00.000Z",
+            detail: "40s remaining of 45s.",
+            timer: snapshot.timer
+          }
+        ]
+      }
+    };
+  }
+});
+
+assert.equal(statusWriteResult.ok, true, "valid timer input should still start when status writing is enabled");
+assert.equal(statusWrites.length, 1, "start entrypoint should write the native status store exactly once");
+assert.equal(statusWrites[0].outputPath, "/tmp/dynamac-status.json");
+assert.equal(statusWrites[0].timer, statusWriteResult.timer, "status writer should receive the active running timer model");
+assert.equal(statusWrites[0].timer.state, "running");
+assert.equal(statusWrites[0].timer.remainingSeconds, 45);
+assert.equal(statusWrites[0].now, "2026-06-14T00:02:05.000Z", "status writer should use the deterministic status clock when supplied");
+assert.equal(statusWriteResult.status.payload.statuses[0].state, "running");
+assert.equal(statusWriteResult.status.payload.statuses[0].timer.id, "timer-status-write-path");
+
 console.log("Timer start entrypoint integration test passed.");

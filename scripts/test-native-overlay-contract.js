@@ -77,6 +77,10 @@ assert.match(source, /var timer: TimerInfo\?/, "native status items should carry
 assert.match(source, /var remainingSeconds: Double/, "native TimerInfo should expose remaining timer duration for compact and expanded timer surfaces");
 assert.match(source, /var durationSeconds: Double/, "native TimerInfo should expose original timer duration for status contracts");
 assert.match(source, /var replacedPrevious: Bool/, "native TimerInfo should preserve deterministic replacement metadata");
+assert.match(source, /activeTimerStatus/, "native overlay should select an active Timer status before falling back to media/fallback content");
+assert.match(source, /drawCompactTimer/, "compact native overlay should render a simple unobtrusive Timer surface");
+assert.match(source, /drawExpandedTimer/, "expanded native overlay should render Timer detail from the native status model");
+assert.match(source, /drawTimerProgress/, "expanded Timer surface should show deterministic elapsed progress from duration and remaining seconds");
 
 assert.match(source, /drawUprightImage/, "album artwork should be drawn through an upright image path so flipped NSView coordinates do not invert covers");
 assert.match(source, /respectFlipped: false/, "album artwork drawing should explicitly avoid AppKit flipped-coordinate inversion");

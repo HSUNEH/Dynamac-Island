@@ -398,6 +398,15 @@ final class IslandView: NSView {
     }
 
     private func drawContent() {
+        if let timerStatus = activeTimerStatus() {
+            if expanded {
+                drawExpandedTimer(timerStatus)
+            } else {
+                drawCompactTimer(timerStatus)
+            }
+            return
+        }
+
         guard let media = nowPlayingMedia() else {
             drawFallbackStatusContent()
             return
@@ -412,6 +421,12 @@ final class IslandView: NSView {
 
     private func nowPlayingMedia() -> MediaInfo? {
         statuses.first { $0.agent == "Now Playing" }?.media
+    }
+
+    private func activeTimerStatus() -> StatusItem? {
+        statuses.first { status in
+            status.agent == "Timer" && status.timer != nil && (status.state == "running" || status.state == "success")
+        }
     }
 
     func replaceStatuses(_ incomingStatuses: [StatusItem]) {
@@ -519,6 +534,53 @@ final class IslandView: NSView {
         NSString(string: media.durationLabel ?? formatSeconds(media.durationSeconds)).draw(in: expandedDurationRect(progressRect: progressRect), withAttributes: rightAlignedAttributes(timeAttrs))
         drawProgressBar(media: media, positionSeconds: elapsedSeconds, rect: progressRect)
         drawMediaControls(media: media)
+    }
+
+    private func drawCompactTimer(_ status: StatusItem) {
+        guard let timer = status.timer else { return }
+        let remaining = formatSeconds(timer.remainingSeconds)
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineBreakMode = .byTruncatingTail
+        paragraph.alignment = .center
+        let attrs: [NSAttributedString.Key: Any] = [
+            .foregroundColor: NSColor.white.withAlphaComponent(0.94),
+            .font: NSFont.monospacedDigitSystemFont(ofSize: compactLayout.usesHardwareNotchCutout ? 10 : 12, weight: .semibold),
+            .paragraphStyle: paragraph
+        ]
+
+        if compactLayout.usesHardwareNotchCutout {
+            NSString(string: "⏱").draw(in: compactLayout.leftWingRect(in: bounds).insetBy(dx: 7, dy: 7), withAttributes: attrs)
+            NSString(string: remaining).draw(in: compactLayout.rightWingRect(in: bounds).insetBy(dx: 4, dy: 7), withAttributes: attrs)
+        } else {
+            NSString(string: "⏱ \(remaining)").draw(in: bounds.insetBy(dx: 10, dy: 8), withAttributes: attrs)
+        }
+    }
+
+    private func drawExpandedTimer(_ status: StatusItem) {
+        guard let timer = status.timer else { return }
+        let sourceAttrs = expandedTextAttributes(size: 11, weight: .semibold, color: NSColor(calibratedWhite: 0.64, alpha: 1), letterSpacing: 0.8)
+        let titleAttrs = expandedTextAttributes(size: 28, weight: .semibold, color: .white, letterSpacing: -0.4, monospaced: true)
+        let detailAttrs = expandedTextAttributes(size: 15, weight: .regular, color: NSColor(calibratedWhite: 0.70, alpha: 1), letterSpacing: -0.2)
+        let content = expandedContentRect()
+
+        NSString(string: "TIMER").draw(in: expandedSourceRect(), withAttributes: sourceAttrs)
+        NSString(string: formatSeconds(timer.remainingSeconds)).draw(in: NSRect(x: content.minX, y: expandedTopContentY() + 22, width: content.width, height: 34), withAttributes: titleAttrs)
+        NSString(string: status.detail ?? status.task).draw(in: NSRect(x: content.minX, y: expandedTopContentY() + 62, width: content.width, height: 22), withAttributes: detailAttrs)
+
+        let progressRect = NSRect(x: content.minX, y: expandedProgressY(), width: content.width, height: 5)
+        drawTimerProgress(timer: timer, rect: progressRect)
+    }
+
+    private func drawTimerProgress(timer: TimerInfo, rect: NSRect) {
+        NSColor(calibratedWhite: 1, alpha: 0.16).setFill()
+        NSBezierPath(roundedRect: rect, xRadius: rect.height / 2, yRadius: rect.height / 2).fill()
+        let duration = max(timer.durationSeconds, 0)
+        guard duration > 0 else { return }
+        let elapsed = min(max(duration - max(timer.remainingSeconds, 0), 0), duration)
+        let ratio = elapsed / duration
+        let fill = NSRect(x: rect.minX, y: rect.minY, width: max(rect.height, rect.width * CGFloat(ratio)), height: rect.height)
+        NSColor.white.withAlphaComponent(0.88).setFill()
+        NSBezierPath(roundedRect: fill, xRadius: rect.height / 2, yRadius: rect.height / 2).fill()
     }
 
     private func expandedCoverRect() -> NSRect {
