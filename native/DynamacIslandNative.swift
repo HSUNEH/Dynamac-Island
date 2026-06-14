@@ -1643,11 +1643,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        let compactViewModel = islandView?.activeTimerCompactViewModel()
+        let presentation: String
+        if compactViewModel != nil {
+            presentation = "timer"
+        } else if statuses.first(where: { $0.agent == "Now Playing" && $0.media != nil }) != nil {
+            presentation = "media"
+        } else {
+            presentation = "fallback"
+        }
+
         if let status = statuses.first(where: { $0.agent == "Timer" && $0.timer != nil }),
            let timer = status.timer {
-            let compactViewModel = islandView?.activeTimerCompactViewModel()
             print([
                 "DYNAMAC_STATUS_DUMP active=timer",
+                "presentation=\(presentation)",
                 "agent=\(status.agent)",
                 "statusState=\(status.state)",
                 "id=\(timer.id)",
@@ -1656,6 +1666,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 "state=\(timer.state)",
                 "displayText=\(timer.displayText)",
                 "replacedPrevious=\(timer.replacedPrevious ? "true" : "false")",
+                "compactIsActive=\(compactViewModel == nil ? "false" : "true")",
                 "compactRemainingText=\(compactViewModel?.remainingText ?? "")",
                 "compactLifecycleState=\(compactViewModel?.lifecycleState ?? "")",
                 "compactIsRunning=\(compactViewModel?.isRunning == true ? "true" : "false")",
@@ -1665,11 +1676,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         if let mediaStatus = statuses.first(where: { $0.agent == "Now Playing" && $0.media != nil }) {
-            print("DYNAMAC_STATUS_DUMP active=media agent=\(mediaStatus.agent)")
+            print("DYNAMAC_STATUS_DUMP active=media presentation=\(presentation) agent=\(mediaStatus.agent)")
             return
         }
 
-        print("DYNAMAC_STATUS_DUMP active=fallback")
+        print("DYNAMAC_STATUS_DUMP active=fallback presentation=\(presentation)")
     }
 }
 

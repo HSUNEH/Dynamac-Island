@@ -94,6 +94,14 @@ Launch the native AppKit notch overlay for physical MacBook notch testing:
 npm run native:start
 ```
 
+Start a local single active Timer and write it into the watched status file:
+
+```sh
+npm run timer:start -- 5m --status status/status.json
+```
+
+Timer durations must be positive whole-number `s`, `m`, or `h` values. Invalid input is deterministic and does not write a status file; for example `npm run timer:start -- abc` exits non-zero and prints `{"ok":false,"error":"Timer duration must be a positive whole number followed by s, m, or h."}` on stderr. `0s` also exits non-zero with `Timer duration must be greater than 0 seconds.`
+
 Run a fast native build/smoke test without leaving the overlay open:
 
 ```sh
@@ -247,7 +255,7 @@ npm run native:start
 The renderer still consumes a local JSON file because it gives the UI a simple, testable boundary. The important change is what writes that file:
 
 - Product/default native path: `src/mac-activity-status.js` generates a snapshot from local Mac utility signals: Now Playing, Clipboard, and Battery.
-- Timer path: `src/timer-start-entrypoint.js` can start a local Timer and write the active running timer into the same native status-store shape through `src/timer-status-store.js`; the write is local-only and replaces the Timer status model for the single active timer MVP.
+- Timer path: `npm run timer:start -- <duration> --status <path>` uses `src/timer-start-entrypoint.js` to start a local Timer and write the active running timer into the same native status-store shape through `src/timer-status-store.js`; the write is local-only and replaces the Timer status model for the single active timer MVP. Valid examples include `5m`, `90s`, and `2h`; non-numeric input such as `abc` and non-positive input such as `0s` fail with stable JSON error output and non-zero exit status.
 - Optional/dev path: `src/hermes-status.js` can still generate local Hermes runtime snapshots for Hermes-equipped development machines.
 - Development path: `status/status.json` is watched so updates can be verified without relaunching.
 - Packaged `.app` path: Electron userData, usually `~/Library/Application Support/Dynamac Island/status/status.json`.
@@ -331,6 +339,7 @@ npm run smoke:launch
 npm run test:notch-position
 npm run test:mac-activity-status
 npm run test:timer-status-store
+npm run test:timer-start-cli
 npm run test:native-timer-status-serialization
 npm run test:hermes-status
 npm run test:status-loader
