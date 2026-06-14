@@ -1168,13 +1168,117 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             runAppleScript("tell application \"Spotify\" to activate")
         case "music":
             runAppleScript("tell application \"Music\" to activate")
-        case "youtube":
-            if let pageUrl = media.pageUrl, let url = URL(string: pageUrl) {
-                NSWorkspace.shared.open(url)
-            }
+        case "youtube", "youtube-music", "browser-media", "now-playing":
+            focusBrowserMediaTab(media)
         default:
-            return
+            if let pageUrl = media.pageUrl, !pageUrl.isEmpty {
+                focusBrowserMediaTab(media)
+            }
         }
+    }
+
+    // Bring the already-playing browser tab to the front instead of opening the
+    // URL in a brand-new tab. The status payload carries no browser identity, so
+    // probe the known browsers and match the tab by page URL (or, when
+    // MediaRemote gave us no URL, by title). Only if the tab is truly not open
+    // anywhere do we fall back to opening the URL fresh.
+    private func focusBrowserMediaTab(_ media: MediaInfo) {
+        let pageUrl = media.pageUrl ?? ""
+        let byUrl = !pageUrl.isEmpty
+        let needle = byUrl ? pageUrl : (media.title ?? "")
+        guard !needle.isEmpty else { return }
+        let escaped = appleScriptStringEscape(needle)
+
+        let chromiumBrowsers = [
+            "Arc", "Google Chrome", "Google Chrome Canary", "Chromium", "Brave Browser",
+            "Microsoft Edge", "Vivaldi", "Opera", "Opera GX", "Dia"
+        ]
+        for browser in chromiumBrowsers {
+            let script = browser == "Arc"
+                ? arcTabFocusScript(needle: escaped, byUrl: byUrl)
+                : chromiumTabFocusScript(browserName: browser, needle: escaped, byUrl: byUrl)
+            if runAppleScriptReturning(script) == "focused" { return }
+        }
+        if runAppleScriptReturning(safariTabFocusScript(needle: escaped, byUrl: byUrl)) == "focused" { return }
+
+        if byUrl, let url = URL(string: pageUrl) {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    private func appleScriptStringEscape(_ value: String) -> String {
+        value.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+    }
+
+    private func arcTabFocusScript(needle: String, byUrl: Bool) -> String {
+        let field = byUrl ? "URL" : "title"
+        return """
+        if application "Arc" is running then
+          tell application "Arc"
+            with timeout of 3 seconds
+              repeat with w in windows
+                repeat with s in spaces of w
+                  repeat with t in tabs of s
+                    if (\(field) of t) contains "\(needle)" then
+                      select t
+                      activate
+                      return "focused"
+                    end if
+                  end repeat
+                end repeat
+              end repeat
+            end timeout
+          end tell
+        end if
+        return "no-match"
+        """
+    }
+
+    private func chromiumTabFocusScript(browserName: String, needle: String, byUrl: Bool) -> String {
+        let field = byUrl ? "URL" : "title"
+        return """
+        if application "\(browserName)" is running then
+          tell application "\(browserName)"
+            with timeout of 3 seconds
+              repeat with w in windows
+                set tabCount to count of tabs of w
+                repeat with i from 1 to tabCount
+                  if (\(field) of tab i of w) contains "\(needle)" then
+                    set active tab index of w to i
+                    set index of w to 1
+                    activate
+                    return "focused"
+                  end if
+                end repeat
+              end repeat
+            end timeout
+          end tell
+        end if
+        return "no-match"
+        """
+    }
+
+    private func safariTabFocusScript(needle: String, byUrl: Bool) -> String {
+        let field = byUrl ? "URL" : "name"
+        return """
+        if application "Safari" is running then
+          tell application "Safari"
+            with timeout of 3 seconds
+              repeat with w in windows
+                repeat with t in tabs of w
+                  if (\(field) of t) contains "\(needle)" then
+                    set current tab of w to t
+                    set index of w to 1
+                    activate
+                    return "focused"
+                  end if
+                end repeat
+              end repeat
+            end timeout
+          end tell
+        end if
+        return "no-match"
+        """
     }
 
     private func performMediaControl(action: String, source: String) {
@@ -1227,6 +1331,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
         process.arguments = ["-e", script]
         try? process.run()
+    }
+
+    @discardableResult
+    private func runAppleScriptReturning(_ script: String) -> String {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        process.arguments = ["-e", script]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = Pipe()
+        do {
+            try process.run()
+        } catch {
+            return ""
+        }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
     private func performYouTubeJavaScript(_ js: String) {
