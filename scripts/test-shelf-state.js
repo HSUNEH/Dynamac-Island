@@ -7,6 +7,7 @@ const path = require("node:path");
 const { validateStatusPayload } = require("../src/status-schema");
 const {
   addDroppedFileToShelf,
+  addDroppedFilesToShelf,
   buildShelfStatusPayload,
   clearShelf,
   createShelfState
@@ -130,6 +131,53 @@ try {
   assert.equal(afterClear.items.length, 1, "explicit disallow should leave the shelf item count unchanged");
   assert.equal(afterClear.items[0].itemId, "shelf-1718323200500-000", "explicit disallow should not consume a shelf item sequence");
   assert.equal(afterClear.active.status.fileCount, 1, "explicit disallow should not change active shelf activity metadata");
+
+  const beforeEmptyList = createShelfState(afterClear);
+  assert.throws(
+    () => addDroppedFilesToShelf(afterClear, [], { now: 1718323200900 }),
+    /dropped input list must include at least one file path/,
+    "empty dropped input lists should fail before adding shelf metadata"
+  );
+  assert.deepEqual(
+    afterClear,
+    beforeEmptyList,
+    "empty dropped input lists must not mutate or add a shelf item"
+  );
+  assert.equal(afterClear.items.length, 1, "empty dropped input lists should leave the shelf item count unchanged");
+  assert.equal(afterClear.items[0].itemId, "shelf-1718323200500-000", "empty dropped input lists should not consume a shelf item sequence");
+
+  const beforeMixedBlankList = createShelfState(afterClear);
+  assert.throws(
+    () => addDroppedFilesToShelf(afterClear, [
+      { filePath, type: "text/plain", observedAt: 1718323200950 },
+      { filePath: " ", type: "text/plain", observedAt: 1718323200951 }
+    ], { now: 1718323200960 }),
+    /dropped file path is required/,
+    "dropped input lists containing blank paths should fail before adding any shelf metadata"
+  );
+  assert.deepEqual(
+    afterClear,
+    beforeMixedBlankList,
+    "dropped input lists containing blank paths must not partially add shelf items"
+  );
+  assert.equal(afterClear.items.length, 1, "dropped input lists containing blank paths should leave the shelf item count unchanged");
+  assert.equal(afterClear.items[0].itemId, "shelf-1718323200500-000", "dropped input lists containing blank paths should not consume a shelf item sequence");
+
+  for (const blankPath of ["", "   "]) {
+    const beforeBlankPath = createShelfState(afterClear);
+    assert.throws(
+      () => addDroppedFileToShelf(afterClear, { filePath: blankPath, observedAt: 1718323201000 }, { now: 1718323201100 }),
+      /dropped file path is required/,
+      "blank dropped file paths should fail before adding shelf metadata"
+    );
+    assert.deepEqual(
+      afterClear,
+      beforeBlankPath,
+      "blank dropped file paths must not mutate or add a shelf item"
+    );
+    assert.equal(afterClear.items.length, 1, "blank dropped file paths should leave the shelf item count unchanged");
+    assert.equal(afterClear.items[0].itemId, "shelf-1718323200500-000", "blank dropped file paths should not consume a shelf item sequence");
+  }
 
   assert.throws(
     () => addDroppedFileToShelf(initial, { filePath: path.join(tempDir, "missing.pdf"), observedAt: 1718323200400 }),

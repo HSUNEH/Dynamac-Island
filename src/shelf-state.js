@@ -111,6 +111,12 @@ function nextSequence(items) {
   return items.length;
 }
 
+function normalizeDropInput(drop) {
+  if (typeof drop === "string") return { filePath: drop };
+  if (drop && typeof drop === "object" && !Array.isArray(drop)) return { ...drop };
+  return { filePath: drop };
+}
+
 function addDroppedFileToShelf(state = createShelfState(), drop = {}, options = {}) {
   const previous = createShelfState(state);
   const observedAt = finiteTimestamp(drop.observedAt ?? options.now ?? Date.now(), undefined, "observedAt");
@@ -138,6 +144,23 @@ function addDroppedFileToShelf(state = createShelfState(), drop = {}, options = 
   });
   next.active = buildShelfActivity(next, { now: recordedAt });
   return next;
+}
+
+function addDroppedFilesToShelf(state = createShelfState(), drops = [], options = {}) {
+  if (!Array.isArray(drops) || drops.length === 0) {
+    throw new Error("dropped input list must include at least one file path");
+  }
+
+  const normalizedDrops = drops.map(normalizeDropInput);
+  for (const drop of normalizedDrops) {
+    rejectExplicitlyDisallowedDrop(drop);
+    validateDroppedFilePath(drop.filePath);
+  }
+
+  return normalizedDrops.reduce(
+    (nextState, drop) => addDroppedFileToShelf(nextState, drop, options),
+    state
+  );
 }
 
 function clearShelf(_state = createShelfState(), options = {}) {
@@ -175,6 +198,7 @@ function buildShelfStatusPayload(state = createShelfState()) {
 
 module.exports = {
   addDroppedFileToShelf,
+  addDroppedFilesToShelf,
   buildShelfActivity,
   buildShelfStatusPayload,
   clearShelf,

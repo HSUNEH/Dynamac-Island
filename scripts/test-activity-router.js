@@ -342,6 +342,69 @@ assert.deepEqual(
   ["drop", "nowPlaying"]
 );
 
+const shelfVsBatteryPassiveOnlyLowerPriorityConflict = [
+  candidateStatus("battery", 1200, {
+    agent: "Battery",
+    task: "Battery 88%",
+    detail: "Newer battery candidate should stay below an active shelf activity."
+  }),
+  candidateStatus("futurePassive", 1300, {
+    agent: "Unknown Future Provider",
+    task: "Passive future utility",
+    detail: "Unknown passive providers remain below active shelf until modeled."
+  }),
+  candidateStatus("shelf", 0, {
+    agent: "DynaShelf",
+    task: "Shelf · 1 file ready",
+    detail: "Active shelf should be compact eligible above battery/passive.",
+    revealReadyPath: "/Users/st/Desktop/shelf-over-battery-passive.pdf",
+    metadata: { fileCount: 1 }
+  })
+];
+const shelfBatteryPassiveConflictWinner = selectCompactActivity(shelfVsBatteryPassiveOnlyLowerPriorityConflict, { now });
+assert.equal(
+  shelfBatteryPassiveConflictWinner.activityType,
+  "shelf",
+  "shelf should win compact routing when battery/passive are the only lower-priority active candidates"
+);
+assert.equal(shelfBatteryPassiveConflictWinner.compactSurface.activityType, "shelf");
+assert.equal(shelfBatteryPassiveConflictWinner.revealReadyPath, "/Users/st/Desktop/shelf-over-battery-passive.pdf");
+assert.deepEqual(
+  rankActivities(shelfVsBatteryPassiveOnlyLowerPriorityConflict, { now }).map((activity) => activity.activityType),
+  ["shelf", "battery", "futurePassive"]
+);
+
+const dropVsBatteryPassiveOnlyLowerPriorityConflict = [
+  candidateStatus("battery", 1400, {
+    agent: "Battery",
+    task: "Battery 91%",
+    detail: "Newer battery candidate should stay below an active drop activity."
+  }),
+  candidateStatus("futurePassive", 1500, {
+    agent: "Unknown Future Provider",
+    task: "Passive future utility",
+    detail: "Unknown passive providers remain below active drop until modeled."
+  }),
+  candidateStatus("drop", 0, {
+    agent: "DynaDrop",
+    task: "Drop · 2 files staged",
+    detail: "Active drop should be compact eligible above battery/passive.",
+    metadata: { fileCount: 2 }
+  })
+];
+const dropBatteryPassiveConflictWinner = selectCompactActivity(dropVsBatteryPassiveOnlyLowerPriorityConflict, { now });
+assert.equal(
+  dropBatteryPassiveConflictWinner.activityType,
+  "drop",
+  "drop should win compact routing when battery/passive are the only lower-priority active candidates"
+);
+assert.equal(dropBatteryPassiveConflictWinner.compactSurface.activityType, "drop");
+assert.equal(dropBatteryPassiveConflictWinner.metadata.fileCount, 2);
+assert.deepEqual(
+  rankActivities(dropVsBatteryPassiveOnlyLowerPriorityConflict, { now }).map((activity) => activity.activityType),
+  ["drop", "battery", "futurePassive"]
+);
+
 const clipboardVsNowPlayingConflict = [
   candidateStatus("nowPlaying", 750, {
     agent: "Now Playing",

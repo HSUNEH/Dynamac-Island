@@ -94,7 +94,11 @@ const requiredSnippets = [
   ["status validation command", "npm run check-status"],
   ["valid fixture command", "npm run check-status:valid"],
   ["invalid fixture command", "npm run check-status:invalid"],
-  ["roadmap section", "## Roadmap"]
+  ["roadmap section", "## Roadmap"],
+  ["DynaDrop model boundary", "DynaDrop/Shelf MVP as deterministic local shelf state, not native drag capture"],
+  ["DynaDrop deferred native drag capture", "Deferred: native drag-to-island capture"],
+  ["DynaDrop no implied drag UI", "UI that implies dragging already works"],
+  ["Activity Router drag boundary", "DynaDrop/Shelf does not claim native drag capture or Finder reveal UI"]
 ];
 
 function containsCurlPipeToShellInstall(content) {

@@ -63,6 +63,21 @@ assert.match(
   "check-readme should report the missing real status verification step"
 );
 
+const missingDynaDropDeferredNativeDragResult = runChecker(
+  readme.replace("Deferred: native drag-to-island capture", "")
+);
+
+assert.notEqual(
+  missingDynaDropDeferredNativeDragResult.status,
+  0,
+  `check-readme should fail when the DynaDrop native drag deferral is missing.\nstdout:\n${missingDynaDropDeferredNativeDragResult.stdout}\nstderr:\n${missingDynaDropDeferredNativeDragResult.stderr}`
+);
+assert.match(
+  missingDynaDropDeferredNativeDragResult.stderr,
+  /Missing DynaDrop deferred native drag capture/,
+  "check-readme should report the missing DynaDrop native drag deferral"
+);
+
 const unsafeInstallerResult = runChecker(
   `${readme}\n\n\`\`\`sh\ncurl -fsSL https://raw.githubusercontent.com/HSUNEH/dynamac-island/main/scripts/install-macbook.sh | bash\n\`\`\`\n`
 );
