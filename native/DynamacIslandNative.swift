@@ -1,6 +1,14 @@
 import AppKit
 import QuartzCore
 
+extension ISO8601DateFormatter {
+    static let dynamacTimer: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+}
+
 struct StatusPayload: Decodable {
     let statuses: [StatusItem]
 }
@@ -447,13 +455,47 @@ final class IslandView: NSView {
     }
 
     private func compactTimerViewModel(status: StatusItem, timer: TimerInfo) -> TimerCompactOverlayViewModel {
-        TimerCompactOverlayViewModel(
+        let remainingSeconds = displayRemainingSeconds(timer: timer)
+        let lifecycleState = timerLifecycleState(status: status, timer: timer, remainingSeconds: remainingSeconds)
+        return TimerCompactOverlayViewModel(
             id: timer.id,
-            remainingText: formatSeconds(timer.remainingSeconds),
-            lifecycleState: timer.state,
-            isRunning: status.state == "running" && timer.state == "running",
+            remainingText: formatSeconds(remainingSeconds),
+            lifecycleState: lifecycleState,
+            isRunning: status.state == "running" && timer.state == "running" && remainingSeconds > 0,
             isPaused: timer.state == "paused" || timer.state == "stopped" || timer.state == "reset"
         )
+    }
+
+    private func timerLifecycleState(status: StatusItem, timer: TimerInfo, remainingSeconds: Double) -> String {
+        if status.state == "success" || timer.state == "done" || remainingSeconds <= 0 {
+            return "done"
+        }
+        return timer.state
+    }
+
+    private func displayRemainingSeconds(timer: TimerInfo) -> Double {
+        let duration = max(timer.durationSeconds, 0)
+        let reportedRemaining = min(max(timer.remainingSeconds, 0), duration)
+        guard timer.state == "running", let startedAt = isoDate(timer.startedAt) else {
+            return reportedRemaining
+        }
+
+        let elapsed = max(0, floor(currentDate().timeIntervalSince(startedAt)))
+        return min(max(duration - elapsed, 0), reportedRemaining)
+    }
+
+    private func currentDate() -> Date {
+        if let raw = ProcessInfo.processInfo.environment["DYNAMAC_NATIVE_NOW"], let date = isoDate(raw) {
+            return date
+        }
+        return Date()
+    }
+
+    private func isoDate(_ raw: String) -> Date? {
+        if let date = ISO8601DateFormatter.dynamacTimer.date(from: raw) {
+            return date
+        }
+        return ISO8601DateFormatter().date(from: raw)
     }
 
     func replaceStatuses(_ incomingStatuses: [StatusItem]) {
@@ -585,25 +627,27 @@ final class IslandView: NSView {
 
     private func drawExpandedTimer(_ status: StatusItem) {
         guard let timer = status.timer else { return }
+        let remainingSeconds = displayRemainingSeconds(timer: timer)
         let sourceAttrs = expandedTextAttributes(size: 11, weight: .semibold, color: NSColor(calibratedWhite: 0.64, alpha: 1), letterSpacing: 0.8)
         let titleAttrs = expandedTextAttributes(size: 28, weight: .semibold, color: .white, letterSpacing: -0.4, monospaced: true)
         let detailAttrs = expandedTextAttributes(size: 15, weight: .regular, color: NSColor(calibratedWhite: 0.70, alpha: 1), letterSpacing: -0.2)
         let content = expandedContentRect()
 
         NSString(string: "TIMER").draw(in: expandedSourceRect(), withAttributes: sourceAttrs)
-        NSString(string: formatSeconds(timer.remainingSeconds)).draw(in: NSRect(x: content.minX, y: expandedTopContentY() + 22, width: content.width, height: 34), withAttributes: titleAttrs)
+        NSString(string: formatSeconds(remainingSeconds)).draw(in: NSRect(x: content.minX, y: expandedTopContentY() + 22, width: content.width, height: 34), withAttributes: titleAttrs)
         NSString(string: status.detail ?? status.task).draw(in: NSRect(x: content.minX, y: expandedTopContentY() + 62, width: content.width, height: 22), withAttributes: detailAttrs)
 
         let progressRect = NSRect(x: content.minX, y: expandedProgressY(), width: content.width, height: 5)
-        drawTimerProgress(timer: timer, rect: progressRect)
+        drawTimerProgress(timer: timer, remainingSeconds: remainingSeconds, rect: progressRect)
     }
 
-    private func drawTimerProgress(timer: TimerInfo, rect: NSRect) {
+    private func drawTimerProgress(timer: TimerInfo, remainingSeconds: Double? = nil, rect: NSRect) {
         NSColor(calibratedWhite: 1, alpha: 0.16).setFill()
         NSBezierPath(roundedRect: rect, xRadius: rect.height / 2, yRadius: rect.height / 2).fill()
         let duration = max(timer.durationSeconds, 0)
         guard duration > 0 else { return }
-        let elapsed = min(max(duration - max(timer.remainingSeconds, 0), 0), duration)
+        let displayedRemaining = remainingSeconds ?? displayRemainingSeconds(timer: timer)
+        let elapsed = min(max(duration - max(displayedRemaining, 0), 0), duration)
         let ratio = elapsed / duration
         let fill = NSRect(x: rect.minX, y: rect.minY, width: max(rect.height, rect.width * CGFloat(ratio)), height: rect.height)
         NSColor.white.withAlphaComponent(0.88).setFill()
@@ -1599,12 +1643,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        if let status = statuses.first(where: { $0.agent == "Timer" && $0.timer != nil && ($0.state == "running" || $0.state == "success") }),
+        if let status = statuses.first(where: { $0.agent == "Timer" && $0.timer != nil }),
            let timer = status.timer {
             let compactViewModel = islandView?.activeTimerCompactViewModel()
             print([
                 "DYNAMAC_STATUS_DUMP active=timer",
                 "agent=\(status.agent)",
+                "statusState=\(status.state)",
                 "id=\(timer.id)",
                 "durationSeconds=\(Int(timer.durationSeconds))",
                 "remainingSeconds=\(Int(timer.remainingSeconds))",

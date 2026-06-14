@@ -1,0 +1,22 @@
+{
+  "statuses": [
+    {
+      "agent": "Timer",
+      "state": "idle",
+      "task": "Timer stopped",
+      "updatedAt": "2026-06-14T00:00:30.000Z",
+      "detail": "Stopped with 4m 30s remaining of 5m.",
+      "timer": {
+        "id": "timer-native-stopped-contract-test",
+        "durationSeconds": 300,
+        "remainingSeconds": 270,
+        "state": "stopped",
+        "startedAt": "2026-06-14T00:00:00.000Z",
+        "updatedAt": "2026-06-14T00:00:30.000Z",
+        "displayText": "5m",
+        "error": "",
+        "replacedPrevious": false
+      }
+    }
+  ]
+}
