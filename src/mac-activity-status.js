@@ -2,6 +2,7 @@ const childProcess = require("node:child_process");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
+const { buildActivityRouterSnapshot } = require("./activity-router");
 
 function runCommand(command, args, options = {}) {
   try {
@@ -832,7 +833,10 @@ function buildMacActivityStatusPayload(options = {}) {
     updatedAt: now.toISOString()
   }));
 
-  return { statuses };
+  return {
+    statuses,
+    activityRouter: buildActivityRouterSnapshot(statuses, { now })
+  };
 }
 
 function sameMediaIdentity(left, right) {
