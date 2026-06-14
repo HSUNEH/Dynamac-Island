@@ -472,7 +472,10 @@ final class IslandView: NSView {
 
     private func drawCompactNowPlaying(_ media: MediaInfo) {
         let art = compactArtworkRect()
-        drawArtwork(media: media, in: art, cornerRadius: 7, fallbackFontSize: 17)
+        // Preserve the artwork's aspect ratio in the compact/notch tile too: square album
+        // art still fills the square exactly, while 16:9 YouTube thumbnails letterbox
+        // instead of stretching — matching the expanded cover.
+        drawArtwork(media: media, in: art, cornerRadius: 7, fallbackFontSize: 17, aspectFit: true)
 
         if compactLayout.usesHardwareNotchCutout {
             drawPlayingBars(media: media, in: compactPlayingBarsRect())
@@ -886,6 +889,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var panel: NSPanel?
     private var islandView: IslandView?
     private var statusTimer: Timer?
+    private var statusFileSource: DispatchSourceFileSystemObject?
     private var displayTimer: Timer?
     private var contentFadeTimer: Timer?
     private var autoCollapseTimer: Timer?
@@ -902,6 +906,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         createPanel()
         loadStatus()
         startStatusRefresh()
+        startStatusFileWatch()
         startDisplayRefresh()
 
         if ProcessInfo.processInfo.environment["DYNAMAC_START_EXPANDED"] == "1" {
@@ -914,8 +919,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    // The display the overlay anchors to. Deliberately NOT NSScreen.main: that follows
+    // keyboard focus, so clicking a window on the built-in MacBook display would drag the
+    // notch overlay off the external display onto the laptop. We pin to a stable target
+    // instead — by default the primary display (the one carrying the menu bar at origin
+    // (0,0), i.e. "Main display" in System Settings). On a single-MacBook setup that is the
+    // built-in notched panel, so behavior is unchanged. Override with DYNAMAC_DISPLAY:
+    // "primary"/"main", "builtin"/"built-in", or any substring of a display's name.
+    private func targetScreen() -> NSScreen? {
+        let screens = NSScreen.screens
+        guard !screens.isEmpty else { return nil }
+        let primary = screens.first { $0.frame.origin == .zero }
+        if let pref = ProcessInfo.processInfo.environment["DYNAMAC_DISPLAY"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines).lowercased(), !pref.isEmpty {
+            if pref == "builtin" || pref == "built-in" {
+                if let builtIn = screens.first(where: { NotchWingLayout.likelyBuiltInDisplay($0) }) { return builtIn }
+            } else if pref == "primary" || pref == "main" {
+                if let primary { return primary }
+            } else if let named = screens.first(where: { $0.localizedName.lowercased().contains(pref) }) {
+                return named
+            }
+        }
+        return primary ?? NSScreen.main ?? screens.first
+    }
+
     private func createPanel() {
-        guard let screen = NSScreen.main else { NSApp.terminate(nil); return }
+        guard let screen = targetScreen() else { NSApp.terminate(nil); return }
         compactLayout = NotchWingLayout.compactFromEnvironment(screen: screen)
         if compactLayout.usesHardwareNotchCutout {
             lastKnownNotchLayout = compactLayout
@@ -991,7 +1020,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func animateIntoExposeCenter() {
-        guard let panel, let islandView, let screen = panel.screen ?? NSScreen.main else { return }
+        guard let panel, let islandView, let screen = panel.screen ?? targetScreen() else { return }
         exposeRestoreTimer?.invalidate()
         if !isExposeCentering {
             preExposeFrame = panel.frame
@@ -1018,7 +1047,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func restoreFromExposeCenter(reason: String) {
-        guard let panel, let islandView, let screen = panel.screen ?? NSScreen.main else { return }
+        guard let panel, let islandView, let screen = panel.screen ?? targetScreen() else { return }
         exposeRestoreTimer?.invalidate()
         let size = expanded ? NSSize(width: 520, height: 210) : compactLayout.totalSize
         let targetFrame = reason == "active-space" ? topCenteredRect(screen: screen, size: size) : (preExposeFrame ?? topCenteredRect(screen: screen, size: size))
@@ -1049,7 +1078,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func refreshLayoutAndFrame(reason: String, applyFrame: Bool = true) {
-        guard let panel, let islandView, let screen = NSScreen.main else { return }
+        guard let panel, let islandView, let screen = targetScreen() else { return }
         let measured = NotchWingLayout.compactFromEnvironment(screen: screen)
         let resolved = resolvedLayoutForCurrentScreen(measured: measured, screen: screen)
         compactLayout = resolved
@@ -1082,7 +1111,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 
     private func toggleExpanded() {
-        guard let panel, let islandView, let screen = panel.screen ?? NSScreen.main else { return }
+        guard let panel, let islandView, let screen = panel.screen ?? targetScreen() else { return }
         contentFadeTimer?.invalidate()
         autoCollapseTimer?.invalidate()
         let willExpand = !expanded
@@ -1402,6 +1431,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             self?.loadStatus()
         }
+    }
+
+    // The status timer alone reloads on a fixed cadence, so a snapshot written just
+    // after a poll waits nearly a full interval before the play time advances —
+    // visible lag versus the macOS Now Playing widget. Watch the status file and
+    // reload the instant the writer replaces it, collapsing that gap to a few ms.
+    // The writer publishes atomically (temp file + rename), which swaps the inode,
+    // so the vnode source must re-arm on the new file after a rename/delete event.
+    private func startStatusFileWatch() {
+        let statusPath = ProcessInfo.processInfo.environment["DYNAMAC_STATUS_FILE"] ?? "status/status.json"
+        watchStatusFile(at: statusPath)
+    }
+
+    private func watchStatusFile(at path: String) {
+        let fileDescriptor = open(path, O_EVTONLY)
+        guard fileDescriptor >= 0 else {
+            // File may not exist yet (writer still starting); retry shortly.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in self?.watchStatusFile(at: path) }
+            return
+        }
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: fileDescriptor,
+            eventMask: [.write, .extend, .delete, .rename],
+            queue: .main
+        )
+        source.setEventHandler { [weak self, weak source] in
+            guard let self, let source else { return }
+            let flags = source.data
+            self.loadStatus()
+            if flags.contains(.delete) || flags.contains(.rename) {
+                // The watched inode is gone (atomic replace); re-arm on the new file.
+                self.watchStatusFile(at: path)
+            }
+        }
+        source.setCancelHandler { close(fileDescriptor) }
+        // Replace any previous watch before swapping in the new source.
+        statusFileSource?.cancel()
+        statusFileSource = source
+        source.resume()
+        loadStatus()
     }
 
     private func startDisplayRefresh() {

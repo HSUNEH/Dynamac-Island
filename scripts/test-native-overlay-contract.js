@@ -174,6 +174,16 @@ assert.match(source, /localLead > 0 && localLead <= 12/, "native overlay should 
 assert.match(source, /1:08→1:05/, "native overlay should document and guard against visible backward playback-time jumps");
 assert.match(macActivitySource, /renameSync\(tempPath, outputPath\)/, "Mac activity writer should atomically rename status snapshots to avoid partial JSON reads");
 assert.match(source, /DYNAMAC_STATUS_RELOAD_MS\"\] \?\? \"250\"/, "native status reload should default to a low-latency 250ms cadence");
+assert.match(source, /makeFileSystemObjectSource/, "native overlay should watch the status file so play time advances the instant the writer publishes, not a poll later");
+assert.match(source, /\.delete\) \|\| flags\.contains\(\.rename\)/, "the status file watch should re-arm after the atomic temp+rename swaps the watched inode");
+assert.match(source, /watchStatusFile\(at: path\)/, "the status file watch should re-establish itself on the replacement inode after a rename");
+
+assert.match(source, /drawArtwork\(media: media, in: art, cornerRadius: 7, fallbackFontSize: 17, aspectFit: true\)/, "compact/notch artwork should preserve aspect ratio (letterbox 16:9 YouTube thumbnails) like the expanded cover instead of stretching to a square");
+
+assert.match(source, /private func targetScreen\(\) -> NSScreen\?/, "the overlay should resolve a stable target screen instead of following keyboard focus");
+assert.match(source, /screens\.first \{ \$0\.frame\.origin == \.zero \}/, "the default target screen should be the primary (menu-bar) display, not NSScreen.main which follows keyboard focus");
+assert.match(source, /DYNAMAC_DISPLAY/, "the target display should be overridable via DYNAMAC_DISPLAY (primary/builtin/name)");
+assert.doesNotMatch(source, /screen = NSScreen\.main else \{ return \}/, "layout re-anchoring must not jump to the focus-following NSScreen.main on screen-parameter/wake events");
 
 assert.match(source, /scheduleAutoCollapse/, "expanded mode should auto-collapse back to compact mode after an idle timeout");
 assert.match(source, /DYNAMAC_EXPANDED_AUTO_COLLAPSE_SECONDS\"\] \?\? \"5\"/, "expanded auto-collapse should default to 5 seconds and be tunable");
