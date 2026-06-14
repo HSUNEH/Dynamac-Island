@@ -1,0 +1,22 @@
+{
+  "statuses": [
+    {
+      "agent": "Timer",
+      "state": "success",
+      "task": "Timer done",
+      "updatedAt": "2026-06-14T00:05:00.000Z",
+      "detail": "5m timer elapsed.",
+      "timer": {
+        "id": "timer-native-done-contract-test",
+        "durationSeconds": 300,
+        "remainingSeconds": 0,
+        "state": "done",
+        "startedAt": "2026-06-14T00:00:00.000Z",
+        "updatedAt": "2026-06-14T00:05:00.000Z",
+        "displayText": "Done",
+        "error": "",
+        "replacedPrevious": false
+      }
+    }
+  ]
+}

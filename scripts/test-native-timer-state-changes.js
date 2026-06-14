@@ -61,7 +61,7 @@ assert.match(tickOutput, /compactLifecycleState=running/, "compact native overla
 assert.match(tickOutput, /compactIsRunning=true/, "compact native overlay should mark the ticking timer as running");
 
 const doneOutput = runNativeDump("2026-06-14T00:05:01.000Z");
-assert.match(doneOutput, /compactRemainingText=0:00/, "compact native overlay should clamp elapsed timers to zero");
+assert.match(doneOutput, /compactRemainingText=Done/, "compact native overlay should expose stable done text for elapsed timers");
 assert.match(doneOutput, /compactLifecycleState=done/, "compact native overlay should expose done lifecycle once elapsed");
 assert.match(doneOutput, /compactIsRunning=false/, "elapsed compact native timer should no longer be marked running");
 assert.match(doneOutput, /compactIsPaused=false/, "elapsed compact native timer should not be reported as paused");

@@ -459,7 +459,7 @@ final class IslandView: NSView {
         let lifecycleState = timerLifecycleState(status: status, timer: timer, remainingSeconds: remainingSeconds)
         return TimerCompactOverlayViewModel(
             id: timer.id,
-            remainingText: formatSeconds(remainingSeconds),
+            remainingText: lifecycleState == "done" ? "Done" : formatSeconds(remainingSeconds),
             lifecycleState: lifecycleState,
             isRunning: status.state == "running" && timer.state == "running" && remainingSeconds > 0,
             isPaused: timer.state == "paused" || timer.state == "stopped" || timer.state == "reset"

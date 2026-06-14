@@ -86,7 +86,7 @@ assert.match(source, /var remainingText: String/, "compact Timer view model shou
 assert.match(source, /var isRunning: Bool/, "compact Timer view model should expose a running state field");
 assert.match(source, /var isPaused: Bool/, "compact Timer view model should expose a paused state field");
 assert.match(source, /activeTimerCompactViewModel/, "native overlay should build the compact Timer view model from the selected active Timer status");
-assert.match(source, /remainingText: formatSeconds\(remainingSeconds\)/, "compact Timer view model should derive remaining text from the local display countdown");
+assert.match(source, /remainingText: lifecycleState == "done" \? "Done" : formatSeconds\(remainingSeconds\)/, "compact Timer view model should derive remaining text from the local display countdown and expose stable done text");
 assert.match(source, /displayRemainingSeconds\(timer: timer\)/, "native Timer overlay should locally derive start\/tick\/complete countdown state from the status model");
 assert.match(source, /DYNAMAC_NATIVE_NOW/, "native Timer overlay should expose deterministic clock injection for state-change smoke tests");
 assert.match(source, /lifecycleState = timerLifecycleState/, "compact Timer view model should expose done lifecycle once the countdown elapses");

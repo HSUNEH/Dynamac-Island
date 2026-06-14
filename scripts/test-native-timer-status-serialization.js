@@ -11,6 +11,7 @@ const nativePath = path.join(repoRoot, ".build", "dynamac-native");
 const runningStatusPath = path.join(repoRoot, "fixtures", "timer-running-status.json");
 const stoppedStatusPath = path.join(repoRoot, "fixtures", "timer-stopped-status.json");
 const resetStatusPath = path.join(repoRoot, "fixtures", "timer-reset-status.json");
+const doneStatusPath = path.join(repoRoot, "fixtures", "timer-done-status.json");
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "dynamac-native-timer-presentation-"));
 const stoppedWithMediaStatusPath = path.join(tempDir, "timer-stopped-with-media-status.json");
 const resetWithMediaStatusPath = path.join(tempDir, "timer-reset-with-media-status.json");
@@ -138,6 +139,25 @@ assert.match(resetWithMediaOutput, /DYNAMAC_STATUS_DUMP active=timer/, "native s
 assert.match(resetWithMediaOutput, /presentation=media/, "reset timer should release the native overlay presentation to the next active model");
 assert.match(resetWithMediaOutput, /statusState=idle/, "reset timer should remain inactive when the presentation falls through to media");
 assert.match(resetWithMediaOutput, /compactIsActive=false/, "reset timer with media should not expose an active compact timer view model");
+
+const doneOutput = runNativeStatusDump(doneStatusPath);
+assert.match(doneOutput, /DYNAMAC_STATUS_DUMP active=timer/, "native smoke should decode a done Timer status payload");
+assert.match(doneOutput, /presentation=timer/, "done timer should remain observable in the native overlay presentation");
+assert.match(doneOutput, /statusState=success/, "done timer status should serialize as success");
+assert.match(doneOutput, /id=timer-native-done-contract-test/, "native dump should decode the done timer identifier");
+assert.match(doneOutput, /durationSeconds=300/, "native dump should decode done timer duration");
+assert.match(doneOutput, /remainingSeconds=0/, "native dump should preserve the completed remaining duration");
+assert.match(doneOutput, /state=done/, "native dump should decode done timer lifecycle state");
+assert.match(doneOutput, /startedAt=2026-06-14T00:00:00.000Z/, "native dump should preserve done timer start timestamp");
+assert.match(doneOutput, /updatedAt=2026-06-14T00:05:00.000Z/, "native dump should preserve done timer update timestamp");
+assert.match(doneOutput, /displayText=Done/, "native dump should preserve stable user-visible done text");
+assert.match(doneOutput, /error=\s/, "native dump should preserve empty done timer error text");
+assert.match(doneOutput, /replacedPrevious=false/, "native dump should preserve done timer replacement metadata");
+assert.match(doneOutput, /compactIsActive=true/, "done timer domain state should map to an active compact native timer model");
+assert.match(doneOutput, /compactRemainingText=Done/, "done timer should expose stable observable done text in compact serialization");
+assert.match(doneOutput, /compactLifecycleState=done/, "done timer should expose a done compact lifecycle state");
+assert.match(doneOutput, /compactIsRunning=false/, "done timer compact model must not mark the timer as running");
+assert.match(doneOutput, /compactIsPaused=false/, "done timer compact model should not mark the completed timer as paused");
 
 fs.rmSync(tempDir, { recursive: true, force: true });
 
