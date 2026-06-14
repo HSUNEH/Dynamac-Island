@@ -124,6 +124,7 @@ assert.equal(typeof appEvents.get("before-quit"), "function");
 readyCallback();
 
 assert.equal(ipcHandlers.has("status:read"), true, "startup should register status IPC");
+assert.equal(ipcHandlers.has("timer:reset"), true, "startup should register Timer reset IPC");
 assert.equal(typeof appEvents.get("activate"), "function", "startup should register macOS activate handler");
 
 const launchCall = calls.find((call) => call[0] === "createDynamacIslandWindow");

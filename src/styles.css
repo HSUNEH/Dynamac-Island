@@ -244,6 +244,21 @@ h1 {
   white-space: nowrap;
 }
 
+.timer-reset-button {
+  margin-left: auto;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  padding: 4px 10px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+  font: inherit;
+  cursor: pointer;
+}
+
+.timer-reset-button:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
 .state-dot {
   width: 10px;
   height: 10px;
@@ -306,4 +321,59 @@ h1 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.timer-compact-primary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  min-width: 0;
+  gap: 8px;
+}
+
+.timer-compact-label,
+.timer-compact-time {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timer-compact-time {
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+}
+
+.timer-compact-progress-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  min-width: 0;
+  gap: 6px;
+}
+
+.timer-compact-progress {
+  display: block;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.timer-compact-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #54c6ff;
+  box-shadow: 0 0 10px rgba(84, 198, 255, 0.6);
+}
+
+.timer-compact-progress-text {
+  color: #aeb4be;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.status-card.timer .timer-compact-progress-row {
+  margin-top: 10px;
 }

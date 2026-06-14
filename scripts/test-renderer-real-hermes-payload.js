@@ -4,6 +4,7 @@ const assert = require("node:assert");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
+const timerUi = require("../src/timer-ui");
 
 function makeElement() {
   return {
@@ -93,6 +94,7 @@ const context = {
         return `<article data-agent="Ouroboros"><h2>${viewModel.task}</h2></article>`;
       }
     },
+    DynamacTimerUi: timerUi,
     dynamacStatus: {
       async read() {
         return payload;

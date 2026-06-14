@@ -12,3 +12,8 @@ contextBridge.exposeInMainWorld("dynamacStatus", {
 contextBridge.exposeInMainWorld("dynamacWindow", {
   setMode: (mode) => ipcRenderer.invoke("window:set-mode", mode)
 });
+
+contextBridge.exposeInMainWorld("dynamacTimer", {
+  reset: (options = {}) => ipcRenderer.invoke("timer:reset", options),
+  stop: (options = {}) => ipcRenderer.invoke("timer:stop", options)
+});

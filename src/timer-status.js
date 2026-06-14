@@ -15,12 +15,18 @@ function remainingSecondsForTimer(timer, now) {
     throw new Error("timer.durationSeconds must be a positive integer");
   }
 
-  const startedAt = toDate(timer.startedAt, "timer.startedAt");
-  const nowDate = toDate(now, "now");
-  const elapsedSeconds = Math.max(0, Math.floor((nowDate.getTime() - startedAt.getTime()) / 1000));
   const reportedRemaining = Number.isSafeInteger(Number(timer.remainingSeconds))
     ? Number(timer.remainingSeconds)
     : durationSeconds;
+
+  if (timer.state === TIMER_STATES.DONE) return 0;
+  if (timer.state !== TIMER_STATES.RUNNING) {
+    return Math.max(0, Math.min(reportedRemaining, durationSeconds));
+  }
+
+  const startedAt = toDate(timer.startedAt, "timer.startedAt");
+  const nowDate = toDate(now, "now");
+  const elapsedSeconds = Math.max(0, Math.floor((nowDate.getTime() - startedAt.getTime()) / 1000));
   return Math.max(0, Math.min(reportedRemaining, durationSeconds - elapsedSeconds));
 }
 

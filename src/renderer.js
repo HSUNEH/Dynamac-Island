@@ -14,6 +14,7 @@ const modeController =
 const snufflesUi = window.DynamacSnufflesUi;
 const codexUi = window.DynamacCodexUi;
 const ouroborosUi = window.DynamacOuroborosUi;
+const timerUi = window.DynamacTimerUi;
 
 function renderError(payload) {
   summary.textContent = "Status input error";
@@ -34,15 +35,25 @@ function renderStatuses(payload) {
   const runningCount = payload.statuses.filter((status) => status.state === "running").length;
   const warningCount = payload.statuses.filter((status) => status.state === "warning").length;
   const compactStatus = selectCompactStatus(payload.statuses);
+  const timerCompactViewModel = timerUi && timerUi.isTimerStatus(compactStatus)
+    ? timerUi.createTimerViewModel(compactStatus)
+    : null;
+
   summary.textContent =
     runningCount > 0
       ? `${runningCount} active job${runningCount === 1 ? "" : "s"}`
       : "All systems settled";
-  setText(
-    compactPrimary,
-    compactStatus ? `${compactStatus.agent} · ${titleCase(compactStatus.state)}` : "No local status"
-  );
-  setText(compactMeta, compactMetaText({ runningCount, warningCount, total: payload.statuses.length }));
+
+  if (timerCompactViewModel) {
+    timerUi.applyCompactTimerView({ compactPrimary, compactMeta }, timerCompactViewModel);
+  } else {
+    setText(
+      compactPrimary,
+      compactStatus ? `${compactStatus.agent} · ${titleCase(compactStatus.state)}` : "No local status"
+    );
+    setText(compactMeta, compactMetaText({ runningCount, warningCount, total: payload.statuses.length }));
+  }
+
   content.className = "status-grid";
   content.innerHTML = createStatusViews(payload.statuses).join("");
   source.textContent = payload.source || "status/status.json";
@@ -90,6 +101,10 @@ function setText(element, value) {
 
 function createStatusViews(statuses) {
   return createStatusViewModels(statuses).map((viewModel) => {
+    if (timerUi && viewModel.agent === timerUi.TIMER_AGENT) {
+      return timerUi.renderTimerStateView(viewModel);
+    }
+
     if (viewModel.agent === codexUi.CODEX_AGENT) {
       return codexUi.renderCodexStateView(viewModel);
     }
@@ -104,6 +119,10 @@ function createStatusViews(statuses) {
 
 function createStatusViewModels(statuses) {
   return statuses.map((status) => {
+    if (timerUi && timerUi.isTimerStatus(status)) {
+      return timerUi.createTimerViewModel(status);
+    }
+
     if (status.agent.trim().toLowerCase() === codexUi.CODEX_AGENT.toLowerCase()) {
       return codexUi.createCodexViewModel([status]);
     }
@@ -133,6 +152,30 @@ async function refresh() {
     renderError(payload);
   }
 }
+
+async function resetTimerFromUi(timerId) {
+  if (!window.dynamacTimer || typeof window.dynamacTimer.reset !== "function") {
+    return;
+  }
+
+  const result = await window.dynamacTimer.reset({ timerId });
+  if (!result || !result.payload) return;
+
+  if (result.payload.ok) {
+    renderStatuses(result.payload);
+  } else {
+    renderError(result.payload);
+  }
+}
+
+content.addEventListener("click", (event) => {
+  const target = event.target && typeof event.target.closest === "function"
+    ? event.target.closest('[data-action="timer-reset"]')
+    : null;
+
+  if (!target) return;
+  resetTimerFromUi(target.getAttribute("data-timer-id"));
+});
 
 reload.addEventListener("click", refresh);
 if (modeController && typeof modeController.getMode === "function") {

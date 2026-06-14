@@ -4,6 +4,9 @@ const { loadStatusFile } = require("./status-loader");
 const { createDynamacIslandWindow } = require("./app-composition");
 const { createJsonStatusWatcher } = require("./status-watcher");
 const { writeHermesStatusSnapshot } = require("./hermes-status");
+const { createTimerState, TIMER_STATES } = require("./timer-state");
+const { createTimerController } = require("./timer-controller");
+const { resetTimerStatusSnapshot } = require("./timer-status-store");
 const { setWindowMode } = require("./window-config");
 
 function isPackagedAsarPath(appPath) {
@@ -49,9 +52,17 @@ function createDynamacIslandMainProcess(dependencies) {
   const loadStatus = dependencies.loadStatusFile || loadStatusFile;
   const createStatusWatcher = dependencies.createJsonStatusWatcher || createJsonStatusWatcher;
   const refreshStatusFile = dependencies.refreshStatusFile || writeHermesStatusSnapshot;
+  const resetTimerSnapshot = dependencies.resetTimerStatusSnapshot || resetTimerStatusSnapshot;
   const resizeWindowForMode = dependencies.setWindowMode || setWindowMode;
   const createWindowFromComposition =
     dependencies.createDynamacIslandWindow || createDynamacIslandWindow;
+  const timerController = dependencies.timerController || createTimerController({
+    statusFile,
+    fs: fileSystem,
+    loadStatusFile: loadCurrentStatusFile,
+    stopTimerStatusSnapshot: dependencies.stopTimerStatusSnapshot,
+    broadcastStatus
+  });
 
   let mainWindow;
   let statusWatcher;
@@ -139,10 +150,64 @@ function createDynamacIslandMainProcess(dependencies) {
     return { ok: true, mode };
   }
 
+  function findRunningTimerStatus(payload) {
+    if (!payload || !Array.isArray(payload.statuses)) return null;
+
+    return payload.statuses.find((status) => {
+      const isTimer =
+        status &&
+        typeof status.agent === "string" &&
+        status.agent.trim().toLowerCase() === "timer";
+      return isTimer && status.timer && status.timer.state === TIMER_STATES.RUNNING;
+    }) || null;
+  }
+
+  function resetActiveTimer(options = {}) {
+    const payload = currentStatus || loadCurrentStatusFile();
+    const timerStatus = findRunningTimerStatus(payload);
+
+    if (!timerStatus) {
+      return {
+        ok: false,
+        error: "No running timer to reset.",
+        payload
+      };
+    }
+
+    const requestedTimerId = options.timerId ? String(options.timerId) : "";
+    if (requestedTimerId && requestedTimerId !== String(timerStatus.timer.id || "")) {
+      return {
+        ok: false,
+        error: "Requested timer is not the running timer.",
+        payload
+      };
+    }
+
+    resetTimerSnapshot(createTimerState(timerStatus.timer), {
+      outputPath: statusFile,
+      now: options.now,
+      statusNow: options.statusNow,
+      fs: fileSystem
+    });
+    const nextPayload = loadCurrentStatusFile();
+    broadcastStatus(nextPayload);
+
+    return {
+      ok: true,
+      payload: nextPayload
+    };
+  }
+
+  function stopActiveTimer(options = {}) {
+    return timerController.stopActiveTimer(options);
+  }
+
   function start() {
     electronApp.whenReady().then(() => {
       ipcMain.handle("status:read", readStatusFile);
       ipcMain.handle("window:set-mode", (_event, mode) => setIslandMode(mode));
+      ipcMain.handle("timer:reset", (_event, options) => resetActiveTimer(options));
+      ipcMain.handle("timer:stop", (_event, options) => stopActiveTimer(options));
       createWindow();
       watchStatusFile();
 
@@ -172,6 +237,8 @@ function createDynamacIslandMainProcess(dependencies) {
     broadcastStatus,
     reloadChangedStatusFile,
     setIslandMode,
+    resetActiveTimer,
+    stopActiveTimer,
     createWindow,
     watchStatusFile,
     subscribeStatusUpdates
