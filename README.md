@@ -331,6 +331,7 @@ npm run smoke:launch
 npm run test:notch-position
 npm run test:mac-activity-status
 npm run test:timer-status-store
+npm run test:native-timer-status-serialization
 npm run test:hermes-status
 npm run test:status-loader
 npm run check-status
@@ -347,6 +348,7 @@ Expected results:
 - `test:notch-position` passes when the overlay is centered on the physical display bounds and pinned to `y=0`.
 - `test:mac-activity-status` passes when the app can generate default Now Playing, Clipboard, and Battery status entries.
 - `test:timer-status-store` passes when starting/writing a Timer produces a native-loadable active/running Timer status model.
+- `test:native-timer-status-serialization` passes when the native AppKit smoke path decodes `fixtures/timer-running-status.json`, selects the active Timer before background media, and preserves `id`, `durationSeconds`, `remainingSeconds`, lifecycle `state`, `displayText`, and `replacedPrevious` for the overlay.
 - `test:hermes-status` passes when the optional Hermes provider can generate status entries from local Hermes runtime/session inputs.
 - `test:status-loader` passes when the status loader can read, parse, and validate `fixtures/valid-status.json`.
 - `check-status` passes for `status/status.json`.

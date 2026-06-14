@@ -980,6 +980,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         createPanel()
         loadStatus()
+        dumpNativeStatusForSmokeIfRequested()
         startStatusRefresh()
         startStatusFileWatch()
         startDisplayRefresh()
@@ -1562,6 +1563,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         islandView?.replaceStatuses(payload.statuses)
+    }
+
+    private func dumpNativeStatusForSmokeIfRequested() {
+        guard ProcessInfo.processInfo.environment["DYNAMAC_NATIVE_STATUS_DUMP"] == "1" else { return }
+        guard let statuses = islandView?.statuses else {
+            print("DYNAMAC_STATUS_DUMP active=none")
+            return
+        }
+
+        if let status = statuses.first(where: { $0.agent == "Timer" && $0.timer != nil && ($0.state == "running" || $0.state == "success") }),
+           let timer = status.timer {
+            print([
+                "DYNAMAC_STATUS_DUMP active=timer",
+                "agent=\(status.agent)",
+                "id=\(timer.id)",
+                "durationSeconds=\(Int(timer.durationSeconds))",
+                "remainingSeconds=\(Int(timer.remainingSeconds))",
+                "state=\(timer.state)",
+                "displayText=\(timer.displayText)",
+                "replacedPrevious=\(timer.replacedPrevious ? "true" : "false")"
+            ].joined(separator: " "))
+            return
+        }
+
+        if let mediaStatus = statuses.first(where: { $0.agent == "Now Playing" && $0.media != nil }) {
+            print("DYNAMAC_STATUS_DUMP active=media agent=\(mediaStatus.agent)")
+            return
+        }
+
+        print("DYNAMAC_STATUS_DUMP active=fallback")
     }
 }
 

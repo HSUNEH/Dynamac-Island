@@ -1,0 +1,37 @@
+{
+  "statuses": [
+    {
+      "agent": "Timer",
+      "state": "running",
+      "task": "Timer · 4m 30s remaining",
+      "updatedAt": "2026-06-14T00:00:00.000Z",
+      "detail": "4m 30s remaining of 5m.",
+      "timer": {
+        "id": "timer-native-contract-test",
+        "durationSeconds": 300,
+        "remainingSeconds": 270,
+        "state": "running",
+        "startedAt": "2026-06-14T00:00:00.000Z",
+        "updatedAt": "2026-06-14T00:00:00.000Z",
+        "displayText": "4m 30s",
+        "error": "",
+        "replacedPrevious": true
+      }
+    },
+    {
+      "agent": "Now Playing",
+      "state": "running",
+      "task": "Background track",
+      "updatedAt": "2026-06-14T00:00:00.000Z",
+      "detail": "Timer must take overlay priority while active.",
+      "media": {
+        "source": "spotify",
+        "title": "Background",
+        "artist": "Dynamac",
+        "durationSeconds": 180,
+        "positionSeconds": 30,
+        "playbackState": "playing"
+      }
+    }
+  ]
+}
