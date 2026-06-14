@@ -8,6 +8,7 @@ const { validateStatusPayload } = require("../src/status-schema");
 const {
   addDroppedFileToShelf,
   addDroppedFilesToShelf,
+  applyDroppedFileToShelf,
   buildShelfStatusPayload,
   clearShelf,
   createShelfState
@@ -27,6 +28,7 @@ try {
     updatedAt: 1718323200000,
     items: [],
     active: null,
+    lastError: null,
     persisted: false
   }, "shelf state should start empty and non-persistent by default");
 
@@ -86,6 +88,7 @@ try {
     updatedAt: 1718323200300,
     items: [],
     active: null,
+    lastError: null,
     persisted: false
   }, "clearing shelf should remove file metadata and active shelf activity");
   const clearedPayload = buildShelfStatusPayload(cleared);
@@ -131,6 +134,49 @@ try {
   assert.equal(afterClear.items.length, 1, "explicit disallow should leave the shelf item count unchanged");
   assert.equal(afterClear.items[0].itemId, "shelf-1718323200500-000", "explicit disallow should not consume a shelf item sequence");
   assert.equal(afterClear.active.status.fileCount, 1, "explicit disallow should not change active shelf activity metadata");
+
+  const blankRecovery = applyDroppedFileToShelf(afterClear, {
+    filePath: " ",
+    source: "fixture-drop",
+    observedAt: 1718323200820
+  }, { now: 1718323200830 });
+  const expectedBlankError = {
+    code: "dropped-file-path-required",
+    message: "dropped file path is required",
+    inputKind: "filePath",
+    observedAt: 1718323200820,
+    updatedAt: 1718323200830,
+    recoverable: true,
+    persisted: false
+  };
+  assert.equal(blankRecovery.ok, false, "invalid dropped inputs should be represented as a recoverable shelf result");
+  assert.deepEqual(blankRecovery.error, expectedBlankError, "invalid dropped inputs should expose a stable error value");
+  assert.deepEqual(blankRecovery.state.lastError, expectedBlankError, "invalid dropped inputs should preserve the same stable error on shelf state");
+  assert.equal(blankRecovery.state.items.length, 1, "invalid dropped inputs should not add shelf items while preserving error state");
+  assert.deepEqual(blankRecovery.state.items, afterClear.items, "invalid dropped inputs should preserve previous shelf items exactly");
+  assert.deepEqual(blankRecovery.state.active, afterClear.active, "invalid dropped inputs should preserve previous active shelf activity exactly");
+
+  const repeatedBlankRecovery = applyDroppedFileToShelf(afterClear, {
+    filePath: "",
+    observedAt: 1718323200820
+  }, { now: 1718323200830 });
+  assert.deepEqual(
+    repeatedBlankRecovery.state.lastError,
+    expectedBlankError,
+    "semantically identical invalid inputs should produce consistent shelf error values"
+  );
+
+  const recovered = applyDroppedFileToShelf(blankRecovery.state, {
+    filePath,
+    type: "text/plain",
+    source: "recovery-drop",
+    observedAt: 1718323200840
+  }, { now: 1718323200850 });
+  assert.equal(recovered.ok, true, "a valid drop after an invalid one should recover through the same model API");
+  assert.equal(recovered.error, null, "successful recovery should not carry the previous error value");
+  assert.equal(recovered.state.lastError, null, "successful recovery should clear the stable shelf error state");
+  assert.equal(recovered.state.items.length, 2, "successful recovery should append the valid dropped file");
+  assert.equal(recovered.state.items[1].itemId, "shelf-1718323200840-001", "successful recovery should use the next shelf sequence after preserved items");
 
   const beforeEmptyList = createShelfState(afterClear);
   assert.throws(

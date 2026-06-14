@@ -22,6 +22,7 @@ function createShelfState(seed = {}) {
     updatedAt: now,
     items,
     active: seed.active && typeof seed.active === "object" ? { ...seed.active } : null,
+    lastError: seed.lastError && typeof seed.lastError === "object" ? { ...seed.lastError } : null,
     persisted: seed.persisted === true
   };
 }
@@ -120,6 +121,53 @@ function normalizeDropInput(drop) {
   return { filePath: drop };
 }
 
+function shelfErrorCodeForMessage(message) {
+  if (message === "dropped file path is required") return "dropped-file-path-required";
+  if (message === "dropped file path is malformed") return "dropped-file-path-malformed";
+  if (message === "dropped file path must exist") return "dropped-file-path-must-exist";
+  if (message === "dropped file path must be a file") return "dropped-file-path-must-be-file";
+  if (message.startsWith("dropped input is explicitly disallowed:")) return "dropped-input-disallowed";
+  if (message === "dropped input list must include at least one file path") return "dropped-input-list-empty";
+  return "dropped-input-invalid";
+}
+
+function buildShelfError(error, drop = {}, options = {}) {
+  const message = error instanceof Error ? error.message : String(error || "dropped input is invalid");
+  const updatedAt = finiteTimestamp(options.now ?? drop.observedAt, Date.now());
+  const observedAt = finiteTimestamp(drop.observedAt ?? updatedAt, updatedAt);
+  return {
+    code: shelfErrorCodeForMessage(message),
+    message,
+    inputKind: "filePath",
+    observedAt,
+    updatedAt,
+    recoverable: true,
+    persisted: false
+  };
+}
+
+function applyDroppedFileToShelf(state = createShelfState(), drop = {}, options = {}) {
+  const normalizedDrop = normalizeDropInput(drop);
+  try {
+    const nextState = addDroppedFileToShelf(state, normalizedDrop, options);
+    nextState.lastError = null;
+    return { ok: true, state: nextState, error: null };
+  } catch (error) {
+    const previous = createShelfState(state);
+    const lastError = buildShelfError(error, normalizedDrop, options);
+    return {
+      ok: false,
+      state: createShelfState({
+        ...previous,
+        updatedAt: lastError.updatedAt,
+        lastError,
+        persisted: false
+      }),
+      error: lastError
+    };
+  }
+}
+
 function addDroppedFileToShelf(state = createShelfState(), drop = {}, options = {}) {
   const previous = createShelfState(state);
   const observedAt = finiteTimestamp(drop.observedAt ?? options.now ?? Date.now(), undefined, "observedAt");
@@ -143,6 +191,7 @@ function addDroppedFileToShelf(state = createShelfState(), drop = {}, options = 
   const next = createShelfState({
     updatedAt: recordedAt,
     items: [...previous.items, item],
+    lastError: null,
     persisted: false
   });
   next.active = buildShelfActivity(next, { now: recordedAt });
@@ -171,6 +220,7 @@ function clearShelf(_state = createShelfState(), options = {}) {
     now: finiteTimestamp(options.now, Date.now()),
     items: [],
     active: null,
+    lastError: null,
     persisted: false
   });
 }
@@ -202,6 +252,7 @@ function buildShelfStatusPayload(state = createShelfState()) {
 module.exports = {
   addDroppedFileToShelf,
   addDroppedFilesToShelf,
+  applyDroppedFileToShelf,
   buildShelfActivity,
   buildShelfStatusPayload,
   clearShelf,
