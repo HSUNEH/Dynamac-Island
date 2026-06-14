@@ -272,6 +272,19 @@ When the countdown reaches zero, the Timer remains visible and serializable as c
 
 Persistence and status expectations are intentionally local-first: Timer state is represented only by local files/status payloads and testable pure timer logic. There is no cloud sync, no account state, no paid service, no invasive macOS permission, and no notification/sound requirement for this MVP.
 
+### Deferred DynamicLake-Inspired Features
+
+The Timer MVP deliberately does not import the broader DynamicLake-inspired feature set. The following items are out of scope for the Timer MVP and should remain deferred to later slices:
+
+- DynaDrop-style file drop, conversion, AirDrop/share-link, transcript, upload, and right-click actions are out of scope.
+- DynaClip-style Finder companion, file shelf, clipboard history, and quick handoff workflows are out of scope.
+- DynaKeys-style keyboard shortcuts, global command palettes, hotkey automation, and action launchers are out of scope.
+- DynaGlance-style calendar, weather, reminder, message, and multi-widget glance cards are out of scope.
+- Call/meeting modules, notification mirroring, system notification delivery, and sound alerts are out of scope.
+- Liquid Glass visual themes, external-display theme packs, timer history, multi-timer queues, expanded action controls, and third-party integrations are out of scope.
+
+Those deferred modules can use the Timer's local status contract as a future pattern, but they must not be required for starting, stopping, resetting, completing, or verifying one local Timer status item.
+
 ## Status File
 
 The renderer still consumes a local JSON file because it gives the UI a simple, testable boundary. The important change is what writes that file:

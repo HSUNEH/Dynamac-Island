@@ -47,4 +47,28 @@ assertIncludes(replacementSection, "active replacement metadata", "replacedPrevi
 assertIncludes(replacementSection, "completed timer replacement", "Starting a new timer after a completed `done` timer also replaces that completed status");
 assertIncludes(replacementSection, "completed timer no duplicate", "the completed timer is no longer shown as a second timer");
 
+const deferredSection = getSection("### Deferred DynamicLake-Inspired Features");
+
+assert.notEqual(
+  deferredSection,
+  "",
+  "README must include a Deferred DynamicLake-Inspired Features section"
+);
+assertIncludes(deferredSection, "deferred feature set", "out of scope for the Timer MVP");
+assertIncludes(deferredSection, "DynaDrop deferred", "DynaDrop-style file drop");
+assertIncludes(deferredSection, "DynaDrop out of scope", "right-click actions are out of scope");
+assertIncludes(deferredSection, "DynaClip deferred", "DynaClip-style Finder companion");
+assertIncludes(deferredSection, "DynaClip out of scope", "clipboard history");
+assertIncludes(deferredSection, "DynaKeys deferred", "DynaKeys-style keyboard shortcuts");
+assertIncludes(deferredSection, "DynaKeys out of scope", "action launchers are out of scope");
+assertIncludes(deferredSection, "DynaGlance deferred", "DynaGlance-style calendar");
+assertIncludes(deferredSection, "DynaGlance out of scope", "multi-widget glance cards are out of scope");
+assertIncludes(deferredSection, "calls deferred", "Call/meeting modules");
+assertIncludes(deferredSection, "notifications deferred", "system notification delivery");
+assertIncludes(deferredSection, "sound deferred", "sound alerts are out of scope");
+assertIncludes(deferredSection, "Liquid Glass deferred", "Liquid Glass visual themes");
+assertIncludes(deferredSection, "timer history deferred", "timer history");
+assertIncludes(deferredSection, "expanded actions deferred", "expanded action controls");
+assertIncludes(deferredSection, "future pattern boundary", "must not be required for starting, stopping, resetting, completing, or verifying one local Timer status item");
+
 console.log("Timer MVP documentation assertion passed.");
