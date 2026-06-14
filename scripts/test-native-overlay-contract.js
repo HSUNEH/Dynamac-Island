@@ -72,6 +72,12 @@ assert.match(source, /drawMediaControls/, "expanded Now Playing mode should draw
 assert.match(source, /performMediaControl/, "native overlay should wire media control buttons to playback actions");
 assert.match(source, /artworkImage/, "native overlay should render album art or fall back to a music note");
 
+assert.match(source, /struct TimerInfo: Decodable/, "native overlay should decode local Timer MVP status payloads");
+assert.match(source, /var timer: TimerInfo\?/, "native status items should carry optional timer details beside media details");
+assert.match(source, /var remainingSeconds: Double/, "native TimerInfo should expose remaining timer duration for compact and expanded timer surfaces");
+assert.match(source, /var durationSeconds: Double/, "native TimerInfo should expose original timer duration for status contracts");
+assert.match(source, /var replacedPrevious: Bool/, "native TimerInfo should preserve deterministic replacement metadata");
+
 assert.match(source, /drawUprightImage/, "album artwork should be drawn through an upright image path so flipped NSView coordinates do not invert covers");
 assert.match(source, /respectFlipped: false/, "album artwork drawing should explicitly avoid AppKit flipped-coordinate inversion");
 assert.match(source, /drawTransportIcon/, "transport buttons should use drawn vector icons instead of SF glyphs that can render as question marks");

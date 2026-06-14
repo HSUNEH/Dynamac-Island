@@ -12,6 +12,19 @@ struct StatusItem: Decodable {
     var detail: String?
     var updatedAt: String?
     var media: MediaInfo?
+    var timer: TimerInfo?
+}
+
+struct TimerInfo: Decodable {
+    var id: String
+    var durationSeconds: Double
+    var remainingSeconds: Double
+    var state: String
+    var startedAt: String
+    var updatedAt: String
+    var displayText: String
+    var error: String
+    var replacedPrevious: Bool
 }
 
 struct MediaInfo: Decodable {
