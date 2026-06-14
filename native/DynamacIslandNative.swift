@@ -1065,6 +1065,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var preExposeFrame: NSRect?
     private var isExposeCentering = false
     private var expanded = false
+    private var expansionGeneration = 0
     private var compactLayout = NotchWingLayout.compactFromEnvironment()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -1287,14 +1288,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 
     private func toggleExpanded() {
+        setExpanded(!expanded)
+    }
+
+    private func setExpanded(_ shouldExpand: Bool) {
         guard let panel, let islandView, let screen = panel.screen ?? targetScreen() else { return }
         contentFadeTimer?.invalidate()
         autoCollapseTimer?.invalidate()
-        let willExpand = !expanded
-        expanded = willExpand
-        let size = willExpand ? NSSize(width: 520, height: 210) : compactLayout.totalSize
+
+        // Switch the controller AND the view layout state synchronously in BOTH directions.
+        // Previously the view only flipped to compact in the collapse animation's completion
+        // handler, so mashing the toggle let overlapping animations fire their handlers out of
+        // order and strand the panel at an expanded frame while drawing the compact layout (or
+        // vice versa) — the broken half-drawn overlay. Flipping layout up front keeps frame and
+        // content in lockstep no matter how fast toggles arrive.
+        expanded = shouldExpand
+        islandView.expanded = shouldExpand
+        // Tag this transition so a stale completion handler from a superseded animation cannot
+        // fade content in (or schedule auto-collapse) for a state the user has already toggled away from.
+        expansionGeneration &+= 1
+        let generation = expansionGeneration
+
+        let size = shouldExpand ? NSSize(width: 520, height: 210) : compactLayout.totalSize
         let targetFrame = topCenteredRect(screen: screen, size: size)
-        let duration = 0.24
 
         // Media surfaces can be expensive to draw because album artwork, text, progress,
         // and transport controls are composited every frame. During resize we draw only
@@ -1302,29 +1318,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // reaches its final frame. This keeps notch <-> expanded motion smooth even with
         // YouTube thumbnails or local artwork loaded.
         islandView.contentOpacity = 0
+        islandView.needsDisplay = true
 
-        if willExpand {
-            islandView.expanded = true
-            islandView.needsDisplay = true
-            NSAnimationContext.runAnimationGroup({ ctx in
-                ctx.duration = duration
-                ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.2, 0.0, 0.0, 1.0)
-                panel.animator().setFrame(targetFrame, display: true)
-            }, completionHandler: { [weak self, weak islandView] in
-                self?.fadeContent(in: islandView)
-                self?.scheduleAutoCollapse()
-            })
-        } else {
-            NSAnimationContext.runAnimationGroup({ ctx in
-                ctx.duration = duration
-                ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.2, 0.0, 0.0, 1.0)
-                panel.animator().setFrame(targetFrame, display: true)
-            }, completionHandler: { [weak self, weak islandView] in
-                islandView?.expanded = false
-                islandView?.needsDisplay = true
-                self?.fadeContent(in: islandView)
-            })
-        }
+        // Re-targeting the frame via the animator coalesces a mid-flight animation onto the new
+        // destination, so an interrupted expand/collapse never leaves the panel stuck at an
+        // intermediate size.
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = 0.24
+            ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.2, 0.0, 0.0, 1.0)
+            panel.animator().setFrame(targetFrame, display: true)
+        }, completionHandler: { [weak self, weak islandView] in
+            guard let self, let islandView, self.expansionGeneration == generation else { return }
+            // Snap to the exact target in case the coalesced animation landed slightly off.
+            panel.setFrame(targetFrame, display: true)
+            self.fadeContent(in: islandView)
+            if shouldExpand { self.scheduleAutoCollapse() }
+        })
     }
 
     private func fadeContent(in view: IslandView?) {

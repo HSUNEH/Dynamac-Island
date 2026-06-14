@@ -205,6 +205,10 @@ assert.match(source, /screens\.first \{ \$0\.frame\.origin == \.zero \}/, "the d
 assert.match(source, /DYNAMAC_DISPLAY/, "the target display should be overridable via DYNAMAC_DISPLAY (primary/builtin/name)");
 assert.doesNotMatch(source, /screen = NSScreen\.main else \{ return \}/, "layout re-anchoring must not jump to the focus-following NSScreen.main on screen-parameter/wake events");
 
+assert.match(source, /private func setExpanded\(_ shouldExpand: Bool\)/, "expand/collapse should route through a single idempotent setExpanded path so rapid toggles cannot desync state");
+assert.match(source, /expansionGeneration/, "rapid toggle animations should be generation-tagged so stale completion handlers cannot finalize a superseded state");
+assert.match(source, /expanded = shouldExpand\n\s*islandView\.expanded = shouldExpand/, "the view layout must flip to match the controller state synchronously in both directions, not only inside a collapse animation completion handler");
+
 assert.match(source, /scheduleAutoCollapse/, "expanded mode should auto-collapse back to compact mode after an idle timeout");
 assert.match(source, /DYNAMAC_EXPANDED_AUTO_COLLAPSE_SECONDS\"\] \?\? \"5\"/, "expanded auto-collapse should default to 5 seconds and be tunable");
 assert.match(source, /onExpandedInteraction/, "expanded media interactions should reset the auto-collapse idle timer");
