@@ -260,6 +260,35 @@ assert.deepEqual(
   ["clipboard", "nowPlaying"]
 );
 
+const clipboardVsBatteryPassiveConflict = [
+  candidateStatus("battery", 1200, {
+    agent: "Battery",
+    task: "Battery 93%",
+    detail: "Newer battery/passive candidate should stay below a fresh clipboard activity."
+  }),
+  candidateStatus("futurePassive", 1300, {
+    agent: "Unknown Future Provider",
+    task: "Passive future utility",
+    detail: "Unknown passive providers remain below DynaClip until modeled."
+  }),
+  buildClipboardStatusFromText("https://example.com/clipboard-vs-battery-passive", {
+    now: now.getTime(),
+    observedAt: now.getTime(),
+    source: "fixture-clipboard"
+  }).status
+];
+const clipboardBatteryPassiveConflictWinner = selectCompactActivity(clipboardVsBatteryPassiveConflict, { now });
+assert.equal(
+  clipboardBatteryPassiveConflictWinner.activityType,
+  "clipboard",
+  "clipboard should win compact routing over newer battery/passive candidates when no volume or brightness HUD is active"
+);
+assert.equal(clipboardBatteryPassiveConflictWinner.compactSurface.activityType, "clipboard");
+assert.deepEqual(
+  rankActivities(clipboardVsBatteryPassiveConflict, { now }).map((activity) => activity.activityType),
+  ["clipboard", "battery", "futurePassive"]
+);
+
 const ranked = rankActivities(statuses, { now });
 assert.deepEqual(ranked.map((activity) => activity.activityType), [
   "volume",
