@@ -18,6 +18,11 @@ const {
   brightnessHudToNativeStatus,
   createBrightnessHudState
 } = require("./brightness-hud-status");
+const {
+  reconstructHudActivityState,
+  recordBrightnessHudEvent,
+  recordVolumeHudEvent
+} = require("./hud-event-store");
 
 let defaultClipboardActivityState = createClipboardActivityState();
 let defaultVolumeHudState = createVolumeHudState();
@@ -121,10 +126,14 @@ function collectClipboardStatus(options = {}) {
 }
 
 function collectVolumeHudStatus(options = {}) {
-  if (!options.volumeInput) return null;
   const now = options.now || new Date();
   const nowMs = now instanceof Date ? now.getTime() : Number(now);
-  const state = options.volumeActivityState || defaultVolumeHudState;
+  const replayedState = options.hudReplayState?.volume || null;
+  if (!options.volumeInput) {
+    const replayedActivity = replayedState?.active || null;
+    return replayedActivity && Number(replayedActivity.expiresAt) >= nowMs ? volumeHudToNativeStatus(replayedActivity) : null;
+  }
+  const state = options.volumeActivityState || replayedState || defaultVolumeHudState;
   const result = applyVolumeHudInputChange(state, {
     ...options.volumeInput,
     observedAt: options.volumeInput.observedAt ?? options.volumeObservedAt ?? options.observedAt ?? nowMs
@@ -132,15 +141,31 @@ function collectVolumeHudStatus(options = {}) {
     now: nowMs,
     transientMs: options.volumeTransientMs
   });
+  if (options.hudEventStorePath) {
+    recordVolumeHudEvent({
+      outputPath: options.hudEventStorePath,
+      input: {
+        ...options.volumeInput,
+        observedAt: result.active.updatedAt
+      },
+      now: nowMs,
+      transientMs: options.volumeTransientMs,
+      maxEvents: options.hudEventStoreMaxEvents
+    });
+  }
   if (!options.volumeActivityState) defaultVolumeHudState = result;
   return volumeHudToNativeStatus(result.active);
 }
 
 function collectBrightnessHudStatus(options = {}) {
-  if (!options.brightnessInput) return null;
   const now = options.now || new Date();
   const nowMs = now instanceof Date ? now.getTime() : Number(now);
-  const state = options.brightnessActivityState || defaultBrightnessHudState;
+  const replayedState = options.hudReplayState?.brightness || null;
+  if (!options.brightnessInput) {
+    const replayedActivity = replayedState?.active || null;
+    return replayedActivity && Number(replayedActivity.expiresAt) >= nowMs ? brightnessHudToNativeStatus(replayedActivity) : null;
+  }
+  const state = options.brightnessActivityState || replayedState || defaultBrightnessHudState;
   const result = applyBrightnessHudInputChange(state, {
     ...options.brightnessInput,
     observedAt: options.brightnessInput.observedAt ?? options.brightnessObservedAt ?? options.observedAt ?? nowMs
@@ -148,6 +173,18 @@ function collectBrightnessHudStatus(options = {}) {
     now: nowMs,
     transientMs: options.brightnessTransientMs
   });
+  if (options.hudEventStorePath) {
+    recordBrightnessHudEvent({
+      outputPath: options.hudEventStorePath,
+      input: {
+        ...options.brightnessInput,
+        observedAt: result.active.updatedAt
+      },
+      now: nowMs,
+      transientMs: options.brightnessTransientMs,
+      maxEvents: options.hudEventStoreMaxEvents
+    });
+  }
   if (!options.brightnessActivityState) defaultBrightnessHudState = result;
   return brightnessHudToNativeStatus(result.active);
 }
@@ -881,9 +918,15 @@ function collectMediaStatus(options = {}) {
 
 function buildMacActivityStatusPayload(options = {}) {
   const now = options.now || new Date();
+  const hudEventStorePath = options.hudEventStorePath || process.env.DYNAMAC_HUD_EVENT_STORE || "";
+  const hudReplayState = options.hudReplayState || (hudEventStorePath ? reconstructHudActivityState({
+    outputPath: hudEventStorePath,
+    now: now instanceof Date ? now.getTime() : Number(now),
+    transientMs: options.volumeTransientMs ?? options.brightnessTransientMs
+  }) : null);
   const statuses = [
-    collectVolumeHudStatus(options),
-    collectBrightnessHudStatus(options),
+    collectVolumeHudStatus({ ...options, hudEventStorePath, hudReplayState }),
+    collectBrightnessHudStatus({ ...options, hudEventStorePath, hudReplayState }),
     collectMediaStatus(options),
     collectClipboardStatus(options),
     collectBatteryStatus(options)

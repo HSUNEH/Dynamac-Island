@@ -596,6 +596,74 @@ assert.equal(
 
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "dynamac-mac-activity-"));
 const outputPath = path.join(tempDir, "status.json");
+const hudEventStorePath = path.join(tempDir, "hud-events.json");
+const firstHudObservedAt = Date.parse("2026-06-11T09:00:01.500Z");
+const secondHudObservedAt = Date.parse("2026-06-11T09:00:02.800Z");
+const capturedHudPayload = buildMacActivityStatusPayload({
+  now: new Date("2026-06-11T09:00:02.000Z"),
+  hudEventStorePath,
+  volumeTransientMs: 10_000,
+  volumeInput: {
+    level: 21,
+    muted: false,
+    deviceName: "MacBook Pro Speakers",
+    source: "fixture-volume-observer",
+    observedAt: firstHudObservedAt
+  },
+  mediaInfo: null,
+  clipboardActivityState: createClipboardActivityState(),
+  clipboardText: "",
+  pmsetOutput: "Now drawing from 'AC Power'\n -InternalBattery-0\t82%; charging; 0:35 remaining present: true"
+});
+assert.equal(capturedHudPayload.statuses[0].agent, "Volume");
+assert.equal(capturedHudPayload.statuses[0].volumeHud.status.level, 21);
+const capturedHudStore = JSON.parse(fs.readFileSync(hudEventStorePath, "utf8"));
+assert.deepEqual(capturedHudStore.events.map((event) => event.eventId), [`hud-volume-${firstHudObservedAt}-000`]);
+assert.deepEqual(capturedHudStore.events[0].input, {
+  level: 21,
+  muted: false,
+  deviceName: "MacBook Pro Speakers"
+});
+
+const replayedAfterRestartPayload = buildMacActivityStatusPayload({
+  now: new Date("2026-06-11T09:00:02.400Z"),
+  hudEventStorePath,
+  volumeTransientMs: 10_000,
+  mediaInfo: null,
+  clipboardActivityState: createClipboardActivityState(),
+  clipboardText: "",
+  pmsetOutput: "Now drawing from 'AC Power'\n -InternalBattery-0\t82%; charging; 0:35 remaining present: true"
+});
+assert.equal(replayedAfterRestartPayload.statuses[0].agent, "Volume", "recent HUD events should replay into the status payload after restart");
+assert.equal(replayedAfterRestartPayload.statuses[0].volumeHud.activityId, `volume-${firstHudObservedAt}`);
+assert.equal(replayedAfterRestartPayload.statuses[0].volumeHud.status.level, 21);
+assert.equal(replayedAfterRestartPayload.activityRouter.compactSurface.activityType, "volume");
+
+const continuedAfterRestartPayload = buildMacActivityStatusPayload({
+  now: new Date("2026-06-11T09:00:03.000Z"),
+  hudEventStorePath,
+  volumeTransientMs: 10_000,
+  volumeInput: {
+    level: 33,
+    muted: false,
+    deviceName: "MacBook Pro Speakers",
+    source: "fixture-volume-observer",
+    observedAt: secondHudObservedAt
+  },
+  mediaInfo: null,
+  clipboardActivityState: createClipboardActivityState(),
+  clipboardText: "",
+  pmsetOutput: "Now drawing from 'AC Power'\n -InternalBattery-0\t82%; charging; 0:35 remaining present: true"
+});
+assert.equal(continuedAfterRestartPayload.statuses[0].volumeHud.activityId, `volume-${firstHudObservedAt}`);
+assert.equal(continuedAfterRestartPayload.statuses[0].volumeHud.status.previousLevel, 21);
+assert.equal(continuedAfterRestartPayload.statuses[0].volumeHud.status.direction, "up");
+assert.deepEqual(
+  JSON.parse(fs.readFileSync(hudEventStorePath, "utf8")).events.map((event) => event.eventId),
+  [`hud-volume-${firstHudObservedAt}-000`, `hud-volume-${secondHudObservedAt}-001`],
+  "HUD emit path should keep appending captured events after a replayed restart"
+);
+
 const result = writeMacActivityStatusSnapshot({
   outputPath,
   now: new Date("2026-06-11T09:00:00.000Z"),
