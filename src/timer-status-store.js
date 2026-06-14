@@ -1,6 +1,6 @@
 const fs = require("node:fs");
 const path = require("node:path");
-const { resetTimer, stopTimer } = require("./timer-state");
+const { completeTimerIfElapsed, resetTimer, stopTimer } = require("./timer-state");
 const { buildTimerStatusPayload } = require("./timer-status");
 
 function atomicWriteJson(fileSystem, outputPath, payload) {
@@ -60,7 +60,23 @@ function resetTimerStatusSnapshot(timerState, options = {}) {
   };
 }
 
+function refreshTimerStatusSnapshot(timerState, options = {}) {
+  const completeElapsed = options.completeTimerIfElapsed || completeTimerIfElapsed;
+  const timer = completeElapsed(timerState, options);
+
+  return {
+    timer,
+    status: writeTimerStatusSnapshot({
+      outputPath: options.outputPath,
+      timer,
+      now: options.statusNow || options.now,
+      fs: options.fs
+    })
+  };
+}
+
 module.exports = {
+  refreshTimerStatusSnapshot,
   resetTimerStatusSnapshot,
   stopTimerStatusSnapshot,
   writeTimerStatusSnapshot

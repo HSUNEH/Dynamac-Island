@@ -4,6 +4,7 @@ const assert = require("node:assert");
 const { parseTimerDuration } = require("../src/timer-duration");
 const {
   TIMER_STATES,
+  completeTimerIfElapsed,
   createTimerId,
   createTimerState,
   resetTimer,
@@ -86,6 +87,51 @@ const startAfterStop = startTimer(runningStopState, parseTimerDuration("1s"), {
   now: () => "2026-06-14T00:02:00.000Z"
 });
 assert.equal(startAfterStop.replacedPrevious, false, "starting after a stopped timer should not report running replacement");
+
+const runningCompletionState = createTimerState({
+  id: "timer-complete-test",
+  durationSeconds: 90,
+  remainingSeconds: 90,
+  state: TIMER_STATES.RUNNING,
+  startedAt: "2026-06-14T00:01:00.000Z",
+  updatedAt: "2026-06-14T00:01:00.000Z",
+  displayText: "1m 30s",
+  error: "stale error",
+  replacedPrevious: false
+});
+const notYetDoneTimer = completeTimerIfElapsed(runningCompletionState, {
+  now: () => "2026-06-14T00:02:29.000Z"
+});
+assert.strictEqual(
+  notYetDoneTimer,
+  runningCompletionState.activeTimer,
+  "completion check should preserve a running timer until its countdown reaches zero"
+);
+assert.equal(notYetDoneTimer.state, TIMER_STATES.RUNNING);
+
+const completedTimer = completeTimerIfElapsed(runningCompletionState, {
+  now: () => "2026-06-14T00:02:30.000Z"
+});
+assert.deepEqual(
+  completedTimer,
+  {
+    id: "timer-complete-test",
+    durationSeconds: 90,
+    remainingSeconds: 0,
+    state: TIMER_STATES.DONE,
+    startedAt: "2026-06-14T00:01:00.000Z",
+    updatedAt: "2026-06-14T00:02:30.000Z",
+    displayText: "1m 30s",
+    error: "",
+    replacedPrevious: false
+  },
+  "elapsed running timer should transition to a persisted done model state at the supplied clock"
+);
+assert.strictEqual(
+  runningCompletionState.activeTimer,
+  completedTimer,
+  "completion should persist the done timer as the inspectable active timer record"
+);
 
 replacementTimer.remainingSeconds = 12;
 replacementTimer.state = "paused";

@@ -8,6 +8,7 @@ const { loadStatusFile } = require("../src/status-loader");
 const { parseTimerDuration } = require("../src/timer-duration");
 const { createTimerState, startTimer } = require("../src/timer-state");
 const {
+  refreshTimerStatusSnapshot,
   resetTimerStatusSnapshot,
   stopTimerStatusSnapshot,
   writeTimerStatusSnapshot
@@ -89,6 +90,36 @@ try {
   assert.equal(loadedReset.ok, true, "reset Timer status store should pass the shared native status schema");
   assert.deepEqual(loadedReset.errors, []);
   assert.deepEqual(loadedReset.statuses, resetResult.status.payload.statuses, "native status loader should read the reset Timer model back unchanged");
+
+  const doneTimerState = createTimerState();
+  startTimer(doneTimerState, parseTimerDuration("3s"), {
+    id: "timer-status-store-done-test",
+    now: () => "2026-06-14T00:02:00.000Z"
+  });
+  const doneOutputPath = path.join(tempDir, "nested", "done-status.json");
+  const doneResult = refreshTimerStatusSnapshot(doneTimerState, {
+    outputPath: doneOutputPath,
+    now: () => "2026-06-14T00:02:03.000Z",
+    statusNow: "2026-06-14T00:02:03.000Z"
+  });
+
+  assert.strictEqual(doneResult.timer, doneTimerState.activeTimer, "store refresh should persist the completed timer as the active record");
+  assert.equal(doneResult.timer.state, "done", "store refresh should transition an elapsed running timer to done");
+  assert.equal(doneResult.timer.remainingSeconds, 0, "done timer should persist zero remaining time");
+  assert.equal(doneResult.timer.updatedAt, "2026-06-14T00:02:03.000Z", "done timer should be stamped at the completion check time");
+  assert.equal(doneResult.status.outputPath, doneOutputPath, "store refresh should write done state to the requested native status path");
+  assert.equal(doneResult.status.payload.statuses.length, 1, "done timer should remain visible as one completed status item");
+  assert.equal(doneResult.status.payload.statuses[0].state, "success", "done timer native status should emit success");
+  assert.equal(doneResult.status.payload.statuses[0].task, "Timer done");
+  assert.equal(doneResult.status.payload.statuses[0].detail, "3s timer elapsed.");
+  assert.equal(doneResult.status.payload.statuses[0].timer.state, "done");
+  assert.equal(doneResult.status.payload.statuses[0].timer.remainingSeconds, 0);
+  assert.equal(doneResult.status.payload.statuses[0].timer.updatedAt, "2026-06-14T00:02:03.000Z");
+
+  const loadedDone = loadStatusFile(doneOutputPath);
+  assert.equal(loadedDone.ok, true, "done Timer status store should pass the shared native status schema");
+  assert.deepEqual(loadedDone.errors, []);
+  assert.deepEqual(loadedDone.statuses, doneResult.status.payload.statuses, "native status loader should read the done Timer model back unchanged");
 
   const noTimerState = createTimerState();
   const emptyStopPath = path.join(tempDir, "nested", "empty-stopped-status.json");

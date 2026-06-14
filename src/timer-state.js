@@ -149,8 +149,32 @@ function stopTimer(timerState, options = {}) {
   return stoppedTimerState;
 }
 
+function completeTimerIfElapsed(timerState, options = {}) {
+  assertTimerState(timerState);
+
+  const activeTimer = timerState.activeTimer;
+  if (!isRunningTimer(activeTimer)) return activeTimer || null;
+
+  const now = options.now || defaultNow;
+  const completedAt = toIsoTimestamp(now());
+  const remainingSeconds = remainingSecondsAt(activeTimer, completedAt);
+  if (remainingSeconds > 0) return activeTimer;
+
+  const completedTimerState = {
+    ...activeTimer,
+    remainingSeconds: 0,
+    state: TIMER_STATES.DONE,
+    updatedAt: completedAt,
+    error: ""
+  };
+
+  timerState.activeTimer = completedTimerState;
+  return completedTimerState;
+}
+
 module.exports = {
   TIMER_STATES,
+  completeTimerIfElapsed,
   createTimerId,
   createTimerState,
   resetTimer,
