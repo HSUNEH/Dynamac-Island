@@ -120,7 +120,7 @@ setImmediate(() => {
   assert.match(content.innerHTML, /Timer · 4m 59s remaining/, "expanded timer card should receive the ticked task text");
 
   updateCallback(payloadAt("2026-06-14T00:05:00.000Z"));
-  assert.match(compactPrimary.innerHTML, /timer-compact-time">0:00</, "complete transition should clamp compact countdown to zero");
+  assert.match(compactPrimary.innerHTML, /timer-compact-time">Done</, "complete transition should show serialized done text in the compact overlay");
   assert.match(compactMeta.innerHTML, /aria-valuenow="100"/, "complete transition should render full elapsed progress");
   assert.equal(summary.textContent, "All systems settled", "done timer should no longer count as running");
   assert.match(content.innerHTML, /Timer done/, "expanded timer card should show the done task");

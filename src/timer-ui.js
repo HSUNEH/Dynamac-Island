@@ -25,6 +25,9 @@
     }, { now: countdownNow });
     const stateLabel = titleCase(timerState);
     const isRunning = status.state === "running" && timerState === "running";
+    const remainingText = countdown.isDone && typeof timer.displayText === "string" && timer.displayText.trim() !== ""
+      ? timer.displayText
+      : countdown.compactText;
     const canReset = timerState === "running" || timerState === "stopped" || timerState === "done";
 
     return {
@@ -37,7 +40,7 @@
       timerId: String(timer.id || ""),
       durationSeconds: countdown.durationSeconds,
       remainingSeconds: countdown.remainingSeconds,
-      remainingText: countdown.compactText,
+      remainingText,
       progressPercent: countdown.progressPercent,
       progressLabel: `${countdown.progressPercent}% elapsed`,
       isRunning,

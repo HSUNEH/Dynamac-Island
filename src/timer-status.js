@@ -60,6 +60,9 @@ function timerToNativeStatus(timer, options = {}) {
   const state = timerStatusState(timer, remainingSeconds);
   const updatedAt = timer.updatedAt || nowIso;
   const timerState = remainingSeconds <= 0 ? TIMER_STATES.DONE : timer.state;
+  const displayText = timerState === TIMER_STATES.DONE
+    ? "Done"
+    : timer.displayText || formatTimerDuration(timer.durationSeconds);
 
   return {
     agent: "Timer",
@@ -74,7 +77,7 @@ function timerToNativeStatus(timer, options = {}) {
       state: timerState,
       startedAt: toDate(timer.startedAt, "timer.startedAt").toISOString(),
       updatedAt,
-      displayText: timer.displayText || formatTimerDuration(timer.durationSeconds),
+      displayText,
       error: timer.error || "",
       replacedPrevious: timer.replacedPrevious === true
     }
