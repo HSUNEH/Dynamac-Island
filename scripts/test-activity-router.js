@@ -236,6 +236,30 @@ assert.deepEqual(
   ["clipboard", "timer"]
 );
 
+const clipboardVsNowPlayingConflict = [
+  candidateStatus("nowPlaying", 750, {
+    agent: "Now Playing",
+    task: "Song Title",
+    detail: "Newer now playing candidate should stay below a fresh clipboard activity."
+  }),
+  buildClipboardStatusFromText("https://example.com/clipboard-vs-now-playing", {
+    now: now.getTime(),
+    observedAt: now.getTime(),
+    source: "fixture-clipboard"
+  }).status
+];
+const clipboardNowPlayingConflictWinner = selectCompactActivity(clipboardVsNowPlayingConflict, { now });
+assert.equal(
+  clipboardNowPlayingConflictWinner.activityType,
+  "clipboard",
+  "clipboard should win compact routing over newer now playing candidates when no volume or brightness HUD is active"
+);
+assert.equal(clipboardNowPlayingConflictWinner.compactSurface.activityType, "clipboard");
+assert.deepEqual(
+  rankActivities(clipboardVsNowPlayingConflict, { now }).map((activity) => activity.activityType),
+  ["clipboard", "nowPlaying"]
+);
+
 const ranked = rankActivities(statuses, { now });
 assert.deepEqual(ranked.map((activity) => activity.activityType), [
   "volume",
