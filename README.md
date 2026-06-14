@@ -275,9 +275,11 @@ Persistence and status expectations are intentionally local-first: Timer state i
 
 ### Volume/Brightness HUD Core Model
 
-`src/volume-hud-status.js` and `src/brightness-hud-status.js` implement the first DynaKeys-adjacent HUD slice as deterministic pure logic. They accept observed local output-volume or display-brightness input changes (`level`, optional mute/display/device metadata, `source`, `observedAt`) and return one transient `Volume` or `Brightness` activity with stable `activityId`, `activityType`, `priority`, `createdAt`, `updatedAt`, `expiresAt`, `isTransient`, serializable `status`, compact and expanded surfaces, local `source`, metadata, empty `revealReadyPath`, and `persisted: false`.
+`src/volume-hud-status.js` and `src/brightness-hud-status.js` implement the first DynaKeys-adjacent HUD slice as deterministic pure logic. They accept observed local output-volume or display-brightness input changes (`level`, optional mute/display/device metadata, `source`, `observedAt`) and return one transient `Volume` or `Brightness` activity with stable `activityId`, `activityType`, `priority`, `createdAt`, `updatedAt`, `expiresAt`, `isTransient`, serializable `status`, compact and expanded surfaces, local `source`/`metadata`, empty `revealReadyPath`, and `persisted: false`.
 
-The models keep repeated changes inside a short burst as one activity, derive `initial`/`up`/`down`/`steady` plus volume mute/unmute transitions from the previous observed value, and start a fresh activity after expiry so old HUD state does not leak into later bursts. They are covered by `npm run test:volume-hud-status` and `npm run test:brightness-hud-status`, both included in `npm run check`.
+`src/hud-event-store.js` is the local persistence companion for those HUD inputs. It appends normalized volume/brightness input events to a deterministic JSON store with `version`, `updatedAt`, stable `hud-<type>-<observedAt>-<sequence>` IDs, rounded levels, local device/display/source metadata, and a bounded `maxEvents` history. The writer uses local filesystem reads/writes only, creates parent directories, and writes atomically through a temp file + rename; it has no network, credential, cloud sync, paid API, clipboard text, or external state dependency.
+
+The models keep repeated changes inside a short burst as one activity, derive `initial`/`up`/`down`/`steady` plus volume mute/unmute transitions from the previous observed value, and start a fresh activity after expiry so old HUD state does not leak into later bursts. They are covered by `npm run test:volume-hud-status`, `npm run test:brightness-hud-status`, and `npm run test:hud-event-store`, all included in `npm run check`.
 
 Deferred: native global volume-key capture, brightness-key capture, global shortcut/action launchers, and direct compact-overlay rendering of these HUDs are not enabled by this slice. The models are ready for a future safe local observer without adding credentials, cloud sync, paid APIs, history persistence, or invasive permissions by default.
 
@@ -429,6 +431,7 @@ npm run test:mac-activity-status
 npm run test:activity-router
 npm run test:clipboard-activity
 npm run test:brightness-hud-status
+npm run test:hud-event-store
 npm run test:timer-status-store
 npm run test:timer-start-cli
 npm run test:timer-docs
@@ -451,6 +454,7 @@ Expected results:
 - `test:activity-router` passes when volume/brightness HUD, clipboard, shelf/drop, timer, Now Playing, battery, and future passive activities rank deterministically with expiry and tie-break semantics.
 - `test:clipboard-activity` passes when local plain-text clipboard reads classify into non-persistent transient DynaClip activities and stale/unchanged/non-text reads remain idle.
 - `test:brightness-hud-status` passes when observed brightness changes produce deterministic transient DynaKeys HUD status payloads without persistence.
+- `test:hud-event-store` passes when local volume/brightness HUD inputs append to a deterministic filesystem JSON store with atomic writes, bounded event history, no network dependency, and no clipboard text persistence.
 - `test:timer-status-store` passes when starting/writing/stopping/resetting a Timer produces native-loadable Timer status models, including reset state with full restored duration and fresh reset timestamps.
 - `test:timer-docs` passes when the Timer MVP Behavior section documents start, running overlay/status, completion, and local-first persistence/status expectations.
 - `test:native-timer-status-serialization` passes when the native AppKit smoke path decodes running, stopped, and reset Timer fixtures, selects the active Timer before background media, releases inactive stopped/reset timers to fallback/media presentation, and preserves `id`, `durationSeconds`, `remainingSeconds`, lifecycle `state`, `startedAt`, `updatedAt`, `displayText`, `error`, and `replacedPrevious` for the overlay contract.
