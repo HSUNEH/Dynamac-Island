@@ -283,18 +283,26 @@ The models keep repeated changes inside a short burst as one activity, derive `i
 
 Deferred: native global volume-key capture, brightness-key capture, global shortcut/action launchers, and direct compact-overlay rendering of these HUDs are not enabled by this slice. The models are ready for a future safe local observer without adding credentials, cloud sync, paid APIs, history persistence, or invasive permissions by default.
 
+### DynaDrop/Shelf Core Model
+
+`src/shelf-state.js` implements the DynaDrop/Shelf MVP as deterministic local shelf state, not native drag capture. `addDroppedFileToShelf` accepts a validated existing local file path plus optional MIME/type, source, and observation timestamp, then stores only reveal-safe metadata in state: `path`, `name`, `type`, `size`, source, timestamps, stable `shelf-<observedAt>-<sequence>` item IDs, `revealReadyPath`, and `persisted: false`. File contents are never read into shelf state.
+
+The active shelf activity serializes with stable activity fields (`activityId`, `activityType: "shelf"`, priority, timestamps, non-transient status, compact/expanded surfaces, source, metadata, `revealReadyPath`, and `persisted: false`) so the Activity Router can rank it below clipboard and above Timer. `buildShelfStatusPayload` emits a schema-valid `DynaShelf` status item whose detail explicitly says native drag capture and Finder reveal UI are deferred. `clearShelf` removes all file metadata and the active shelf activity.
+
+Deferred: native drag-to-island capture, Finder reveal/open execution, AirDrop/share-link/conversion/transcript/right-click actions, and UI that implies dragging already works. The MVP exposes only validated reveal-ready path/status semantics for a safe future native integration. It is covered by `npm run test:shelf-state`, included in `npm run check`.
+
 ### Deferred DynamicLake-Inspired Features
 
-The Timer MVP deliberately does not import the broader DynamicLake-inspired feature set. The following items are out of scope for the Timer MVP and should remain deferred to later slices:
+The implemented DynamicLake-inspired slices are still intentionally narrow. The following items remain deferred and out of scope for the Timer MVP:
 
-- DynaDrop-style file drop, conversion, AirDrop/share-link, transcript, upload, and right-click actions are out of scope.
+- DynaDrop-style file drop native drag capture, Finder reveal/open execution, conversion, AirDrop/share-link, transcript, upload, and right-click actions are out of scope beyond the tested shelf metadata/reveal-ready model.
 - DynaClip-style Finder companion, file shelf, clipboard history, and quick handoff workflows are out of scope.
-- DynaKeys-style keyboard shortcuts, global command palettes, hotkey automation, brightness capture, native key observers, and action launchers are out of scope; only the volume HUD core status logic is implemented in this slice.
+- DynaKeys-style keyboard shortcuts, global command palettes, hotkey automation, brightness capture, native key observers, and action launchers are out of scope; only volume/brightness HUD core status logic and local event-store fixtures are implemented in this slice.
 - DynaGlance-style calendar, weather, reminder, message, and multi-widget glance cards are out of scope.
 - Call/meeting modules, notification mirroring, system notification delivery, and sound alerts are out of scope.
 - Liquid Glass visual themes, external-display theme packs, timer history, multi-timer queues, expanded action controls, and third-party integrations are out of scope.
 
-Those deferred modules can use the Timer's local status contract as a future pattern, but they must not be required for starting, stopping, resetting, completing, or verifying one local Timer status item.
+Those deferred modules can use the Timer, HUD, clipboard, and shelf local status contracts as future patterns, but they must not be required for starting, stopping, resetting, completing, or verifying one local Timer status item.
 
 ## Activity Router MVP
 
@@ -309,7 +317,7 @@ The Activity Router is the first shared DynamicLake-inspired core slice for choo
 
 Ties are deterministic: higher priority wins, then newer `updatedAt`, older `createdAt`, and stable `activityId`. Transient activities with an expired `expiresAt` are removed from compact eligibility. The generated Mac activity payload includes an `activityRouter` object with `rankedActivities` and the selected `compactSurface`, while preserving the existing `statuses` array consumed by the current Electron/native overlay paths.
 
-Current implemented behavior is status/routing only. DynaKeys does not yet install global keyboard hooks or native volume/brightness observers; DynaClip does not persist clipboard history across restarts; DynaDrop/Shelf does not claim native drag capture or Finder reveal UI. Any shelf fixture/status should describe reveal readiness only when a validated path is already available, and the UI must not imply drag-and-drop works until a safe native pattern is added.
+Current implemented behavior is pure model/status/routing only. DynaKeys does not yet install global keyboard hooks or native volume/brightness observers; DynaClip does not persist clipboard history across restarts; DynaDrop/Shelf does not claim native drag capture or Finder reveal UI. Any shelf fixture/status should describe reveal readiness only when a validated path is already available, and the UI must not imply drag-and-drop works until a safe native pattern is added.
 
 ## Status File
 
@@ -432,6 +440,7 @@ npm run test:activity-router
 npm run test:clipboard-activity
 npm run test:brightness-hud-status
 npm run test:hud-event-store
+npm run test:shelf-state
 npm run test:timer-status-store
 npm run test:timer-start-cli
 npm run test:timer-docs
@@ -455,6 +464,7 @@ Expected results:
 - `test:clipboard-activity` passes when local plain-text clipboard reads classify into non-persistent transient DynaClip activities and stale/unchanged/non-text reads remain idle.
 - `test:brightness-hud-status` passes when observed brightness changes produce deterministic transient DynaKeys HUD status payloads without persistence.
 - `test:hud-event-store` passes when local volume/brightness HUD inputs append to a deterministic filesystem JSON store with atomic writes, bounded event history, no network dependency, and no clipboard text persistence.
+- `test:shelf-state` passes when valid dropped file paths store only path/name/type/size metadata in non-persistent DynaDrop shelf state, produce schema-valid reveal-ready shelf status, and reject missing paths or directories.
 - `test:timer-status-store` passes when starting/writing/stopping/resetting a Timer produces native-loadable Timer status models, including reset state with full restored duration and fresh reset timestamps.
 - `test:timer-docs` passes when the Timer MVP Behavior section documents start, running overlay/status, completion, and local-first persistence/status expectations.
 - `test:native-timer-status-serialization` passes when the native AppKit smoke path decodes running, stopped, and reset Timer fixtures, selects the active Timer before background media, releases inactive stopped/reset timers to fallback/media presentation, and preserves `id`, `durationSeconds`, `remainingSeconds`, lifecycle `state`, `startedAt`, `updatedAt`, `displayText`, `error`, and `replacedPrevious` for the overlay contract.

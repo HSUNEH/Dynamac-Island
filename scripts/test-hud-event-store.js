@@ -7,6 +7,7 @@ const path = require("node:path");
 const {
   createHudEventStore,
   readHudEventStore,
+  reconstructHudActivityState,
   recordBrightnessHudEvent,
   recordVolumeHudEvent
 } = require("../src/hud-event-store");
@@ -78,9 +79,71 @@ try {
     "hud-brightness-1718323200300-001"
   ]);
 
+  const third = recordVolumeHudEvent({
+    outputPath: storePath,
+    input: {
+      level: 55,
+      muted: false,
+      deviceName: "Studio Display Speakers",
+      source: "fixture-volume-observer",
+      observedAt: 1718323200500
+    },
+    now: 1718323200600
+  });
+
+  assert.equal(third.event.eventId, "hud-volume-1718323200500-002");
+  assert.deepEqual(third.store.events.map((event) => event.eventId), [
+    "hud-volume-1718323200100-000",
+    "hud-brightness-1718323200300-001",
+    "hud-volume-1718323200500-002"
+  ]);
+
   const loaded = readHudEventStore({ outputPath: storePath });
-  assert.deepEqual(loaded, second.store, "HUD event store should round-trip from local JSON unchanged");
+  assert.deepEqual(loaded, third.store, "HUD event store should round-trip from local JSON unchanged");
   assert.ok(!loaded.events.some((event) => Object.prototype.hasOwnProperty.call(event.input, "clipboardText")), "HUD persistence must not store clipboard text fields");
+
+  const replayed = reconstructHudActivityState({ outputPath: storePath });
+  assert.deepEqual(replayed.replayedEventIds, [
+    "hud-volume-1718323200100-000",
+    "hud-brightness-1718323200300-001",
+    "hud-volume-1718323200500-002"
+  ], "HUD event replay should expose deterministic replay order");
+  assert.equal(replayed.volume.active.activityId, "volume-1718323200100", "volume replay should preserve burst identity from the first event");
+  assert.equal(replayed.volume.active.createdAt, 1718323200100);
+  assert.equal(replayed.volume.active.updatedAt, 1718323200500);
+  assert.equal(replayed.volume.active.expiresAt, 1718323202100);
+  assert.deepEqual(replayed.volume.active.status, {
+    level: 55,
+    muted: false,
+    previousLevel: 34,
+    direction: "up",
+    displayText: "55%"
+  });
+  assert.deepEqual(replayed.volume.active.compactSurface, {
+    glyph: "speaker",
+    label: "55%",
+    progress: 0.55
+  });
+  assert.equal(replayed.volume.active.expandedSurface.subtitle, "Studio Display Speakers · 55%");
+  assert.equal(replayed.volume.active.source, "fixture-volume-observer");
+  assert.equal(replayed.volume.active.persisted, false, "reconstructed HUD state remains transient display state, not restart-persisted UI state");
+  assert.equal(replayed.brightness.active.activityId, "brightness-1718323200300");
+  assert.deepEqual(replayed.brightness.active.status, {
+    level: 8,
+    previousLevel: null,
+    direction: "initial",
+    displayText: "8%"
+  });
+  assert.equal(replayed.brightness.active.compactSurface.glyph, "sun.min");
+  assert.equal(replayed.brightness.active.expandedSurface.subtitle, "Built-in Liquid Retina XDR · 8%");
+
+  const shuffledReplay = reconstructHudActivityState({
+    store: {
+      ...third.store,
+      events: [third.store.events[2], third.store.events[0], third.store.events[1]]
+    }
+  });
+  assert.deepEqual(shuffledReplay, replayed, "HUD event replay should not depend on serialized array order when timestamps are present");
 
   const limitedPath = path.join(tempDir, "nested", "limited-hud-events.json");
   recordVolumeHudEvent({

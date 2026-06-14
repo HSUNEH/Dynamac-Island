@@ -76,6 +76,52 @@ function eventId(activityType, observedAt, sequence) {
   return `hud-${activityType}-${observedAt}-${String(sequence).padStart(3, "0")}`;
 }
 
+function comparableEventField(value) {
+  if (Number.isFinite(Number(value))) return Number(value);
+  return Number.MAX_SAFE_INTEGER;
+}
+
+function deterministicHudEventOrder(left, right) {
+  return (
+    comparableEventField(left.observedAt) - comparableEventField(right.observedAt) ||
+    comparableEventField(left.recordedAt) - comparableEventField(right.recordedAt) ||
+    String(left.eventId || "").localeCompare(String(right.eventId || ""))
+  );
+}
+
+function eventInputForReplay(event) {
+  const input = event && typeof event.input === "object" && !Array.isArray(event.input) ? event.input : {};
+  return {
+    ...input,
+    source: String(event.source || input.source || "").trim() || undefined,
+    observedAt: finiteTimestamp(event.observedAt, "event.observedAt")
+  };
+}
+
+function reconstructHudActivityState(options = {}) {
+  const store = options.store ? normalizeStore(options.store, options) : readHudEventStore(options);
+  const transientMs = options.transientMs;
+  const replayedEvents = [...store.events].sort(deterministicHudEventOrder);
+  let volume = createVolumeHudState();
+  let brightness = createBrightnessHudState();
+
+  for (const event of replayedEvents) {
+    if (event.activityType === "volume") {
+      volume = applyVolumeHudInputChange(volume, eventInputForReplay(event), { transientMs });
+    } else if (event.activityType === "brightness") {
+      brightness = applyBrightnessHudInputChange(brightness, eventInputForReplay(event), { transientMs });
+    }
+  }
+
+  return {
+    version: store.version,
+    updatedAt: store.updatedAt,
+    replayedEventIds: replayedEvents.map((event) => String(event.eventId || "")),
+    volume,
+    brightness
+  };
+}
+
 function appendHudEvent(options, activityType, activity, input) {
   const outputPath = assertOutputPath(options.outputPath);
   const fileSystem = options.fs || fs;
@@ -131,6 +177,7 @@ function recordBrightnessHudEvent(options = {}) {
 module.exports = {
   createHudEventStore,
   readHudEventStore,
+  reconstructHudActivityState,
   recordBrightnessHudEvent,
   recordVolumeHudEvent
 };
