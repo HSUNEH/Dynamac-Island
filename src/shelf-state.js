@@ -42,6 +42,9 @@ function validateDroppedFilePath(filePath) {
   if (typeof filePath !== "string" || filePath.trim() === "") {
     throw new Error("dropped file path is required");
   }
+  if (filePath.includes("\0")) {
+    throw new Error("dropped file path is malformed");
+  }
   const resolvedPath = path.resolve(filePath);
   if (!fs.existsSync(resolvedPath)) {
     throw new Error("dropped file path must exist");

@@ -179,6 +179,20 @@ try {
     assert.equal(afterClear.items[0].itemId, "shelf-1718323200500-000", "blank dropped file paths should not consume a shelf item sequence");
   }
 
+  const beforeMalformedPath = createShelfState(afterClear);
+  assert.throws(
+    () => addDroppedFileToShelf(afterClear, { filePath: `${tempDir}${path.sep}bad\0name.txt`, observedAt: 1718323201200 }, { now: 1718323201300 }),
+    /dropped file path is malformed/,
+    "malformed dropped file path strings should fail before adding shelf metadata"
+  );
+  assert.deepEqual(
+    afterClear,
+    beforeMalformedPath,
+    "malformed dropped file path strings must not mutate or add a shelf item"
+  );
+  assert.equal(afterClear.items.length, 1, "malformed dropped file path strings should leave the shelf item count unchanged");
+  assert.equal(afterClear.items[0].itemId, "shelf-1718323200500-000", "malformed dropped file path strings should not consume a shelf item sequence");
+
   assert.throws(
     () => addDroppedFileToShelf(initial, { filePath: path.join(tempDir, "missing.pdf"), observedAt: 1718323200400 }),
     /dropped file path must exist/,
