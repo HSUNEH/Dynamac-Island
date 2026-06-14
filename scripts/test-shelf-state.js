@@ -109,6 +109,28 @@ try {
   assert.equal(afterClearPayloadJson.includes("demo note.txt"), false, "new shelf payload after clear must not leak previous dropped name");
   assert.equal(afterClearPayloadJson.includes("fixture-drop"), false, "new shelf payload after clear must not leak previous source metadata");
 
+  const beforeDisallowed = createShelfState(afterClear);
+  assert.throws(
+    () => addDroppedFileToShelf(afterClear, {
+      filePath,
+      type: "text/plain",
+      source: "fixture-drop",
+      observedAt: 1718323200700,
+      allowed: false,
+      disallowReason: "native-drag-capture-deferred"
+    }, { now: 1718323200800 }),
+    /dropped input is explicitly disallowed: native-drag-capture-deferred/,
+    "explicitly disallowed dropped inputs should fail before adding shelf metadata"
+  );
+  assert.deepEqual(
+    afterClear,
+    beforeDisallowed,
+    "explicitly disallowed dropped inputs must not mutate or add a shelf item"
+  );
+  assert.equal(afterClear.items.length, 1, "explicit disallow should leave the shelf item count unchanged");
+  assert.equal(afterClear.items[0].itemId, "shelf-1718323200500-000", "explicit disallow should not consume a shelf item sequence");
+  assert.equal(afterClear.active.status.fileCount, 1, "explicit disallow should not change active shelf activity metadata");
+
   assert.throws(
     () => addDroppedFileToShelf(initial, { filePath: path.join(tempDir, "missing.pdf"), observedAt: 1718323200400 }),
     /dropped file path must exist/,

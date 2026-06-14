@@ -31,6 +31,13 @@ function normalizeType(value) {
   return type || DEFAULT_TYPE;
 }
 
+function rejectExplicitlyDisallowedDrop(drop = {}) {
+  if (drop.allowed === false || drop.disallowed === true) {
+    const reason = String(drop.disallowReason || drop.reason || "unspecified").trim() || "unspecified";
+    throw new Error(`dropped input is explicitly disallowed: ${reason}`);
+  }
+}
+
 function validateDroppedFilePath(filePath) {
   if (typeof filePath !== "string" || filePath.trim() === "") {
     throw new Error("dropped file path is required");
@@ -108,6 +115,7 @@ function addDroppedFileToShelf(state = createShelfState(), drop = {}, options = 
   const previous = createShelfState(state);
   const observedAt = finiteTimestamp(drop.observedAt ?? options.now ?? Date.now(), undefined, "observedAt");
   const recordedAt = finiteTimestamp(options.now ?? observedAt, observedAt);
+  rejectExplicitlyDisallowedDrop(drop);
   const { resolvedPath, stat } = validateDroppedFilePath(drop.filePath);
   const sequence = nextSequence(previous.items);
   const source = String(drop.source || DEFAULT_SOURCE).trim() || DEFAULT_SOURCE;

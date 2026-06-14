@@ -289,6 +289,59 @@ assert.deepEqual(
   ["drop", "timer"]
 );
 
+const shelfVsNowPlayingOnlyLowerPriorityConflict = [
+  candidateStatus("nowPlaying", 750, {
+    agent: "Now Playing",
+    task: "Song Title",
+    detail: "Newer now playing candidate should stay below an active shelf activity."
+  }),
+  candidateStatus("shelf", 0, {
+    agent: "DynaShelf",
+    task: "Shelf · 1 file ready",
+    detail: "Active shelf should be compact eligible above now playing.",
+    revealReadyPath: "/Users/st/Desktop/shelf-over-now-playing.pdf",
+    metadata: { fileCount: 1 }
+  })
+];
+const shelfNowPlayingConflictWinner = selectCompactActivity(shelfVsNowPlayingOnlyLowerPriorityConflict, { now });
+assert.equal(
+  shelfNowPlayingConflictWinner.activityType,
+  "shelf",
+  "shelf should win compact routing when now playing is the only lower-priority active candidate"
+);
+assert.equal(shelfNowPlayingConflictWinner.compactSurface.activityType, "shelf");
+assert.equal(shelfNowPlayingConflictWinner.revealReadyPath, "/Users/st/Desktop/shelf-over-now-playing.pdf");
+assert.deepEqual(
+  rankActivities(shelfVsNowPlayingOnlyLowerPriorityConflict, { now }).map((activity) => activity.activityType),
+  ["shelf", "nowPlaying"]
+);
+
+const dropVsNowPlayingOnlyLowerPriorityConflict = [
+  candidateStatus("nowPlaying", 850, {
+    agent: "Now Playing",
+    task: "Song Title",
+    detail: "Newer now playing candidate should stay below an active drop activity."
+  }),
+  candidateStatus("drop", 0, {
+    agent: "DynaDrop",
+    task: "Drop · 2 files staged",
+    detail: "Active drop should be compact eligible above now playing.",
+    metadata: { fileCount: 2 }
+  })
+];
+const dropNowPlayingConflictWinner = selectCompactActivity(dropVsNowPlayingOnlyLowerPriorityConflict, { now });
+assert.equal(
+  dropNowPlayingConflictWinner.activityType,
+  "drop",
+  "drop should win compact routing when now playing is the only lower-priority active candidate"
+);
+assert.equal(dropNowPlayingConflictWinner.compactSurface.activityType, "drop");
+assert.equal(dropNowPlayingConflictWinner.metadata.fileCount, 2);
+assert.deepEqual(
+  rankActivities(dropVsNowPlayingOnlyLowerPriorityConflict, { now }).map((activity) => activity.activityType),
+  ["drop", "nowPlaying"]
+);
+
 const clipboardVsNowPlayingConflict = [
   candidateStatus("nowPlaying", 750, {
     agent: "Now Playing",
