@@ -7,6 +7,7 @@ const {
   completeTimerIfElapsed,
   createTimerId,
   createTimerState,
+  pauseTimer,
   resetTimer,
   stopTimer,
   startTimer
@@ -82,6 +83,37 @@ assert.deepEqual(
   "stopping a running timer should preserve deterministic remaining time at the stop instant"
 );
 assert.strictEqual(runningStopState.activeTimer, stoppedTimer, "stopped timer should remain inspectable as the active timer record");
+
+const runningPauseState = createTimerState({ ...replacementTimer });
+const pausedTimer = pauseTimer(runningPauseState, {
+  now: () => "2026-06-14T00:01:45.000Z"
+});
+assert.deepEqual(
+  pausedTimer,
+  {
+    id: "timer-custom-id",
+    durationSeconds: 90,
+    remainingSeconds: 45,
+    state: TIMER_STATES.PAUSED,
+    startedAt: "2026-06-14T00:01:00.000Z",
+    updatedAt: "2026-06-14T00:01:45.000Z",
+    displayText: "1m 30s",
+    error: "",
+    replacedPrevious: true
+  },
+  "pausing a running timer should freeze remaining time in the paused reducer state"
+);
+assert.strictEqual(runningPauseState.activeTimer, pausedTimer, "paused timer should remain inspectable as the active timer record");
+assert.strictEqual(
+  completeTimerIfElapsed(runningPauseState, { now: () => "2026-06-14T00:10:00.000Z" }),
+  pausedTimer,
+  "completion checks should not advance a paused timer to completed/done"
+);
+
+const startAfterPause = startTimer(runningPauseState, parseTimerDuration("2s"), {
+  now: () => "2026-06-14T00:02:05.000Z"
+});
+assert.equal(startAfterPause.replacedPrevious, false, "starting after a paused timer should not report running replacement");
 
 const startAfterStop = startTimer(runningStopState, parseTimerDuration("1s"), {
   now: () => "2026-06-14T00:02:00.000Z"
@@ -190,6 +222,11 @@ assert.throws(
   () => stopTimer(null),
   /timerState must be an object/,
   "stop should fail predictably without timer state"
+);
+assert.throws(
+  () => pauseTimer(null),
+  /timerState must be an object/,
+  "pause should fail predictably without timer state"
 );
 assert.throws(
   () => resetTimer(createTimerState({ durationSeconds: 0 })),

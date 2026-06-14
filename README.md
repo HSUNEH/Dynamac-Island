@@ -250,6 +250,24 @@ printf '{ "statuses": [\n' > status/status.json
 npm run native:start
 ```
 
+## Timer MVP Behavior
+
+Dynamac Timer is a local-first, single-active-timer live activity for the compact notch overlay. It is the first non-media MVP surface and stays inside the existing status-file/native-overlay contract rather than adding cloud sync, credentials, new permissions, notifications, or broader DynamicLake widgets.
+
+Start a timer with a positive whole-number duration:
+
+```sh
+npm run timer:start -- 5m --status status/status.json
+```
+
+Starting writes one `Timer` status item into the local watched status file. A valid running timer exposes deterministic status fields for automated checks: stable `id`, `durationSeconds`, current `remainingSeconds`, lifecycle `state: "running"`, ISO UTC `startedAt` and `updatedAt`, user-facing `displayText`, empty `error`, and `replacedPrevious`. Starting a new timer while another timer is running replaces the previous running timer; the new timer is the only active timer and serializes `replacedPrevious: true`.
+
+While running, the compact notch overlay shows the Timer as the active local utility item with remaining-time text such as `Timer · 4m 30s remaining`. The status file remains local and inspectable at the chosen `--status` path, so Electron development watches `status/status.json` and the native overlay can decode the same Timer object through the existing status model.
+
+When the countdown reaches zero, the Timer remains visible and serializable as complete: `remainingSeconds` becomes `0`, lifecycle state becomes `done`, and the user-visible text changes to done/completed copy instead of disappearing. Stop and reset are local state transitions on the same single timer model: stopped/reset timers are inactive for overlay priority, but they still serialize deterministically for status inspection; reset restores full remaining duration with `state: "reset"`.
+
+Persistence and status expectations are intentionally local-first: Timer state is represented only by local files/status payloads and testable pure timer logic. There is no cloud sync, no account state, no paid service, no invasive macOS permission, and no notification/sound requirement for this MVP.
+
 ## Status File
 
 The renderer still consumes a local JSON file because it gives the UI a simple, testable boundary. The important change is what writes that file:
@@ -369,6 +387,7 @@ npm run test:notch-position
 npm run test:mac-activity-status
 npm run test:timer-status-store
 npm run test:timer-start-cli
+npm run test:timer-docs
 npm run test:native-timer-status-serialization
 npm run test:hermes-status
 npm run test:status-loader
@@ -386,6 +405,7 @@ Expected results:
 - `test:notch-position` passes when the overlay is centered on the physical display bounds and pinned to `y=0`.
 - `test:mac-activity-status` passes when the app can generate default Now Playing, Clipboard, and Battery status entries.
 - `test:timer-status-store` passes when starting/writing/stopping/resetting a Timer produces native-loadable Timer status models, including reset state with full restored duration and fresh reset timestamps.
+- `test:timer-docs` passes when the Timer MVP Behavior section documents start, running overlay/status, completion, and local-first persistence/status expectations.
 - `test:native-timer-status-serialization` passes when the native AppKit smoke path decodes running, stopped, and reset Timer fixtures, selects the active Timer before background media, releases inactive stopped/reset timers to fallback/media presentation, and preserves `id`, `durationSeconds`, `remainingSeconds`, lifecycle `state`, `startedAt`, `updatedAt`, `displayText`, `error`, and `replacedPrevious` for the overlay contract.
 - `test:hermes-status` passes when the optional Hermes provider can generate status entries from local Hermes runtime/session inputs.
 - `test:status-loader` passes when the status loader can read, parse, and validate `fixtures/valid-status.json`.

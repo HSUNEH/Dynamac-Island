@@ -3,6 +3,7 @@ const { formatTimerDuration } = require("./timer-duration");
 const TIMER_STATES = Object.freeze({
   IDLE: "idle",
   RUNNING: "running",
+  PAUSED: "paused",
   STOPPED: "stopped",
   RESET: "reset",
   DONE: "done"
@@ -149,6 +150,26 @@ function stopTimer(timerState, options = {}) {
   return stoppedTimerState;
 }
 
+function pauseTimer(timerState, options = {}) {
+  assertTimerState(timerState);
+
+  const activeTimer = timerState.activeTimer;
+  if (!isRunningTimer(activeTimer)) return activeTimer || null;
+
+  const now = options.now || defaultNow;
+  const pausedAt = toIsoTimestamp(now());
+  const pausedTimerState = {
+    ...activeTimer,
+    remainingSeconds: remainingSecondsAt(activeTimer, pausedAt),
+    state: TIMER_STATES.PAUSED,
+    updatedAt: pausedAt,
+    error: ""
+  };
+
+  timerState.activeTimer = pausedTimerState;
+  return pausedTimerState;
+}
+
 function completeTimerIfElapsed(timerState, options = {}) {
   assertTimerState(timerState);
 
@@ -177,6 +198,7 @@ module.exports = {
   completeTimerIfElapsed,
   createTimerId,
   createTimerState,
+  pauseTimer,
   resetTimer,
   stopTimer,
   startTimer
