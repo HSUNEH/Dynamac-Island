@@ -1,0 +1,104 @@
+#!/usr/bin/env node
+
+const assert = require("node:assert");
+const { validateStatusPayload } = require("../src/status-schema");
+const {
+  DEFAULT_RECENCY_MS,
+  applyClipboardRead,
+  buildClipboardStatusFromText,
+  classifyClipboardText,
+  createClipboardActivityState,
+  textSignature
+} = require("../src/clipboard-activity");
+
+const now = 1718323200000;
+const initial = createClipboardActivityState();
+assert.deepEqual(initial, { lastSignature: "", active: null }, "clipboard activity state should start without persisted text/history");
+
+const first = applyClipboardRead(initial, {
+  plainText: "https://example.com/a",
+  observedAt: now,
+  source: "fixture-clipboard"
+}, { now, recencyMs: DEFAULT_RECENCY_MS });
+
+assert.equal(first.status.agent, "Clipboard");
+assert.equal(first.status.activityType, "clipboard");
+assert.equal(first.status.task, "Link copied · 21 chars");
+assert.equal(first.status.detail, "https://example.com/a");
+assert.equal(first.status.persisted, false);
+assert.equal(first.state.lastSignature, textSignature("https://example.com/a"));
+assert.equal(first.state.active.activityId, "clipboard-1718323200000");
+assert.equal(first.state.active.activityType, "clipboard");
+assert.equal(first.state.active.expiresAt, now + DEFAULT_RECENCY_MS);
+assert.equal(first.state.active.isTransient, true);
+assert.deepEqual(first.state.active.metadata, {
+  classification: "link",
+  characterCount: 21,
+  recentPlainTextChange: true,
+  observedAt: now
+});
+assert.equal(first.state.active.persisted, false);
+assert.equal(first.state.active.compactSurface.glyph, "link");
+assert.equal(first.state.active.compactSurface.label, "Link copied · 21 chars");
+
+const validation = validateStatusPayload({ statuses: [first.status] });
+assert.equal(validation.ok, true, "active clipboard status should satisfy the shared native status schema");
+assert.deepEqual(validation.errors, []);
+
+const unchanged = applyClipboardRead(first.state, {
+  plainText: "https://example.com/a",
+  observedAt: now + 100,
+  source: "fixture-clipboard"
+}, { now: now + 100, recencyMs: DEFAULT_RECENCY_MS });
+assert.equal(unchanged.status.state, "idle");
+assert.equal(unchanged.status.activityType, "futurePassive", "unchanged clipboard reads must not keep winning the compact router");
+assert.equal(unchanged.status.metadata.recentPlainTextChange, false);
+assert.equal(unchanged.state.active, null);
+
+const stale = applyClipboardRead(first.state, {
+  plainText: "fresh-looking but old",
+  observedAt: now - DEFAULT_RECENCY_MS - 1,
+  source: "fixture-clipboard"
+}, { now, recencyMs: DEFAULT_RECENCY_MS });
+assert.equal(stale.status.state, "idle");
+assert.equal(stale.status.activityType, "futurePassive");
+assert.match(stale.status.detail, /older than the recent-change window/);
+assert.equal(stale.state.active, null);
+assert.equal(stale.state.lastSignature, textSignature("fresh-looking but old"), "stale text should become the baseline without surfacing as an activity");
+
+const nonPlain = applyClipboardRead(first.state, {
+  plainText: "{\"looks\":\"text\"}",
+  type: "application/json",
+  observedAt: now + 200,
+  source: "fixture-clipboard"
+}, { now: now + 200 });
+assert.equal(nonPlain.status.state, "idle");
+assert.equal(nonPlain.status.activityType, "futurePassive");
+assert.match(nonPlain.status.detail, /plain text/);
+
+const empty = applyClipboardRead(first.state, {
+  plainText: "   \0  ",
+  observedAt: now + 300,
+  source: "fixture-clipboard"
+}, { now: now + 300 });
+assert.equal(empty.status.state, "idle");
+assert.equal(empty.status.activityType, "futurePassive");
+assert.match(empty.status.detail, /No text clipboard content/);
+
+const pathClass = classifyClipboardText("/Users/st/file.txt");
+assert.equal(pathClass.classification, "path");
+assert.equal(pathClass.label, "Path copied · 18 chars");
+const textClass = classifyClipboardText("hello");
+assert.equal(textClass.classification, "text");
+assert.equal(textClass.label, "Text copied · 5 chars");
+
+const seeded = buildClipboardStatusFromText("new text", {
+  now: now + 400,
+  observedAt: now + 400,
+  previousSignature: textSignature("old text"),
+  source: "fixture-clipboard"
+});
+assert.equal(seeded.status.task, "Text copied · 8 chars");
+assert.equal(seeded.state.active.source, "fixture-clipboard");
+
+console.log("Clipboard activity recency test passed.");

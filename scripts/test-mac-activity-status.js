@@ -15,6 +15,7 @@ const {
   classifyClipboardText,
   collectBatteryStatus,
   collectClipboardStatus,
+  collectVolumeHudStatus,
   collectMediaCandidates,
   collectMediaStatus,
   formatDuration,
@@ -42,6 +43,37 @@ assert.equal(classifyClipboardText("/Users/st/file.txt").task, "Path copied · 1
 assert.equal(classifyClipboardText("hello").task, "Text copied · 5 chars");
 assert.equal(formatDuration(65.9), "1:05");
 assert.equal(youtubeThumbnailUrl("https://www.youtube.com/watch?v=abcDEF_1234"), "https://img.youtube.com/vi/abcDEF_1234/hqdefault.jpg");
+
+const firstVolumeHudStatus = collectVolumeHudStatus({
+  volumeInput: {
+    level: 25,
+    muted: false,
+    deviceName: "MacBook Pro Speakers",
+    source: "fixture-volume-observer",
+    observedAt: 1718323200000
+  }
+});
+assert.equal(firstVolumeHudStatus.agent, "Volume");
+assert.equal(firstVolumeHudStatus.task, "Volume 25%");
+assert.equal(firstVolumeHudStatus.volumeHud.activityType, "volume");
+assert.equal(firstVolumeHudStatus.volumeHud.status.direction, "initial");
+assert.equal(firstVolumeHudStatus.volumeHud.compactSurface.label, "25%");
+assert.equal(firstVolumeHudStatus.volumeHud.persisted, false);
+
+const louderVolumeHudStatus = collectVolumeHudStatus({
+  volumeActivityState: { active: firstVolumeHudStatus.volumeHud },
+  volumeInput: {
+    level: 61,
+    muted: false,
+    deviceName: "MacBook Pro Speakers",
+    source: "fixture-volume-observer",
+    observedAt: 1718323200200
+  }
+});
+assert.equal(louderVolumeHudStatus.volumeHud.activityId, "volume-1718323200000");
+assert.equal(louderVolumeHudStatus.volumeHud.status.previousLevel, 25);
+assert.equal(louderVolumeHudStatus.volumeHud.status.direction, "up");
+assert.equal(louderVolumeHudStatus.detail, "Output volume increased from 25% to 61%.");
 
 const spotifyText = "spotify||Song Title||Artist Name||Album Name||https://i.scdn.co/image/abc||240000||42.4||playing";
 const spotifyInfo = parseDelimitedMedia(spotifyText);

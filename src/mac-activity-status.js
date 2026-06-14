@@ -3,6 +3,19 @@ const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const { buildActivityRouterSnapshot } = require("./activity-router");
+const {
+  applyClipboardRead,
+  classifyClipboardText: classifyClipboardActivityText,
+  createClipboardActivityState
+} = require("./clipboard-activity");
+const {
+  applyVolumeHudInputChange,
+  createVolumeHudState,
+  volumeHudToNativeStatus
+} = require("./volume-hud-status");
+
+let defaultClipboardActivityState = createClipboardActivityState();
+let defaultVolumeHudState = createVolumeHudState();
 
 function runCommand(command, args, options = {}) {
   try {
@@ -67,32 +80,54 @@ function collectBatteryStatus(options = {}) {
 }
 
 function classifyClipboardText(text) {
-  const clean = String(text || "").replace(/\0/g, "").trim();
-  if (!clean) {
-    return {
-      agent: "Clipboard",
-      state: "idle",
-      task: "Clipboard empty",
-      detail: "No text clipboard content was found."
-    };
-  }
-
-  let type = "Text";
-  if (/^https?:\/\//i.test(clean)) type = "Link";
-  else if (/^file:\/\//i.test(clean) || clean.startsWith("/")) type = "Path";
-
-  const lengthLabel = `${clean.length} char${clean.length === 1 ? "" : "s"}`;
+  const classified = classifyClipboardActivityText(text);
   return {
     agent: "Clipboard",
-    state: "running",
-    task: `${type} copied · ${lengthLabel}`,
-    detail: truncate(clean, 120)
+    state: classified.classification === "empty" ? "idle" : "running",
+    task: classified.label,
+    detail: classified.detail,
+    metadata: {
+      classification: classified.classification,
+      characterCount: classified.characterCount
+    },
+    persisted: false
   };
 }
 
 function collectClipboardStatus(options = {}) {
+  const now = options.now || new Date();
+  const nowMs = now instanceof Date ? now.getTime() : Number(now);
   const text = options.clipboardText ?? runCommand("pbpaste", []);
-  return classifyClipboardText(text);
+  const state = options.clipboardActivityState || defaultClipboardActivityState;
+  const observedAt = options.clipboardObservedAt ?? options.observedAt ?? nowMs;
+  const result = applyClipboardRead(state, {
+    plainText: text,
+    observedAt,
+    source: options.clipboardSource || "local-clipboard",
+    type: options.clipboardType || "text/plain",
+    hasPlainText: options.clipboardHasPlainText
+  }, {
+    now: nowMs,
+    recencyMs: options.clipboardRecencyMs
+  });
+  if (!options.clipboardActivityState) defaultClipboardActivityState = result.state;
+  return result.status;
+}
+
+function collectVolumeHudStatus(options = {}) {
+  if (!options.volumeInput) return null;
+  const now = options.now || new Date();
+  const nowMs = now instanceof Date ? now.getTime() : Number(now);
+  const state = options.volumeActivityState || defaultVolumeHudState;
+  const result = applyVolumeHudInputChange(state, {
+    ...options.volumeInput,
+    observedAt: options.volumeInput.observedAt ?? options.volumeObservedAt ?? options.observedAt ?? nowMs
+  }, {
+    now: nowMs,
+    transientMs: options.volumeTransientMs
+  });
+  if (!options.volumeActivityState) defaultVolumeHudState = result;
+  return volumeHudToNativeStatus(result.active);
 }
 
 function spotifyScript() {
@@ -825,10 +860,11 @@ function collectMediaStatus(options = {}) {
 function buildMacActivityStatusPayload(options = {}) {
   const now = options.now || new Date();
   const statuses = [
+    collectVolumeHudStatus(options),
     collectMediaStatus(options),
     collectClipboardStatus(options),
     collectBatteryStatus(options)
-  ].map((status) => ({
+  ].filter(Boolean).map((status) => ({
     ...status,
     updatedAt: now.toISOString()
   }));
@@ -898,6 +934,7 @@ module.exports = {
   classifyClipboardText,
   collectBatteryStatus,
   collectClipboardStatus,
+  collectVolumeHudStatus,
   collectMediaCandidates,
   collectMediaStatus,
   formatDuration,
