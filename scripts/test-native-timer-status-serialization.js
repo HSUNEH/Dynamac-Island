@@ -15,6 +15,7 @@ const doneStatusPath = path.join(repoRoot, "fixtures", "timer-done-status.json")
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "dynamac-native-timer-presentation-"));
 const stoppedWithMediaStatusPath = path.join(tempDir, "timer-stopped-with-media-status.json");
 const resetWithMediaStatusPath = path.join(tempDir, "timer-reset-with-media-status.json");
+const pausedStatusPath = path.join(tempDir, "timer-paused-status.json");
 
 const stoppedWithMediaPayload = JSON.parse(fs.readFileSync(stoppedStatusPath, "utf8"));
 stoppedWithMediaPayload.statuses.push({
@@ -51,6 +52,30 @@ resetWithMediaPayload.statuses.push({
   }
 });
 fs.writeFileSync(resetWithMediaStatusPath, JSON.stringify(resetWithMediaPayload, null, 2));
+
+const pausedPayload = {
+  statuses: [
+    {
+      agent: "Timer",
+      state: "running",
+      task: "Timer paused",
+      updatedAt: "2026-06-14T00:02:00.000Z",
+      detail: "Paused with 2m 15s remaining of 5m.",
+      timer: {
+        id: "timer-native-paused-contract-test",
+        durationSeconds: 300,
+        remainingSeconds: 135,
+        state: "paused",
+        startedAt: "2026-06-14T00:00:00.000Z",
+        updatedAt: "2026-06-14T00:02:45.000Z",
+        displayText: "2m 15s",
+        error: "",
+        replacedPrevious: false
+      }
+    }
+  ]
+};
+fs.writeFileSync(pausedStatusPath, JSON.stringify(pausedPayload, null, 2));
 
 function runNativeStatusDump(statusPath) {
   const result = childProcess.spawnSync(nativePath, {
@@ -108,6 +133,25 @@ assert.match(stoppedOutput, /compactRemainingText=\s/, "stopped timer should not
 assert.match(stoppedOutput, /compactLifecycleState=\s/, "stopped timer should not expose an active compact lifecycle state");
 assert.match(stoppedOutput, /compactIsRunning=false/, "stopped timer compact model must not mark the timer as running");
 assert.match(stoppedOutput, /compactIsPaused=false/, "stopped timer should not expose active paused countdown metadata");
+
+const pausedOutput = runNativeStatusDump(pausedStatusPath);
+assert.match(pausedOutput, /DYNAMAC_STATUS_DUMP active=timer/, "native smoke should decode a paused Timer status payload");
+assert.match(pausedOutput, /presentation=timer/, "paused timer should remain observable in the native overlay presentation");
+assert.match(pausedOutput, /statusState=running/, "paused timer wrapper status should preserve its active native status state");
+assert.match(pausedOutput, /id=timer-native-paused-contract-test/, "native dump should decode the paused timer identifier");
+assert.match(pausedOutput, /durationSeconds=300/, "native dump should decode paused timer duration");
+assert.match(pausedOutput, /remainingSeconds=135/, "native dump should preserve the frozen paused remaining duration");
+assert.match(pausedOutput, /state=paused/, "native dump should decode paused timer lifecycle state");
+assert.match(pausedOutput, /startedAt=2026-06-14T00:00:00.000Z/, "native dump should preserve paused timer start timestamp");
+assert.match(pausedOutput, /updatedAt=2026-06-14T00:02:45.000Z/, "native dump should preserve paused timer update timestamp");
+assert.match(pausedOutput, /displayText=2m 15s/, "native dump should preserve paused timer display text");
+assert.match(pausedOutput, /error=\s/, "native dump should preserve empty paused timer error text");
+assert.match(pausedOutput, /replacedPrevious=false/, "native dump should preserve paused timer replacement metadata");
+assert.match(pausedOutput, /compactIsActive=true/, "paused timer native status should map to an active compact native timer model");
+assert.match(pausedOutput, /compactRemainingText=2:15/, "paused timer should expose frozen compact countdown text");
+assert.match(pausedOutput, /compactLifecycleState=paused/, "paused timer should expose a paused compact lifecycle state");
+assert.match(pausedOutput, /compactIsRunning=false/, "paused timer compact model must not mark the timer as running");
+assert.match(pausedOutput, /compactIsPaused=true/, "paused timer compact model should mark the timer as paused");
 
 const stoppedWithMediaOutput = runNativeStatusDump(stoppedWithMediaStatusPath);
 assert.match(stoppedWithMediaOutput, /DYNAMAC_STATUS_DUMP active=timer/, "native smoke should still decode stopped Timer payloads even when media is present");

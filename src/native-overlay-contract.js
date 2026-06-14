@@ -7,6 +7,7 @@ const NATIVE_TIMER_CONTRACT = Object.freeze({
 });
 
 function activeNativeTimerStatus(statuses) {
+  if (!Array.isArray(statuses)) return null;
   return statuses.find((status) => status.agent === NATIVE_TIMER_CONTRACT.agent && status.timer);
 }
 

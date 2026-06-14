@@ -260,7 +260,11 @@ Start a timer with a positive whole-number duration:
 npm run timer:start -- 5m --status status/status.json
 ```
 
-Starting writes one `Timer` status item into the local watched status file. A valid running timer exposes deterministic status fields for automated checks: stable `id`, `durationSeconds`, current `remainingSeconds`, lifecycle `state: "running"`, ISO UTC `startedAt` and `updatedAt`, user-facing `displayText`, empty `error`, and `replacedPrevious`. Starting a new timer while another timer is running replaces the previous running timer; the new timer is the only active timer and serializes `replacedPrevious: true`.
+Starting writes one `Timer` status item into the local watched status file. A valid running timer exposes deterministic status fields for automated checks: stable `id`, `durationSeconds`, current `remainingSeconds`, lifecycle `state: "running"`, ISO UTC `startedAt` and `updatedAt`, user-facing `displayText`, empty `error`, and `replacedPrevious`.
+
+### Timer Replacement Semantics
+
+Dynamac Timer is single-active-timer only. Starting a new timer while another timer is active replaces the previous active timer deterministically: the previous timer is removed from the active overlay/status path, the new timer becomes the only `Timer` status item, and the new timer serializes `replacedPrevious: true`. Starting a new timer after a completed `done` timer also replaces that completed status with the newly running timer; the completed timer is no longer shown as a second timer, and the new timer serializes `replacedPrevious: true` so local automation can tell that an existing Timer status was replaced.
 
 While running, the compact notch overlay shows the Timer as the active local utility item with remaining-time text such as `Timer · 4m 30s remaining`. The status file remains local and inspectable at the chosen `--status` path, so Electron development watches `status/status.json` and the native overlay can decode the same Timer object through the existing status model.
 
