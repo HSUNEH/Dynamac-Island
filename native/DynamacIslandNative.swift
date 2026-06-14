@@ -486,7 +486,7 @@ final class IslandView: NSView {
         // product-first structure — quiet chrome, 8pt rhythm, 17/21pt SF hierarchy,
         // pill/circular transport grammar, and a thin scrubber.
         let cover = expandedCoverRect()
-        drawArtwork(media: media, in: cover, cornerRadius: 18, fallbackFontSize: 40)
+        drawArtwork(media: media, in: cover, cornerRadius: 18, fallbackFontSize: 40, aspectFit: true)
 
         let labelAttrs = expandedTextAttributes(size: 11, weight: .semibold, color: NSColor(calibratedWhite: 0.64, alpha: 1), letterSpacing: 0.8)
         let titleAttrs = expandedTextAttributes(size: 21, weight: .semibold, color: .white, letterSpacing: -0.28)
@@ -596,12 +596,20 @@ final class IslandView: NSView {
         return copy
     }
 
-    private func drawArtwork(media: MediaInfo, in rect: NSRect, cornerRadius: CGFloat, fallbackFontSize: CGFloat) {
+    private func drawArtwork(media: MediaInfo, in rect: NSRect, cornerRadius: CGFloat, fallbackFontSize: CGFloat, aspectFit: Bool = false) {
         let path = NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius)
         NSGraphicsContext.saveGraphicsState()
         path.addClip()
         if let image = artworkImage(media.artworkUrl) {
-            drawUprightImage(image, in: rect)
+            if aspectFit {
+                // YouTube thumbnails are 16:9, not square. Preserve their aspect
+                // ratio inside the frame instead of stretching them to fill it.
+                NSColor(calibratedWhite: 0, alpha: 0.28).setFill()
+                rect.fill()
+                drawUprightImage(image, in: aspectFitRect(imageSize: image.size, in: rect))
+            } else {
+                drawUprightImage(image, in: rect)
+            }
         } else {
             NSColor(calibratedWhite: 1, alpha: 0.10).setFill()
             rect.fill()
@@ -635,6 +643,14 @@ final class IslandView: NSView {
         }
         failedArtworkKeys.insert(value)
         return nil
+    }
+
+    private func aspectFitRect(imageSize: NSSize, in rect: NSRect) -> NSRect {
+        guard imageSize.width > 0, imageSize.height > 0 else { return rect }
+        let scale = min(rect.width / imageSize.width, rect.height / imageSize.height)
+        let width = imageSize.width * scale
+        let height = imageSize.height * scale
+        return NSRect(x: rect.midX - width / 2, y: rect.midY - height / 2, width: width, height: height)
     }
 
     private func drawUprightImage(_ image: NSImage, in rect: NSRect) {
