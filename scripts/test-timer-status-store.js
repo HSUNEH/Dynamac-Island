@@ -8,6 +8,7 @@ const { loadStatusFile } = require("../src/status-loader");
 const { parseTimerDuration } = require("../src/timer-duration");
 const { createTimerState, startTimer } = require("../src/timer-state");
 const {
+  resetTimerStatusSnapshot,
   stopTimerStatusSnapshot,
   writeTimerStatusSnapshot
 } = require("../src/timer-status-store");
@@ -64,6 +65,30 @@ try {
   assert.equal(loadedStopped.ok, true, "stopped Timer status store should pass the shared native status schema");
   assert.deepEqual(loadedStopped.errors, []);
   assert.deepEqual(loadedStopped.statuses, stopResult.status.payload.statuses, "native status loader should read the stopped Timer model back unchanged");
+
+  const resetOutputPath = path.join(tempDir, "nested", "reset-status.json");
+  const resetResult = resetTimerStatusSnapshot(timerState, {
+    outputPath: resetOutputPath,
+    now: () => "2026-06-14T00:01:00.000Z",
+    statusNow: "2026-06-14T00:01:00.000Z"
+  });
+
+  assert.strictEqual(resetResult.timer, timerState.activeTimer, "store reset should persist the reset timer as the inspectable active record");
+  assert.equal(resetResult.timer.state, "reset", "store reset should transition the active timer to reset");
+  assert.equal(resetResult.timer.remainingSeconds, 120, "store reset should restore the full original duration");
+  assert.equal(resetResult.timer.startedAt, "2026-06-14T00:01:00.000Z", "store reset should restart the timer timestamp deterministically");
+  assert.equal(resetResult.timer.updatedAt, "2026-06-14T00:01:00.000Z", "store reset should stamp the reset update time deterministically");
+  assert.equal(resetResult.status.outputPath, resetOutputPath, "store reset should write to the requested native status path");
+  assert.equal(resetResult.status.payload.statuses.length, 1, "reset timer should remain visible as one inactive status item");
+  assert.equal(resetResult.status.payload.statuses[0].state, "idle", "reset timer native status should be inactive/idle");
+  assert.equal(resetResult.status.payload.statuses[0].task, "Timer · 2m remaining");
+  assert.equal(resetResult.status.payload.statuses[0].timer.state, "reset");
+  assert.equal(resetResult.status.payload.statuses[0].timer.remainingSeconds, 120, "reset timer status should immediately restore the full duration");
+
+  const loadedReset = loadStatusFile(resetOutputPath);
+  assert.equal(loadedReset.ok, true, "reset Timer status store should pass the shared native status schema");
+  assert.deepEqual(loadedReset.errors, []);
+  assert.deepEqual(loadedReset.statuses, resetResult.status.payload.statuses, "native status loader should read the reset Timer model back unchanged");
 
   const noTimerState = createTimerState();
   const emptyStopPath = path.join(tempDir, "nested", "empty-stopped-status.json");

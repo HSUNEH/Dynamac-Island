@@ -1,0 +1,22 @@
+{
+  "statuses": [
+    {
+      "agent": "Timer",
+      "state": "idle",
+      "task": "Timer · 5m remaining",
+      "updatedAt": "2026-06-14T00:01:00.000Z",
+      "detail": "5m remaining of 5m.",
+      "timer": {
+        "id": "timer-native-reset-contract-test",
+        "durationSeconds": 300,
+        "remainingSeconds": 300,
+        "state": "reset",
+        "startedAt": "2026-06-14T00:01:00.000Z",
+        "updatedAt": "2026-06-14T00:01:00.000Z",
+        "displayText": "5m",
+        "error": "",
+        "replacedPrevious": false
+      }
+    }
+  ]
+}

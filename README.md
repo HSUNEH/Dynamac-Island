@@ -21,7 +21,7 @@ Dynamac Island follows that pattern for this Mac:
 - Native overlay source: `native/DynamacIslandNative.swift` builds with `swiftc` through `npm run native:start`, avoiding the SwiftPM/Xcode path for quick MacBook CLT testing.
 - Native compact shape: on notched MacBook displays, the hardware notch area remains transparent and Dynamac paints only left/right wings beside the notch so it attaches to the occluded area instead of covering it; on non-notch/external displays, Dynamac uses one normal compact pill instead of leaving an empty center gap. Display topology changes, wake/unlock, and display-wake events trigger delayed notch re-measurement plus frame re-anchoring so the compact shape adapts after monitor connects/disconnects or main-display handoff. Mission Control and App Exposé start events animate the island into a tiny screen-center capsule before restoring it to the notch/top-center position, matching the system's windows-pull-in motion instead of leaving the overlay pinned at the notch.
 - Runtime status source: Electron development watches `status/status.json`; native `npm run native:start` writes and refreshes a local Mac activity snapshot in `.build/status.json` while running, using a low-latency default refresh loop plus a native-to-writer refresh signal so play/pause and next/previous track metadata/artwork changes reach the island quickly; Spotify/Music MediaRemote snapshots are enriched with native app artwork and remote covers are materialized into a local `.build/artwork-cache` file before the native overlay reads them, instead of making the UI thread fetch CDN artwork.
-- Local Timer MVP: Dynamac supports one local active timer as the first non-media live activity. Starting a timer creates a deterministic `Timer` status item with `durationSeconds`, `remainingSeconds`, lifecycle `state`, `startedAt`, `updatedAt`, `displayText`, `error`, and `replacedPrevious`; starting a second timer replaces a currently running timer and marks the new status with `replacedPrevious: true`. The native overlay can render the Timer status directly in compact and expanded modes. Sound, system notifications, history, sync, and broader DynamicLake actions are deferred.
+- Local Timer MVP: Dynamac supports one local active timer as the first non-media live activity. Starting a timer creates a deterministic `Timer` status item with `durationSeconds`, `remainingSeconds`, lifecycle `state`, `startedAt`, `updatedAt`, `displayText`, `error`, and `replacedPrevious`; starting a second timer replaces a currently running timer and marks the new status with `replacedPrevious: true`. Stop and reset keep the Timer status serializable for inspection while releasing active compact overlay priority; reset immediately restores `remainingSeconds` to the original duration and stamps fresh `startedAt`/`updatedAt` timestamps. The native overlay can render the active Timer status directly in compact and expanded modes. Sound, system notifications, history, sync, and broader DynamicLake actions are deferred.
 - Mac activity snapshot model: `Now Playing` collects media candidates from macOS MediaRemote/`nowplaying-cli`, Spotify/Music AppleScript enrichment, normal Arc active-Space YouTube/YouTube Music tab title+URL probes, browser YouTube/YouTube Music surfaces, CDP (`127.0.0.1:9222-9225`, configurable with `DYNAMAC_CDP_PORTS`), and the optional local browser media bridge (`127.0.0.1:17654`). The selected compact item is no longer chosen by a hard-coded service priority: while multiple surfaces are playing, Dynamac keeps the candidate that was already playing first (`firstSeenAt`) until it stops, then falls through to the next active candidate. MediaRemote bundle IDs are normalized into generic sources such as `spotify`, `music`, `tidal`, `melon`, `genie`, `youtube-music`, `browser-media`, or `now-playing`; service-specific probes only enrich missing artwork/page metadata. Normal Arc does not require `--load-extension`: Dynamac reads YouTube tab title/URL from Arc's active Space and merges it with MediaRemote when Arc is the current playing app. `npm run start:arc-media` remains available as a precision upgrade that launches ST's normal Arc profile/account with the bridge extension in a dedicated Snuffles Space for direct page duration/currentTime/channel heartbeat. To force browser-extension mode for Arc or Chrome, launch with `npm run start:arc-media` or `npm run start:chrome-media`, allow YouTube/Media loopback access to `127.0.0.1` when Arc asks, reload the media tab, then run `npm run diagnose:youtube`. `Clipboard` comes from the local text clipboard, and `Battery` from `pmset -g batt`. Hermes runtime status remains an optional/dev provider, not the default product surface.
 - Now Playing native UI: notch mode shows only album art/YouTube thumbnail/music-note fallback on the left wing plus a white waveform playing indicator on the right wing; non-notch/external-display compact mode uses one centered pill with a compact trailing white waveform that stays after the artwork without consuming the pill; expanded mode keeps Dynamac's existing dark/media colors but borrows only the Apple DESIGN.md form language: product-first larger artwork, quiet chrome, 8pt rhythm, SF-style 17/21pt typography, notch-safe metadata placement on MacBook displays so the physical camera housing does not cover source/title text, split elapsed/duration labels, thin scrubber with a visible thumb and an intentionally narrow bar-only seek target, centered pill transport controls, draggable/clickable seek, and previous/play-pause/next vector controls. In expanded mode, clicking the album art or source/title/artist text opens the media source app/page, including activating Spotify for Spotify playback. Expanded mode automatically collapses back to compact mode after 5 seconds of no expanded-mode interaction by default. Notch-to-expanded transitions animate only the lightweight island shell, then fade media content in after resize so artwork-heavy Now Playing surfaces do not stutter.
 - Validation model: each status item needs `agent`, `state`, `task`, `updatedAt`, and `detail`.
@@ -255,7 +255,7 @@ npm run native:start
 The renderer still consumes a local JSON file because it gives the UI a simple, testable boundary. The important change is what writes that file:
 
 - Product/default native path: `src/mac-activity-status.js` generates a snapshot from local Mac utility signals: Now Playing, Clipboard, and Battery.
-- Timer path: `npm run timer:start -- <duration> --status <path>` uses `src/timer-start-entrypoint.js` to start a local Timer and write the active running timer into the same native status-store shape through `src/timer-status-store.js`; the write is local-only and replaces the Timer status model for the single active timer MVP. Valid examples include `5m`, `90s`, and `2h`; non-numeric input such as `abc` and non-positive input such as `0s` fail with stable JSON error output and non-zero exit status.
+- Timer path: `npm run timer:start -- <duration> --status <path>` uses `src/timer-start-entrypoint.js` to start a local Timer and write the active running timer into the same native status-store shape through `src/timer-status-store.js`; the write is local-only and replaces the Timer status model for the single active timer MVP. Stop and reset operations use the same status-store path: stopped/reset timers remain present as inactive `Timer` status items for deterministic native decoding, and a reset timer immediately serializes with full remaining duration, `state: "reset"`, and fresh reset timestamps. Valid examples include `5m`, `90s`, and `2h`; non-numeric input such as `abc` and non-positive input such as `0s` fail with stable JSON error output and non-zero exit status.
 - Optional/dev path: `src/hermes-status.js` can still generate local Hermes runtime snapshots for Hermes-equipped development machines.
 - Development path: `status/status.json` is watched so updates can be verified without relaunching.
 - Packaged `.app` path: Electron userData, usually `~/Library/Application Support/Dynamac Island/status/status.json`.
@@ -330,6 +330,33 @@ Timer status shape when a local timer is active:
 }
 ```
 
+Timer reset status shape immediately after reset:
+
+```json
+{
+  "statuses": [
+    {
+      "agent": "Timer",
+      "state": "idle",
+      "task": "Timer · 5m remaining",
+      "updatedAt": "2026-06-14T00:01:00.000Z",
+      "detail": "5m remaining of 5m.",
+      "timer": {
+        "id": "timer-20260614000000000-300s",
+        "durationSeconds": 300,
+        "remainingSeconds": 300,
+        "state": "reset",
+        "startedAt": "2026-06-14T00:01:00.000Z",
+        "updatedAt": "2026-06-14T00:01:00.000Z",
+        "displayText": "5m",
+        "error": "",
+        "replacedPrevious": false
+      }
+    }
+  ]
+}
+```
+
 `npm run check-status` validates this local artifact deterministically: Timer statuses must include the Timer object fields above, positive integer duration, non-negative remaining seconds no greater than the duration, allowed lifecycle state (`idle`, `running`, `stopped`, `reset`, or `done`), ISO UTC timestamps, string display/error fields, and boolean replacement metadata.
 
 ## Verification
@@ -358,8 +385,8 @@ Expected results:
 - `smoke:launch` passes after `npm install` when Electron can open the real app window, finish loading `src/index.html`, and quit automatically.
 - `test:notch-position` passes when the overlay is centered on the physical display bounds and pinned to `y=0`.
 - `test:mac-activity-status` passes when the app can generate default Now Playing, Clipboard, and Battery status entries.
-- `test:timer-status-store` passes when starting/writing a Timer produces a native-loadable active/running Timer status model.
-- `test:native-timer-status-serialization` passes when the native AppKit smoke path decodes `fixtures/timer-running-status.json`, selects the active Timer before background media, and preserves `id`, `durationSeconds`, `remainingSeconds`, lifecycle `state`, `displayText`, and `replacedPrevious` for the overlay.
+- `test:timer-status-store` passes when starting/writing/stopping/resetting a Timer produces native-loadable Timer status models, including reset state with full restored duration and fresh reset timestamps.
+- `test:native-timer-status-serialization` passes when the native AppKit smoke path decodes running, stopped, and reset Timer fixtures, selects the active Timer before background media, releases inactive stopped/reset timers to fallback/media presentation, and preserves `id`, `durationSeconds`, `remainingSeconds`, lifecycle `state`, `startedAt`, `updatedAt`, `displayText`, `error`, and `replacedPrevious` for the overlay contract.
 - `test:hermes-status` passes when the optional Hermes provider can generate status entries from local Hermes runtime/session inputs.
 - `test:status-loader` passes when the status loader can read, parse, and validate `fixtures/valid-status.json`.
 - `check-status` passes for `status/status.json`.
