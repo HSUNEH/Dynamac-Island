@@ -28,6 +28,38 @@ function isValidHttpUrl(text) {
   }
 }
 
+function isCodeLikeClipboardText(text) {
+  const clean = normalizeClipboardText(text);
+  if (!clean) return false;
+  if (/^```[\s\S]*```$/m.test(clean) || /^~~~[\s\S]*~~~$/m.test(clean)) return true;
+
+  const lines = clean.split(/\r?\n/).filter((line) => line.trim());
+  const hasMultipleLines = lines.length > 1;
+  const hasIndentedBlock = lines.some((line) => /^\s{2,}\S/.test(line));
+
+  let score = 0;
+  if (/[{}[\];]|=>|<\/?[A-Za-z][^>]*>/.test(clean)) score += 1;
+  if (/(^|\n)\s*(const|let|var|function|class|import|export|return|if|else|for|while|switch|try|catch|async|await|interface|type|enum)\b/.test(clean)) score += 1;
+  if (/(^|\n)\s*(def|from\s+\w+\s+import|print|return|if __name__)\b/.test(clean)) score += 1;
+  if (/(^|\n)\s*[\w.$]+\s*=\s*[^=\n]+/.test(clean)) score += 1;
+  if (/(^|\n)\s*[})\]]?\s*[;{}]\s*$/.test(clean)) score += 1;
+  if (hasMultipleLines && hasIndentedBlock) score += 1;
+
+  if (score >= 2) return true;
+
+  const startsLikeStructuredLiteral = /^[{[]/.test(clean) && /[}\]]$/.test(clean);
+  if (startsLikeStructuredLiteral) {
+    try {
+      const parsed = JSON.parse(clean);
+      return parsed !== null && typeof parsed === "object";
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  return false;
+}
+
 function classifyClipboardText(text) {
   const clean = normalizeClipboardText(text);
   if (!clean) {
@@ -48,6 +80,9 @@ function classifyClipboardText(text) {
   } else if (/^file:\/\//i.test(clean) || clean.startsWith("/")) {
     classification = "path";
     type = "Path";
+  } else if (isCodeLikeClipboardText(clean)) {
+    classification = "code";
+    type = "Code";
   }
 
   const characterCount = clean.length;
@@ -208,6 +243,7 @@ module.exports = {
   clipboardActivityToNativeStatus,
   createClipboardActivityState,
   inactiveClipboardStatus,
+  isCodeLikeClipboardText,
   isValidHttpUrl,
   normalizeClipboardText,
   textSignature

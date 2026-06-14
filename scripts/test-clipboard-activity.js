@@ -99,6 +99,27 @@ const textClass = classifyClipboardText("hello");
 assert.equal(textClass.classification, "text");
 assert.equal(textClass.label, "Text copied · 5 chars");
 
+const jsSnippet = `function greet(name) {
+  return \`hello, ${"${name}"}\`;
+}`;
+const jsSnippetClass = classifyClipboardText(jsSnippet);
+assert.equal(jsSnippetClass.classification, "code", "JavaScript-style snippets should classify as code-like clipboard text");
+assert.equal(jsSnippetClass.label, "Code copied · 51 chars");
+
+const pythonSnippet = `def greet(name):
+    return f"hello, {name}"`;
+const pythonSnippetClass = classifyClipboardText(pythonSnippet);
+assert.equal(pythonSnippetClass.classification, "code", "Python-style snippets should classify as code-like clipboard text");
+assert.equal(pythonSnippetClass.label, "Code copied · 44 chars");
+
+const fencedSnippet = "```swift\nlet enabled = true\n```";
+const fencedSnippetClass = classifyClipboardText(fencedSnippet);
+assert.equal(fencedSnippetClass.classification, "code", "fenced snippets should classify as code-like clipboard text");
+
+const proseClass = classifyClipboardText("Meeting notes: please return the file before lunch and confirm when you are done.");
+assert.equal(proseClass.classification, "text", "ordinary prose with punctuation should remain plain text");
+assert.equal(proseClass.label, "Text copied · 81 chars");
+
 const seeded = buildClipboardStatusFromText("new text", {
   now: now + 400,
   observedAt: now + 400,
