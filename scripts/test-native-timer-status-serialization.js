@@ -30,5 +30,9 @@ assert.match(result.stdout, /remainingSeconds=270/, "native dump should decode r
 assert.match(result.stdout, /state=running/, "native dump should decode running timer state");
 assert.match(result.stdout, /displayText=4m 30s/, "native dump should preserve overlay display text");
 assert.match(result.stdout, /replacedPrevious=true/, "native dump should preserve replacement metadata");
+assert.match(result.stdout, /compactRemainingText=4:30/, "native dump should expose compact timer remaining text from the overlay view model");
+assert.match(result.stdout, /compactLifecycleState=running/, "native dump should expose compact timer lifecycle state from the overlay view model");
+assert.match(result.stdout, /compactIsRunning=true/, "running timer compact model should mark the timer as running");
+assert.match(result.stdout, /compactIsPaused=false/, "running timer compact model should not mark the timer as paused");
 
 console.log("Native timer status serialization smoke test passed.");

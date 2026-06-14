@@ -81,6 +81,13 @@ assert.match(source, /activeTimerStatus/, "native overlay should select an activ
 assert.match(source, /drawCompactTimer/, "compact native overlay should render a simple unobtrusive Timer surface");
 assert.match(source, /drawExpandedTimer/, "expanded native overlay should render Timer detail from the native status model");
 assert.match(source, /drawTimerProgress/, "expanded Timer surface should show deterministic elapsed progress from duration and remaining seconds");
+assert.match(source, /struct TimerCompactOverlayViewModel/, "native overlay should map active Timer status into a compact overlay view model");
+assert.match(source, /var remainingText: String/, "compact Timer view model should expose stable remaining time text");
+assert.match(source, /var isRunning: Bool/, "compact Timer view model should expose a running state field");
+assert.match(source, /var isPaused: Bool/, "compact Timer view model should expose a paused state field");
+assert.match(source, /activeTimerCompactViewModel/, "native overlay should build the compact Timer view model from the selected active Timer status");
+assert.match(source, /remainingText: formatSeconds\(timer\.remainingSeconds\)/, "compact Timer view model should derive remaining text from remainingSeconds");
+assert.match(source, /isRunning: status\.state == "running" && timer\.state == "running"/, "compact Timer view model should mark only actively running timers as running");
 
 assert.match(source, /drawUprightImage/, "album artwork should be drawn through an upright image path so flipped NSView coordinates do not invert covers");
 assert.match(source, /respectFlipped: false/, "album artwork drawing should explicitly avoid AppKit flipped-coordinate inversion");

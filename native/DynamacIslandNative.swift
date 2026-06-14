@@ -27,6 +27,14 @@ struct TimerInfo: Decodable {
     var replacedPrevious: Bool
 }
 
+struct TimerCompactOverlayViewModel {
+    var id: String
+    var remainingText: String
+    var lifecycleState: String
+    var isRunning: Bool
+    var isPaused: Bool
+}
+
 struct MediaInfo: Decodable {
     var source: String?
     var title: String?
@@ -423,10 +431,29 @@ final class IslandView: NSView {
         statuses.first { $0.agent == "Now Playing" }?.media
     }
 
-    private func activeTimerStatus() -> StatusItem? {
+    private func selectedActiveTimerStatus() -> StatusItem? {
         statuses.first { status in
             status.agent == "Timer" && status.timer != nil && (status.state == "running" || status.state == "success")
         }
+    }
+
+    private func activeTimerStatus() -> StatusItem? {
+        selectedActiveTimerStatus()
+    }
+
+    fileprivate func activeTimerCompactViewModel() -> TimerCompactOverlayViewModel? {
+        guard let status = selectedActiveTimerStatus(), let timer = status.timer else { return nil }
+        return compactTimerViewModel(status: status, timer: timer)
+    }
+
+    private func compactTimerViewModel(status: StatusItem, timer: TimerInfo) -> TimerCompactOverlayViewModel {
+        TimerCompactOverlayViewModel(
+            id: timer.id,
+            remainingText: formatSeconds(timer.remainingSeconds),
+            lifecycleState: timer.state,
+            isRunning: status.state == "running" && timer.state == "running",
+            isPaused: timer.state == "paused" || timer.state == "stopped" || timer.state == "reset"
+        )
     }
 
     func replaceStatuses(_ incomingStatuses: [StatusItem]) {
@@ -538,7 +565,7 @@ final class IslandView: NSView {
 
     private func drawCompactTimer(_ status: StatusItem) {
         guard let timer = status.timer else { return }
-        let remaining = formatSeconds(timer.remainingSeconds)
+        let viewModel = compactTimerViewModel(status: status, timer: timer)
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineBreakMode = .byTruncatingTail
         paragraph.alignment = .center
@@ -550,9 +577,9 @@ final class IslandView: NSView {
 
         if compactLayout.usesHardwareNotchCutout {
             NSString(string: "⏱").draw(in: compactLayout.leftWingRect(in: bounds).insetBy(dx: 7, dy: 7), withAttributes: attrs)
-            NSString(string: remaining).draw(in: compactLayout.rightWingRect(in: bounds).insetBy(dx: 4, dy: 7), withAttributes: attrs)
+            NSString(string: viewModel.remainingText).draw(in: compactLayout.rightWingRect(in: bounds).insetBy(dx: 4, dy: 7), withAttributes: attrs)
         } else {
-            NSString(string: "⏱ \(remaining)").draw(in: bounds.insetBy(dx: 10, dy: 8), withAttributes: attrs)
+            NSString(string: "⏱ \(viewModel.remainingText)").draw(in: bounds.insetBy(dx: 10, dy: 8), withAttributes: attrs)
         }
     }
 
@@ -1574,6 +1601,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         if let status = statuses.first(where: { $0.agent == "Timer" && $0.timer != nil && ($0.state == "running" || $0.state == "success") }),
            let timer = status.timer {
+            let compactViewModel = islandView?.activeTimerCompactViewModel()
             print([
                 "DYNAMAC_STATUS_DUMP active=timer",
                 "agent=\(status.agent)",
@@ -1582,7 +1610,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 "remainingSeconds=\(Int(timer.remainingSeconds))",
                 "state=\(timer.state)",
                 "displayText=\(timer.displayText)",
-                "replacedPrevious=\(timer.replacedPrevious ? "true" : "false")"
+                "replacedPrevious=\(timer.replacedPrevious ? "true" : "false")",
+                "compactRemainingText=\(compactViewModel?.remainingText ?? "")",
+                "compactLifecycleState=\(compactViewModel?.lifecycleState ?? "")",
+                "compactIsRunning=\(compactViewModel?.isRunning == true ? "true" : "false")",
+                "compactIsPaused=\(compactViewModel?.isPaused == true ? "true" : "false")"
             ].joined(separator: " "))
             return
         }

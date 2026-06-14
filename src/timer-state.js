@@ -3,6 +3,8 @@ const { formatTimerDuration } = require("./timer-duration");
 const TIMER_STATES = Object.freeze({
   IDLE: "idle",
   RUNNING: "running",
+  STOPPED: "stopped",
+  RESET: "reset",
   DONE: "done"
 });
 
@@ -18,6 +20,14 @@ function toIsoTimestamp(value) {
     throw new Error("timer timestamp must be a valid date");
   }
   return date.toISOString();
+}
+
+function toTimerDate(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    throw new Error("timer timestamp must be a valid date");
+  }
+  return date;
 }
 
 function defaultNow() {
@@ -45,10 +55,28 @@ function isRunningTimer(timer) {
   return Boolean(timer && timer.state === TIMER_STATES.RUNNING);
 }
 
-function startTimer(timerState, normalizedDuration, options = {}) {
+function remainingSecondsAt(timer, now) {
+  const durationSeconds = assertNormalizedDuration({
+    durationSeconds: timer.durationSeconds
+  });
+  const startedAt = toTimerDate(timer.startedAt);
+  const nowDate = toTimerDate(now);
+  const elapsedSeconds = Math.max(0, Math.floor((nowDate.getTime() - startedAt.getTime()) / 1000));
+  const reportedRemaining = Number.isSafeInteger(Number(timer.remainingSeconds))
+    ? Number(timer.remainingSeconds)
+    : durationSeconds;
+
+  return Math.max(0, Math.min(reportedRemaining, durationSeconds - elapsedSeconds));
+}
+
+function assertTimerState(timerState) {
   if (!timerState || typeof timerState !== "object") {
     throw new Error("timerState must be an object");
   }
+}
+
+function startTimer(timerState, normalizedDuration, options = {}) {
+  assertTimerState(timerState);
 
   const durationSeconds = assertNormalizedDuration(normalizedDuration);
   const now = options.now || defaultNow;
@@ -73,9 +101,59 @@ function startTimer(timerState, normalizedDuration, options = {}) {
   return timer;
 }
 
+function resetTimer(timerState, options = {}) {
+  assertTimerState(timerState);
+
+  const activeTimer = timerState.activeTimer;
+  if (!activeTimer) return null;
+
+  const durationSeconds = assertNormalizedDuration({
+    durationSeconds: activeTimer.durationSeconds
+  });
+  const now = options.now || defaultNow;
+  const updatedAt = toIsoTimestamp(now());
+  const displayText = activeTimer.displayText || formatTimerDuration(durationSeconds);
+
+  const resetTimerState = {
+    ...activeTimer,
+    durationSeconds,
+    remainingSeconds: durationSeconds,
+    state: TIMER_STATES.RESET,
+    startedAt: updatedAt,
+    updatedAt,
+    displayText,
+    error: ""
+  };
+
+  timerState.activeTimer = resetTimerState;
+  return resetTimerState;
+}
+
+function stopTimer(timerState, options = {}) {
+  assertTimerState(timerState);
+
+  const activeTimer = timerState.activeTimer;
+  if (!isRunningTimer(activeTimer)) return activeTimer || null;
+
+  const now = options.now || defaultNow;
+  const stoppedAt = toIsoTimestamp(now());
+  const stoppedTimerState = {
+    ...activeTimer,
+    remainingSeconds: remainingSecondsAt(activeTimer, stoppedAt),
+    state: TIMER_STATES.STOPPED,
+    updatedAt: stoppedAt,
+    error: ""
+  };
+
+  timerState.activeTimer = stoppedTimerState;
+  return stoppedTimerState;
+}
+
 module.exports = {
   TIMER_STATES,
   createTimerId,
   createTimerState,
+  resetTimer,
+  stopTimer,
   startTimer
 };
