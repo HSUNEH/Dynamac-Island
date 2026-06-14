@@ -73,6 +73,28 @@ assert.match(
   "paused Timer card should render a reset action"
 );
 
+const doneTimerStatus = {
+  ...timerStatus,
+  state: "success",
+  task: "Timer done",
+  detail: "5m timer elapsed.",
+  timer: {
+    ...timerStatus.timer,
+    remainingSeconds: 0,
+    state: "done"
+  }
+};
+const doneViewModel = timerUi.createTimerViewModel(doneTimerStatus, {
+  now: "2026-06-14T00:05:00.000Z"
+});
+assert.equal(doneViewModel.isRunning, false, "completed Timer should not be treated as running");
+assert.equal(doneViewModel.canReset, true, "completed Timer should expose the reset control");
+assert.match(
+  timerUi.renderTimerStateView(doneViewModel),
+  /data-action="timer-reset"/,
+  "completed Timer card should render a reset action"
+);
+
 function makeElement() {
   return {
     textContent: "",

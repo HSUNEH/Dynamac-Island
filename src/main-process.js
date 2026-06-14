@@ -150,7 +150,7 @@ function createDynamacIslandMainProcess(dependencies) {
     return { ok: true, mode };
   }
 
-  function findRunningTimerStatus(payload) {
+  function findResettableTimerStatus(payload) {
     if (!payload || !Array.isArray(payload.statuses)) return null;
 
     return payload.statuses.find((status) => {
@@ -158,18 +158,20 @@ function createDynamacIslandMainProcess(dependencies) {
         status &&
         typeof status.agent === "string" &&
         status.agent.trim().toLowerCase() === "timer";
-      return isTimer && status.timer && status.timer.state === TIMER_STATES.RUNNING;
+      return isTimer &&
+        status.timer &&
+        [TIMER_STATES.RUNNING, TIMER_STATES.STOPPED, TIMER_STATES.DONE].includes(status.timer.state);
     }) || null;
   }
 
   function resetActiveTimer(options = {}) {
     const payload = currentStatus || loadCurrentStatusFile();
-    const timerStatus = findRunningTimerStatus(payload);
+    const timerStatus = findResettableTimerStatus(payload);
 
     if (!timerStatus) {
       return {
         ok: false,
-        error: "No running timer to reset.",
+        error: "No resettable timer to reset.",
         payload
       };
     }
@@ -178,7 +180,7 @@ function createDynamacIslandMainProcess(dependencies) {
     if (requestedTimerId && requestedTimerId !== String(timerStatus.timer.id || "")) {
       return {
         ok: false,
-        error: "Requested timer is not the running timer.",
+        error: "Requested timer is not the resettable timer.",
         payload
       };
     }

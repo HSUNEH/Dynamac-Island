@@ -25,7 +25,7 @@
     }, { now: countdownNow });
     const stateLabel = titleCase(timerState);
     const isRunning = status.state === "running" && timerState === "running";
-    const canReset = timerState === "running" || timerState === "stopped";
+    const canReset = timerState === "running" || timerState === "stopped" || timerState === "done";
 
     return {
       agent: TIMER_AGENT,
@@ -72,7 +72,7 @@
       ? `<button class="timer-stop-button" type="button" data-action="timer-stop" data-timer-id="${escapeAttribute(viewModel.timerId)}" aria-label="Stop running timer">Stop</button>`
       : "";
     const resetControl = viewModel.canReset
-      ? `<button class="timer-reset-button" type="button" data-action="timer-reset" data-timer-id="${escapeAttribute(viewModel.timerId)}" aria-label="Reset running timer">Reset</button>`
+      ? `<button class="timer-reset-button" type="button" data-action="timer-reset" data-timer-id="${escapeAttribute(viewModel.timerId)}" aria-label="Reset timer">Reset</button>`
       : "";
     const timerControls = stopControl || resetControl
       ? `<span class="timer-controls">${stopControl}${resetControl}</span>`
