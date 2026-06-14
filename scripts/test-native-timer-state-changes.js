@@ -90,6 +90,31 @@ function resetTimerPayload() {
   };
 }
 
+function doneTimerPayload() {
+  return {
+    statuses: [
+      {
+        agent: "Timer",
+        state: "success",
+        task: "Timer done",
+        updatedAt: "2026-06-14T00:05:00.000Z",
+        detail: "5m timer elapsed.",
+        timer: {
+          id: "timer-native-done-state-change-test",
+          durationSeconds: 300,
+          remainingSeconds: 0,
+          state: "done",
+          startedAt: "2026-06-14T00:00:00.000Z",
+          updatedAt: "2026-06-14T00:05:00.000Z",
+          displayText: "Done",
+          error: "",
+          replacedPrevious: false
+        }
+      }
+    ]
+  };
+}
+
 function runNativeDump(now) {
   writeStatus(runningTimerPayload());
   const result = childProcess.spawnSync(nativePath, {
@@ -272,6 +297,60 @@ function runNativeResetStatusChangeDump() {
   });
 }
 
+function runNativeDoneStatusChangeDump() {
+  writeStatus(runningTimerPayload());
+
+  const child = childProcess.spawn(nativePath, {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      DYNAMAC_NATIVE_SMOKE_TEST: "1",
+      DYNAMAC_NATIVE_STATUS_DUMP: "1",
+      DYNAMAC_NATIVE_STATUS_DUMP_AFTER_MS: "900",
+      DYNAMAC_NATIVE_NOW: "2026-06-14T00:05:00.000Z",
+      DYNAMAC_STATUS_FILE: statusPath
+    },
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+
+  let stdout = "";
+  let stderr = "";
+  let wroteDoneStatus = false;
+  const writeTimer = setTimeout(() => {
+    wroteDoneStatus = true;
+    writeStatus(doneTimerPayload());
+  }, 120);
+
+  child.stdout.on("data", (chunk) => { stdout += chunk.toString(); });
+  child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
+
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      clearTimeout(writeTimer);
+      child.kill("SIGKILL");
+      reject(new Error(`native done state-change smoke timed out\nstdout:\n${stdout}\nstderr:\n${stderr}`));
+    }, 10000);
+
+    child.on("error", (error) => {
+      clearTimeout(timeout);
+      clearTimeout(writeTimer);
+      reject(error);
+    });
+
+    child.on("close", (code) => {
+      clearTimeout(timeout);
+      clearTimeout(writeTimer);
+      try {
+        assert.equal(code, 0, stderr || stdout);
+        assert.equal(wroteDoneStatus, true, "test should write a done Timer status after native readiness");
+        resolve(stdout);
+      } catch (error) {
+        reject(error);
+      }
+    });
+  });
+}
+
 (async () => {
   try {
     const tickOutput = runNativeDump("2026-06-14T00:00:01.000Z");
@@ -320,6 +399,22 @@ function runNativeResetStatusChangeDump() {
     assert.match(resetStateChangeOutput, /compactLifecycleState=\s/, "reset Timer status change should clear active compact lifecycle state");
     assert.match(resetStateChangeOutput, /compactIsRunning=false/, "reset Timer status change should not mark the compact model as running");
     assert.match(resetStateChangeOutput, /compactIsPaused=false/, "reset Timer status change should not expose paused compact metadata");
+
+    const doneStateChangeOutput = await runNativeDoneStatusChangeDump();
+    assert.match(doneStateChangeOutput, /DYNAMAC_STATUS_DUMP active=timer presentation=timer/, "native smoke should start with a running Timer presentation before the done change");
+    assert.match(doneStateChangeOutput, /statusState=success/, "done Timer status change should expose completed native status state");
+    assert.match(doneStateChangeOutput, /id=timer-native-done-state-change-test/, "done state-change dump should decode the changed Timer status id");
+    assert.match(doneStateChangeOutput, /remainingSeconds=0/, "done state-change dump should preserve zero remaining seconds");
+    assert.match(doneStateChangeOutput, /state=done/, "done state-change dump should decode the done lifecycle state");
+    assert.match(doneStateChangeOutput, /displayText=Done/, "done state-change dump should preserve stable Timer display text");
+    assert.match(doneStateChangeOutput, /compactIsActive=true/, "done Timer status change should keep the compact done model visible");
+    assert.match(doneStateChangeOutput, /compactRemainingText=Done/, "done Timer status change should update compact countdown text to Done");
+    assert.match(doneStateChangeOutput, /compactLifecycleState=done/, "done Timer status change should update compact lifecycle state to done");
+    assert.match(doneStateChangeOutput, /compactIsRunning=false/, "done Timer status change should not mark the compact model as running");
+    assert.match(doneStateChangeOutput, /compactIsPaused=false/, "done Timer status change should not expose paused compact metadata");
+    assert.match(doneStateChangeOutput, /renderedCompactText=⏱ Done/, "done Timer status change should update rendered compact notch output");
+    assert.match(doneStateChangeOutput, /renderedExpandedTitle=0:00/, "done Timer status change should update rendered expanded notch output");
+    assert.match(doneStateChangeOutput, /renderedProgressPercent=100\.00/, "done Timer status change should update rendered progress output to complete");
 
     const doneOutput = runNativeDump("2026-06-14T00:05:01.000Z");
     assert.match(doneOutput, /compactRemainingText=Done/, "compact native overlay should expose stable done text for elapsed timers");
