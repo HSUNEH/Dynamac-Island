@@ -160,7 +160,7 @@ struct NotchWingLayout {
 
 final class IslandView: NSView {
     var onToggle: (() -> Void)?
-    var onMediaControl: ((String, String) -> Void)?
+    var onMediaControl: ((String, String, Double, Double) -> Void)?
     var onMediaSeek: ((String, Double) -> Void)?
     var onOpenMediaSource: ((MediaInfo) -> Void)?
     var onExpandedInteraction: (() -> Void)?
@@ -198,7 +198,7 @@ final class IslandView: NSView {
         if expanded, let action = mediaControlAction(at: location), let media = nowPlayingMedia() {
             applyOptimisticMediaControl(action: action)
             onExpandedInteraction?()
-            onMediaControl?(action, media.source ?? "")
+            onMediaControl?(action, media.source ?? "", media.positionSeconds ?? 0, media.durationSeconds ?? 0)
             return
         }
         if expanded, let media = nowPlayingMedia(), mediaOpenSourceRect().contains(location) {
@@ -944,7 +944,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let view = IslandView(frame: NSRect(origin: .zero, size: size))
         view.compactLayout = compactLayout
         view.onToggle = { [weak self] in self?.toggleExpanded() }
-        view.onMediaControl = { [weak self] action, source in self?.performMediaControl(action: action, source: source) }
+        view.onMediaControl = { [weak self] action, source, position, duration in self?.performMediaControl(action: action, source: source, positionSeconds: position, durationSeconds: duration) }
         view.onMediaSeek = { [weak self] source, seconds in self?.performMediaSeek(source: source, seconds: seconds) }
         view.onOpenMediaSource = { [weak self] media in self?.openMediaSource(media) }
         view.onExpandedInteraction = { [weak self] in self?.scheduleAutoCollapse() }
@@ -1281,15 +1281,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         """
     }
 
-    private func performMediaControl(action: String, source: String) {
-        if source == "youtube" {
-            let js: String
+    private func isBrowserMediaSource(_ source: String) -> Bool {
+        source == "youtube" || source == "youtube-music" || source == "browser-media" || source == "now-playing"
+    }
+
+    private func performMediaControl(action: String, source: String, positionSeconds: Double, durationSeconds: Double) {
+        // Browser media (e.g. Arc/Chrome YouTube) can't be driven by AppleScript
+        // `execute javascript` — Arc hangs on it. Send the command through macOS
+        // MediaRemote instead, which controls whatever is currently playing.
+        // previous/next keep the existing ±10s seek grammar via an absolute seek.
+        if isBrowserMediaSource(source) {
             switch action {
-            case "previous": js = "document.querySelector('video').currentTime = Math.max(0, document.querySelector('video').currentTime - 10)"
-            case "next": js = "document.querySelector('video').currentTime = Math.min(document.querySelector('video').duration || document.querySelector('video').currentTime + 10, document.querySelector('video').currentTime + 10)"
-            default: js = "document.querySelector('video').paused ? document.querySelector('video').play() : document.querySelector('video').pause()"
+            case "previous":
+                runNowPlayingCommand(["seek", String(Int(max(0, positionSeconds - 10)))])
+            case "next":
+                let cap = durationSeconds > 0 ? durationSeconds : positionSeconds + 10
+                runNowPlayingCommand(["seek", String(Int(min(cap, positionSeconds + 10)))])
+            default:
+                runNowPlayingCommand(["togglePlayPause"])
             }
-            performYouTubeJavaScript(js)
             scheduleFastStatusReloadBurst()
             return
         }
@@ -1318,12 +1328,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             runAppleScript("if application \"Spotify\" is running then tell application \"Spotify\" to set player position to \(seconds)")
         case "music":
             runAppleScript("if application \"Music\" is running then tell application \"Music\" to set player position to \(seconds)")
-        case "youtube":
-            performYouTubeJavaScript("document.querySelector('video').currentTime = \(seconds)")
         default:
-            return
+            if isBrowserMediaSource(source) {
+                runNowPlayingCommand(["seek", String(Int(seconds))])
+            } else {
+                return
+            }
         }
         scheduleFastStatusReloadBurst()
+    }
+
+    private func runNowPlayingCommand(_ args: [String]) {
+        // Resolve nowplaying-cli via PATH (Homebrew lives at /opt/homebrew/bin on
+        // Apple Silicon and /usr/local/bin on Intel); native-start inherits that PATH.
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = ["nowplaying-cli"] + args
+        try? process.run()
     }
 
     private func runAppleScript(_ script: String) {
@@ -1349,63 +1370,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    }
-
-    private func performYouTubeJavaScript(_ js: String) {
-        let escapedJs = js.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
-        let scriptableBrowsers = [
-            "Google Chrome",
-            "Google Chrome Canary",
-            "Chromium",
-            "Arc",
-            "Brave Browser",
-            "Microsoft Edge",
-            "Vivaldi",
-            "Opera",
-            "Opera GX",
-            "Orion",
-            "Dia"
-        ]
-        for browserName in scriptableBrowsers {
-            runAppleScript(chromiumYouTubeScript(browserName: browserName, escapedJs: escapedJs))
-        }
-        runAppleScript(safariYouTubeScript(escapedJs: escapedJs))
-    }
-
-    private func chromiumYouTubeScript(browserName: String, escapedJs: String) -> String {
-        """
-        if application "\(browserName)" is running then
-          tell application "\(browserName)"
-            repeat with w in windows
-              repeat with t in tabs of w
-                set tabUrl to URL of t
-                if tabUrl contains "youtube.com/watch" or tabUrl contains "music.youtube.com/watch" or tabUrl contains "youtu.be/" or tabUrl contains "youtube.com/shorts/" then
-                  execute t javascript "\(escapedJs)"
-                  return
-                end if
-              end repeat
-            end repeat
-          end tell
-        end if
-        """
-    }
-
-    private func safariYouTubeScript(escapedJs: String) -> String {
-        """
-        if application "Safari" is running then
-          tell application "Safari"
-            repeat with w in windows
-              repeat with t in tabs of w
-                set tabUrl to URL of t
-                if tabUrl contains "youtube.com/watch" or tabUrl contains "music.youtube.com/watch" or tabUrl contains "youtu.be/" or tabUrl contains "youtube.com/shorts/" then
-                  do JavaScript "\(escapedJs)" in t
-                  return
-                end if
-              end repeat
-            end repeat
-          end tell
-        end if
-        """
     }
 
     private func scheduleFastStatusRefreshBurst() {
