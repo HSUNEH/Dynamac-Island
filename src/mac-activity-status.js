@@ -377,7 +377,8 @@ function normalizeMediaInfo(info) {
     browserName: info.browserName || "",
     appName: info.appName || "",
     bundleIdentifier: info.bundleIdentifier || "",
-    firstSeenAt: info.firstSeenAt || ""
+    firstSeenAt: info.firstSeenAt || "",
+    isFrontmost: Boolean(info.isFrontmost)
   };
 }
 
@@ -464,7 +465,7 @@ function collectFrontmostBrowserYouTubeInfo(options = {}) {
   const frontmostApp = frontmostApplicationName(options);
   if (options.frontmostBrowserMediaText !== undefined) {
     const info = parseDelimitedMedia(options.frontmostBrowserMediaText);
-    if (info) return { ...info, browserName: frontmostApp || options.frontmostApp };
+    if (info) return { ...info, browserName: frontmostApp || options.frontmostApp, isFrontmost: true };
     return null;
   }
   if (options.browserMediaTexts !== undefined) return null;
@@ -481,7 +482,7 @@ function collectFrontmostBrowserYouTubeInfo(options = {}) {
     ? chromiumFallbackYouTubeTitleScript(frontmostApp)
     : browserYouTubeScript(frontmostApp);
   const info = parseDelimitedMedia(runCommand("osascript", ["-e", script], { timeout: frontmostApp === "Arc" ? 450 : 2200 }));
-  if (info) return { ...info, browserName: frontmostApp };
+  if (info) return { ...info, browserName: frontmostApp, isFrontmost: true };
   return null;
 }
 
@@ -754,7 +755,8 @@ function dedupeMediaCandidates(candidates) {
       pageUrl: existing.pageUrl || candidate.pageUrl,
       firstSeenAt: existing.firstSeenAt || candidate.firstSeenAt,
       positionSeconds: Math.max(Number(existing.positionSeconds || 0), Number(candidate.positionSeconds || 0)),
-      playbackState: existing.playbackState === "playing" || candidate.playbackState === "playing" ? "playing" : (candidate.playbackState || existing.playbackState)
+      playbackState: existing.playbackState === "playing" || candidate.playbackState === "playing" ? "playing" : (candidate.playbackState || existing.playbackState),
+      isFrontmost: existing.isFrontmost || candidate.isFrontmost
     });
     byKey.set(key, merged);
   }
@@ -782,9 +784,25 @@ function collectMediaCandidates(options = {}) {
   return attachFirstSeenAt(dedupeMediaCandidates(candidates), options);
 }
 
+function hasPlaybackEvidence(candidate) {
+  // A background title-only browser-tab probe reports playbackState "unknown"
+  // with no duration/position — that is just an open tab, not active playback.
+  // The frontmost browser tab (the one the user is actively viewing) stays
+  // eligible even without progress data.
+  return candidate.isFrontmost
+    || candidate.playbackState === "playing"
+    || candidate.playbackState === "paused"
+    || Number(candidate.durationSeconds) > 0
+    || Number(candidate.positionSeconds) > 0;
+}
+
 function selectFirstPlayingMediaCandidate(candidates) {
   const playing = candidates.filter((candidate) => candidate.playbackState === "playing");
-  const pool = playing.length ? playing : (candidates.filter((candidate) => candidate.playbackState === "paused").length ? candidates.filter((candidate) => candidate.playbackState === "paused") : candidates);
+  const paused = candidates.filter((candidate) => candidate.playbackState === "paused");
+  // Without the evidence filter on the final fallback, an idle YouTube tab
+  // (unknown state, 0:00/0:00) would show as Now Playing forever whenever
+  // nothing is actually playing.
+  const pool = playing.length ? playing : (paused.length ? paused : candidates.filter(hasPlaybackEvidence));
   if (!pool.length) return null;
   return [...pool].sort((left, right) => {
     const leftTime = Date.parse(left.firstSeenAt || "") || Number.MAX_SAFE_INTEGER;
@@ -865,6 +883,7 @@ function writeMacActivityStatusSnapshot(options = {}) {
 
 module.exports = {
   runCommand,
+  selectFirstPlayingMediaCandidate,
   buildMacActivityStatusPayload,
   arcSpaceYouTubeTabsScript,
   browserYouTubeScript,

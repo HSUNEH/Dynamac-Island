@@ -426,7 +426,8 @@ const frontmostArcTitleFallbackDoesNotBeatSpotify = collectMediaStatus({
 assert.equal(frontmostArcTitleFallbackDoesNotBeatSpotify.media.source, "spotify");
 
 const frontmostArcTitleFallbackWinsWhenNoNativePlayer = collectMediaStatus({
-  browserMediaTexts: [{ browserName: "Arc", text: "youtube-title||[Vlog] 10년차 무명 배우 브이로그 - YouTube||https://www.youtube.com/watch?v=vlog12345" }],
+  frontmostBrowserMediaText: "youtube-title||[Vlog] 10년차 무명 배우 브이로그 - YouTube||https://www.youtube.com/watch?v=vlog12345",
+  browserMediaTexts: [],
   mediaRemoteRaw: "",
   spotifyText: "",
   musicText: "",
@@ -434,6 +435,18 @@ const frontmostArcTitleFallbackWinsWhenNoNativePlayer = collectMediaStatus({
 });
 assert.equal(frontmostArcTitleFallbackWinsWhenNoNativePlayer.media.source, "youtube");
 assert.equal(frontmostArcTitleFallbackWinsWhenNoNativePlayer.media.title, "[Vlog] 10년차 무명 배우 브이로그");
+
+// A background (non-frontmost) open YouTube tab with no playback evidence must
+// NOT surface as Now Playing when nothing is actually playing — otherwise an
+// idle tab title stays pinned on the island forever.
+const backgroundIdleTabDoesNotShowWhenNothingPlays = collectMediaStatus({
+  browserMediaTexts: [{ browserName: "Arc", text: "youtube-title||Voice AI Instrumental Composition - YouTube||https://www.youtube.com/watch?v=idle9999" }],
+  mediaRemoteRaw: "",
+  spotifyText: "",
+  musicText: "",
+  frontmostApp: "Finder"
+});
+assert.equal(backgroundIdleTabDoesNotShowWhenNothingPlays.media.source, "none");
 
 const backgroundYoutubeFallbackDoesNotBeatSpotify = collectMediaStatus({
   browserMediaTexts: ["youtube-title||Old tab - YouTube||https://www.youtube.com/watch?v=old12345"],

@@ -22,6 +22,7 @@ const {
   chromiumFallbackYouTubeTitleScript,
   browserYouTubeScript,
   collectMediaCandidates,
+  selectFirstPlayingMediaCandidate,
   writeMacActivityStatusSnapshot
 } = require("../src/mac-activity-status");
 
@@ -96,6 +97,39 @@ const firstSnapshot = writeMacActivityStatusSnapshot({ outputPath: snapshotPath,
 assert.ok(
   firstSnapshot && firstSnapshot.payload && Array.isArray(firstSnapshot.payload.statuses),
   "first refresh with previousPayload:null must write a payload, not throw"
+);
+
+// 5. Idle browser tabs must not show as Now Playing. Title-only tab probes
+//    report playbackState "unknown" with 0/0 progress — when nothing is
+//    actually playing, the selector must return null (Nothing playing) instead
+//    of surfacing a random open YouTube tab forever.
+const idleTabs = [
+  { source: "youtube", playbackState: "unknown", durationSeconds: 0, positionSeconds: 0, title: "Voice AI Instrumental Composition" },
+  { source: "youtube", playbackState: "unknown", durationSeconds: 0, positionSeconds: 0, title: "Some Other Open Tab" }
+];
+assert.equal(
+  selectFirstPlayingMediaCandidate(idleTabs),
+  null,
+  "idle title-only tabs (unknown, 0/0) must not be selected as Now Playing"
+);
+
+// A real playing candidate must still win, and a candidate with progress
+// evidence (nonzero duration/position) is still eligible.
+const withPlaying = [
+  ...idleTabs,
+  { source: "youtube", playbackState: "playing", durationSeconds: 213, positionSeconds: 20, title: "Actually Playing" }
+];
+assert.equal(
+  selectFirstPlayingMediaCandidate(withPlaying)?.title,
+  "Actually Playing",
+  "a playing candidate must be selected over idle tabs"
+);
+assert.equal(
+  selectFirstPlayingMediaCandidate([
+    { source: "youtube", playbackState: "unknown", durationSeconds: 200, positionSeconds: 5, title: "Has Progress" }
+  ])?.title,
+  "Has Progress",
+  "an unknown candidate with real progress evidence is still eligible"
 );
 
 console.log("browser probe isolation checks passed.");
