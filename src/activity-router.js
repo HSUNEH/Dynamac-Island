@@ -26,6 +26,8 @@ const AGENT_ACTIVITY_TYPES = Object.freeze({
   "Battery": "battery"
 });
 
+const HUD_ACTIVITY_TYPES = new Set(["volume", "brightness"]);
+
 function stableActivityType(value) {
   if (typeof value !== "string" || value.trim() === "") return "futurePassive";
   const clean = value.trim();
@@ -89,7 +91,7 @@ function expandedTitleForActivity(activity) {
 function normalizeActivity(status, index = 0, options = {}) {
   const embedded = embeddedActivityForStatus(status);
   const activityType = activityTypeForStatus(status);
-  const updatedAt = timestampMs(status?.updatedAt, timestampMs(options.now, Date.now()));
+  const updatedAt = timestampMs(embedded?.updatedAt ?? status?.updatedAt, timestampMs(options.now, Date.now()));
   const createdAt = timestampMs(status?.createdAt ?? embedded?.createdAt, updatedAt);
   const rawExpiresAt = status?.expiresAt ?? embedded?.expiresAt;
   const expiresAt = rawExpiresAt === undefined || rawExpiresAt === null || rawExpiresAt === ""
@@ -138,13 +140,23 @@ function compareActivities(left, right) {
   return left.activityId.localeCompare(right.activityId);
 }
 
+function suppressOverlappingHudActivities(activities) {
+  let hasHudActivity = false;
+  return activities.filter((activity) => {
+    if (!HUD_ACTIVITY_TYPES.has(activity.activityType)) return true;
+    if (hasHudActivity) return false;
+    hasHudActivity = true;
+    return true;
+  });
+}
+
 function rankActivities(statuses, options = {}) {
   const nowMs = timestampMs(options.now, Date.now());
   if (!Array.isArray(statuses)) return [];
-  return statuses
+  return suppressOverlappingHudActivities(statuses
     .map((status, index) => normalizeActivity(status, index, options))
     .filter((activity) => !isActivityExpired(activity, nowMs))
-    .sort(compareActivities);
+    .sort(compareActivities));
 }
 
 function selectCompactActivity(statuses, options = {}) {
@@ -168,5 +180,6 @@ module.exports = {
   compareActivities,
   normalizeActivity,
   rankActivities,
+  suppressOverlappingHudActivities,
   selectCompactActivity
 };

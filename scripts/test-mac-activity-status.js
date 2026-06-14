@@ -562,6 +562,38 @@ assert.equal(payloadWithBrightnessHud.statuses[0].brightnessHud.metadata.display
 assert.equal(payloadWithBrightnessHud.activityRouter.compactSurface.activityType, "brightness");
 assert.deepEqual(payloadWithBrightnessHud.activityRouter.rankedActivities.map((activity) => activity.activityType), ["brightness", "clipboard", "nowPlaying", "battery"]);
 
+const payloadWithOverlappingHuds = buildMacActivityStatusPayload({
+  now: new Date("2026-06-11T09:00:01.000Z"),
+  volumeInput: {
+    level: 40,
+    muted: false,
+    source: "fixture-volume-observer",
+    observedAt: Date.parse("2026-06-11T09:00:00.400Z")
+  },
+  brightnessInput: {
+    level: 73,
+    displayName: "Studio Display",
+    source: "fixture-brightness-observer",
+    observedAt: Date.parse("2026-06-11T09:00:00.500Z")
+  },
+  mediaInfo: spotifyInfo,
+  clipboardActivityState: createClipboardActivityState(),
+  clipboardText: "https://example.com/d",
+  pmsetOutput: "Now drawing from 'AC Power'\n -InternalBattery-0\t82%; charging; 0:35 remaining present: true"
+});
+assert.deepEqual(payloadWithOverlappingHuds.statuses.map((status) => status.agent), ["Volume", "Brightness", "Now Playing", "Clipboard", "Battery"]);
+assert.deepEqual(
+  payloadWithOverlappingHuds.activityRouter.rankedActivities.map((activity) => activity.activityType),
+  ["brightness", "clipboard", "nowPlaying", "battery"],
+  "router should collapse simultaneous volume/brightness statuses to one compact HUD lane"
+);
+assert.equal(payloadWithOverlappingHuds.activityRouter.compactSurface.activityType, "brightness");
+assert.equal(
+  payloadWithOverlappingHuds.activityRouter.rankedActivities.filter((activity) => activity.activityType === "volume" || activity.activityType === "brightness").length,
+  1,
+  "activityRouter should not emit overlapping DynaKeys HUD events even when both statuses exist"
+);
+
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "dynamac-mac-activity-"));
 const outputPath = path.join(tempDir, "status.json");
 const result = writeMacActivityStatusSnapshot({

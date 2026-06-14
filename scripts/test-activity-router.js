@@ -184,10 +184,37 @@ for (const { label, status } of brightnessConflictCandidates) {
   );
 }
 
+const clipboardVsShelfDropConflict = [
+  candidateStatus("shelf", 300, {
+    agent: "DynaShelf",
+    revealReadyPath: "/Users/st/Desktop/fresh-shelf.pdf",
+    metadata: { fileCount: 1 }
+  }),
+  candidateStatus("drop", 200, {
+    agent: "DynaDrop",
+    metadata: { fileCount: 2 }
+  }),
+  buildClipboardStatusFromText("https://example.com/router-conflict", {
+    now: now.getTime(),
+    observedAt: now.getTime(),
+    source: "fixture-clipboard"
+  }).status
+];
+const clipboardConflictWinner = selectCompactActivity(clipboardVsShelfDropConflict, { now });
+assert.equal(
+  clipboardConflictWinner.activityType,
+  "clipboard",
+  "clipboard should win compact routing over newer shelf/drop candidates when no volume or brightness HUD is active"
+);
+assert.equal(clipboardConflictWinner.compactSurface.activityType, "clipboard");
+assert.deepEqual(
+  rankActivities(clipboardVsShelfDropConflict, { now }).map((activity) => activity.activityType),
+  ["clipboard", "shelf", "drop"]
+);
+
 const ranked = rankActivities(statuses, { now });
 assert.deepEqual(ranked.map((activity) => activity.activityType), [
   "volume",
-  "brightness",
   "clipboard",
   "shelf",
   "drop",
@@ -196,11 +223,11 @@ assert.deepEqual(ranked.map((activity) => activity.activityType), [
   "battery",
   "futurePassive"
 ]);
-assert.deepEqual(ranked.map((activity) => activity.priority), [600, 600, 500, 400, 400, 300, 200, 100, 0]);
+assert.deepEqual(ranked.map((activity) => activity.priority), [600, 500, 400, 400, 300, 200, 100, 0]);
 assert.equal(ranked[0].compactSurface.label, "Volume 42%");
-assert.equal(ranked[3].revealReadyPath, "/Users/st/Desktop/demo.pdf");
-assert.equal(ranked[4].compactSurface.priority, ACTIVITY_PRIORITIES.drop);
-assert.equal(ranked[5].persisted, false);
+assert.equal(ranked[2].revealReadyPath, "/Users/st/Desktop/demo.pdf");
+assert.equal(ranked[3].compactSurface.priority, ACTIVITY_PRIORITIES.drop);
+assert.equal(ranked[4].persisted, false);
 assert.equal(selectCompactActivity(statuses, { now }).activityType, "volume");
 
 const volumeHudStatus = volumeHudToNativeStatus(applyVolumeHudInputChange(createVolumeHudState(), {
@@ -228,6 +255,48 @@ assert.equal(rankedBrightnessHudStatus.compactSurface.activityType, "brightness"
 assert.equal(rankedBrightnessHudStatus.compactSurface.priority, ACTIVITY_PRIORITIES.brightness);
 
 assert.equal(rankedBrightnessHudStatus.persisted, false);
+
+const overlappingVolumeHud = applyVolumeHudInputChange(createVolumeHudState(), {
+  level: 44,
+  muted: false,
+  observedAt: now.getTime(),
+  source: "fixture-volume-observer"
+}).active;
+const overlappingBrightnessHud = applyBrightnessHudInputChange(createBrightnessHudState(), {
+  level: 66,
+  observedAt: now.getTime() + 125,
+  source: "fixture-brightness-observer"
+}).active;
+const overwrittenStatusTimestamp = new Date(now.getTime() + 500).toISOString();
+const overlappingHudRank = rankActivities([
+  {
+    ...volumeHudToNativeStatus(overlappingVolumeHud),
+    updatedAt: overwrittenStatusTimestamp
+  },
+  {
+    ...brightnessHudToNativeStatus(overlappingBrightnessHud),
+    updatedAt: overwrittenStatusTimestamp
+  },
+  {
+    ...volumeHudToNativeStatus({
+      ...overlappingVolumeHud,
+      activityId: "volume-duplicate",
+      updatedAt: now.getTime() + 80
+    }),
+    updatedAt: overwrittenStatusTimestamp
+  },
+  candidateStatus("clipboard", 400, { agent: "Clipboard" })
+], { now: new Date(now.getTime() + 500) });
+assert.deepEqual(
+  overlappingHudRank.map((activity) => activity.activityType),
+  ["brightness", "clipboard"],
+  "router should expose only the newest DynaKeys HUD lane when volume and brightness arrive close together"
+);
+assert.equal(
+  overlappingHudRank.filter((activity) => activity.activityType === "volume" || activity.activityType === "brightness").length,
+  1,
+  "router should suppress duplicate HUD events so compact rendering cannot overlap"
+);
 
 const clipboardStatus = buildClipboardStatusFromText("hello", {
   now: now.getTime(),
