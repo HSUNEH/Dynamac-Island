@@ -330,6 +330,8 @@ Timer status shape when a local timer is active:
 }
 ```
 
+`npm run check-status` validates this local artifact deterministically: Timer statuses must include the Timer object fields above, positive integer duration, non-negative remaining seconds no greater than the duration, allowed lifecycle state (`idle`, `running`, `stopped`, `reset`, or `done`), ISO UTC timestamps, string display/error fields, and boolean replacement metadata.
+
 ## Verification
 
 ```sh
