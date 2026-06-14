@@ -13,9 +13,15 @@ const {
   createVolumeHudState,
   volumeHudToNativeStatus
 } = require("./volume-hud-status");
+const {
+  applyBrightnessHudInputChange,
+  brightnessHudToNativeStatus,
+  createBrightnessHudState
+} = require("./brightness-hud-status");
 
 let defaultClipboardActivityState = createClipboardActivityState();
 let defaultVolumeHudState = createVolumeHudState();
+let defaultBrightnessHudState = createBrightnessHudState();
 
 function runCommand(command, args, options = {}) {
   try {
@@ -128,6 +134,22 @@ function collectVolumeHudStatus(options = {}) {
   });
   if (!options.volumeActivityState) defaultVolumeHudState = result;
   return volumeHudToNativeStatus(result.active);
+}
+
+function collectBrightnessHudStatus(options = {}) {
+  if (!options.brightnessInput) return null;
+  const now = options.now || new Date();
+  const nowMs = now instanceof Date ? now.getTime() : Number(now);
+  const state = options.brightnessActivityState || defaultBrightnessHudState;
+  const result = applyBrightnessHudInputChange(state, {
+    ...options.brightnessInput,
+    observedAt: options.brightnessInput.observedAt ?? options.brightnessObservedAt ?? options.observedAt ?? nowMs
+  }, {
+    now: nowMs,
+    transientMs: options.brightnessTransientMs
+  });
+  if (!options.brightnessActivityState) defaultBrightnessHudState = result;
+  return brightnessHudToNativeStatus(result.active);
 }
 
 function spotifyScript() {
@@ -861,6 +883,7 @@ function buildMacActivityStatusPayload(options = {}) {
   const now = options.now || new Date();
   const statuses = [
     collectVolumeHudStatus(options),
+    collectBrightnessHudStatus(options),
     collectMediaStatus(options),
     collectClipboardStatus(options),
     collectBatteryStatus(options)
@@ -933,6 +956,7 @@ module.exports = {
   SAFARI_YOUTUBE_BROWSERS,
   classifyClipboardText,
   collectBatteryStatus,
+  collectBrightnessHudStatus,
   collectClipboardStatus,
   collectVolumeHudStatus,
   collectMediaCandidates,

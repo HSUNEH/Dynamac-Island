@@ -14,6 +14,7 @@ const {
   buildMacActivityStatusPayload,
   classifyClipboardText,
   collectBatteryStatus,
+  collectBrightnessHudStatus,
   collectClipboardStatus,
   collectVolumeHudStatus,
   collectMediaCandidates,
@@ -74,6 +75,35 @@ assert.equal(louderVolumeHudStatus.volumeHud.activityId, "volume-1718323200000")
 assert.equal(louderVolumeHudStatus.volumeHud.status.previousLevel, 25);
 assert.equal(louderVolumeHudStatus.volumeHud.status.direction, "up");
 assert.equal(louderVolumeHudStatus.detail, "Output volume increased from 25% to 61%.");
+
+const firstBrightnessHudStatus = collectBrightnessHudStatus({
+  brightnessInput: {
+    level: 40,
+    displayName: "Built-in Liquid Retina XDR",
+    source: "fixture-brightness-observer",
+    observedAt: 1718323200300
+  }
+});
+assert.equal(firstBrightnessHudStatus.agent, "Brightness");
+assert.equal(firstBrightnessHudStatus.task, "Brightness 40%");
+assert.equal(firstBrightnessHudStatus.brightnessHud.activityType, "brightness");
+assert.equal(firstBrightnessHudStatus.brightnessHud.status.direction, "initial");
+assert.equal(firstBrightnessHudStatus.brightnessHud.compactSurface.label, "40%");
+assert.equal(firstBrightnessHudStatus.brightnessHud.persisted, false);
+
+const dimmerBrightnessHudStatus = collectBrightnessHudStatus({
+  brightnessActivityState: { active: firstBrightnessHudStatus.brightnessHud },
+  brightnessInput: {
+    level: 17,
+    displayName: "Built-in Liquid Retina XDR",
+    source: "fixture-brightness-observer",
+    observedAt: 1718323200500
+  }
+});
+assert.equal(dimmerBrightnessHudStatus.brightnessHud.activityId, "brightness-1718323200300");
+assert.equal(dimmerBrightnessHudStatus.brightnessHud.status.previousLevel, 40);
+assert.equal(dimmerBrightnessHudStatus.brightnessHud.status.direction, "down");
+assert.equal(dimmerBrightnessHudStatus.detail, "Display brightness decreased from 40% to 17%.");
 
 const spotifyText = "spotify||Song Title||Artist Name||Album Name||https://i.scdn.co/image/abc||240000||42.4||playing";
 const spotifyInfo = parseDelimitedMedia(spotifyText);
@@ -492,7 +522,7 @@ assert.equal(backgroundYoutubeFallbackDoesNotBeatSpotify.media.source, "spotify"
 const payload = buildMacActivityStatusPayload({
   now: new Date("2026-06-11T09:00:00.000Z"),
   mediaInfo: spotifyInfo,
-  clipboardText: "https://example.com/a",
+  clipboardText: "https://example.com/b",
   pmsetOutput: "Now drawing from 'AC Power'\n -InternalBattery-0\t82%; charging; 0:35 remaining present: true"
 });
 
@@ -509,6 +539,25 @@ assert.equal(payload.statuses[2].task, "Charging 82%");
 assert.equal(payload.statuses.every((status) => status.updatedAt === "2026-06-11T09:00:00.000Z"), true);
 assert.equal(payload.activityRouter.compactSurface.activityType, "clipboard");
 assert.deepEqual(payload.activityRouter.rankedActivities.map((activity) => activity.activityType), ["clipboard", "nowPlaying", "battery"]);
+
+const payloadWithBrightnessHud = buildMacActivityStatusPayload({
+  now: new Date("2026-06-11T09:00:01.000Z"),
+  brightnessInput: {
+    level: 73,
+    displayName: "Studio Display",
+    source: "fixture-brightness-observer",
+    observedAt: Date.parse("2026-06-11T09:00:00.500Z")
+  },
+  mediaInfo: spotifyInfo,
+  clipboardText: "https://example.com/c",
+  pmsetOutput: "Now drawing from 'AC Power'\n -InternalBattery-0\t82%; charging; 0:35 remaining present: true"
+});
+assert.deepEqual(payloadWithBrightnessHud.statuses.map((status) => status.agent), ["Brightness", "Now Playing", "Clipboard", "Battery"]);
+assert.equal(payloadWithBrightnessHud.statuses[0].brightnessHud.activityType, "brightness");
+assert.equal(payloadWithBrightnessHud.statuses[0].brightnessHud.status.level, 73);
+assert.equal(payloadWithBrightnessHud.statuses[0].brightnessHud.metadata.displayName, "Studio Display");
+assert.equal(payloadWithBrightnessHud.activityRouter.compactSurface.activityType, "brightness");
+assert.deepEqual(payloadWithBrightnessHud.activityRouter.rankedActivities.map((activity) => activity.activityType), ["brightness", "clipboard", "nowPlaying", "battery"]);
 
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "dynamac-mac-activity-"));
 const outputPath = path.join(tempDir, "status.json");
