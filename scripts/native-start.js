@@ -99,7 +99,10 @@ const refreshTimer = inherited.DYNAMAC_DISABLE_STATUS_REFRESH === "1"
 
 const native = childProcess.spawn(path.join(repoRoot, ".build/dynamac-native"), {
   cwd: repoRoot,
-  env: inherited,
+  // This dev orchestrator already runs the writer loop in-process, so tell the
+  // overlay not to spawn its own native-writer.js child (that path is only for
+  // the standalone .app where the Swift app is the parent process).
+  env: { ...inherited, DYNAMAC_MANAGED_WRITER: "1" },
   stdio: "inherit"
 });
 

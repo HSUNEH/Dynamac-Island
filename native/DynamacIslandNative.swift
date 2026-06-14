@@ -1,5 +1,6 @@
 import AppKit
 import QuartzCore
+import ServiceManagement
 
 extension ISO8601DateFormatter {
     static let dynamacTimer: ISO8601DateFormatter = {
@@ -1068,14 +1069,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var expansionGeneration = 0
     private var compactLayout = NotchWingLayout.compactFromEnvironment()
 
+    // App-mode (menu bar utility) state. The overlay can be toggled on/off from a
+    // settings window reached via the menu bar icon, mirroring apps like Scroll Reverser.
+    private var statusItem: NSStatusItem?
+    private var prefsWindow: NSWindow?
+    private var enableCheckbox: NSButton?
+    private var loginItemCheckbox: NSButton?
+    private var writerProcess: Process?
+    private var overlayEnabled = true
+    private var statusFilePath = "status/status.json"
+    private var statusRefreshSignalPath = ".build/status.refresh"
+    private let overlayEnabledKey = "DynamacOverlayEnabled"
+    private let hasLaunchedBeforeKey = "DynamacHasLaunchedBefore"
+
+    private var isBundledApp: Bool { Bundle.main.bundlePath.hasSuffix(".app") }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        let env = ProcessInfo.processInfo.environment
+        let isSmoke = env["DYNAMAC_NATIVE_SMOKE_TEST"] == "1"
+        statusFilePath = resolveStatusFilePath()
+        statusRefreshSignalPath = resolveStatusRefreshSignalPath()
+        overlayEnabled = (UserDefaults.standard.object(forKey: overlayEnabledKey) as? Bool) ?? true
+
         createPanel()
         loadStatus()
         dumpNativeStatusForSmokeIfRequested()
         startStatusRefresh()
         startStatusFileWatch()
         startDisplayRefresh()
+
+        if !isSmoke {
+            // Menu bar utility chrome: an icon that opens the on/off settings window.
+            setupStatusItem()
+            if overlayEnabled {
+                startWriterChildIfNeeded()
+            } else {
+                panel?.orderOut(nil)
+            }
+            // Surface the settings window the first time the app runs so on/off and
+            // launch-at-login are discoverable; later launches stay quiet in the menu bar.
+            if !UserDefaults.standard.bool(forKey: hasLaunchedBeforeKey) {
+                UserDefaults.standard.set(true, forKey: hasLaunchedBeforeKey)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in self?.showPreferences() }
+            }
+        }
 
         if ProcessInfo.processInfo.environment["DYNAMAC_START_EXPANDED"] == "1" {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in self?.toggleExpanded() }
@@ -1093,6 +1131,265 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             } else {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { NSApp.terminate(nil) }
             }
+        }
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        // No Dock icon, so "reopen" fires when the user launches the .app again from Finder:
+        // bring up the settings window instead of silently doing nothing.
+        showPreferences()
+        return true
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        stopWriterChild()
+    }
+
+    // MARK: - Menu bar + settings window
+
+    private func setupStatusItem() {
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        if let button = item.button {
+            let image = NSImage(systemSymbolName: "rectangle.topthird.inset.filled", accessibilityDescription: "Dynamac Island")
+                ?? NSImage(systemSymbolName: "menubar.rectangle", accessibilityDescription: "Dynamac Island")
+            image?.isTemplate = true
+            button.image = image
+            if image == nil { button.title = "◉" }
+            button.target = self
+            button.action = #selector(statusItemClicked)
+        }
+        statusItem = item
+    }
+
+    @objc private func statusItemClicked() {
+        showPreferences()
+    }
+
+    private func showPreferences() {
+        if prefsWindow == nil { buildPreferencesWindow() }
+        syncPreferencesControls()
+        guard let window = prefsWindow else { return }
+        window.center()
+        // LSUIElement apps have no Dock icon and are not "active", so a plain
+        // makeKeyAndOrderFront can leave the settings window behind other apps. Force it
+        // to the front above normal windows and pull the app forward.
+        window.level = .floating
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
+    }
+
+    private func buildPreferencesWindow() {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 320, height: 168),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "Dynamac Island"
+        window.isReleasedWhenClosed = false
+        window.center()
+
+        let content = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: 168))
+
+        let title = NSTextField(labelWithString: "Dynamac Island")
+        title.font = NSFont.systemFont(ofSize: 15, weight: .semibold)
+        title.frame = NSRect(x: 20, y: 130, width: 280, height: 22)
+        content.addSubview(title)
+
+        let enable = NSButton(checkboxWithTitle: "Dynamac Island 켜기", target: self, action: #selector(toggleEnabledFromCheckbox(_:)))
+        enable.frame = NSRect(x: 20, y: 98, width: 280, height: 22)
+        content.addSubview(enable)
+        enableCheckbox = enable
+
+        let login = NSButton(checkboxWithTitle: "로그인 시 자동 실행", target: self, action: #selector(toggleLoginItemFromCheckbox(_:)))
+        login.frame = NSRect(x: 20, y: 70, width: 280, height: 22)
+        content.addSubview(login)
+        loginItemCheckbox = login
+
+        let quit = NSButton(title: "종료", target: self, action: #selector(quitFromButton))
+        quit.bezelStyle = .rounded
+        quit.frame = NSRect(x: 218, y: 16, width: 84, height: 30)
+        content.addSubview(quit)
+
+        window.contentView = content
+        prefsWindow = window
+    }
+
+    private func syncPreferencesControls() {
+        enableCheckbox?.state = overlayEnabled ? .on : .off
+        if let login = loginItemCheckbox {
+            let supported = isBundledApp && isLoginItemSupported()
+            login.isEnabled = supported
+            login.state = (supported && isLoginItemEnabled()) ? .on : .off
+            login.toolTip = supported ? nil : "패키징된 .app에서만 사용할 수 있습니다."
+        }
+    }
+
+    @objc private func toggleEnabledFromCheckbox(_ sender: NSButton) {
+        setOverlayEnabled(sender.state == .on)
+    }
+
+    @objc private func toggleLoginItemFromCheckbox(_ sender: NSButton) {
+        setLoginItem(sender.state == .on)
+        // Reflect the actual post-change state (registration can fail).
+        sender.state = isLoginItemEnabled() ? .on : .off
+    }
+
+    @objc private func quitFromButton() {
+        NSApp.terminate(nil)
+    }
+
+    private func setOverlayEnabled(_ enabled: Bool) {
+        overlayEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: overlayEnabledKey)
+        if enabled {
+            startWriterChildIfNeeded()
+            panel?.orderFrontRegardless()
+            requestStatusSnapshotRefresh()
+        } else {
+            panel?.orderOut(nil)
+            stopWriterChild()
+        }
+    }
+
+    // MARK: - Writer child process (packaged .app only)
+
+    private func startWriterChildIfNeeded() {
+        // The dev orchestrator (native-start.js) already runs the writer loop and marks the
+        // overlay as managed; only the standalone .app needs to spawn its own writer.
+        guard ProcessInfo.processInfo.environment["DYNAMAC_MANAGED_WRITER"] != "1" else { return }
+        guard isBundledApp else { return }
+        guard writerProcess == nil else { return }
+        guard let node = resolveNodePath(), let script = resolveWriterScriptPath() else {
+            NSLog("Dynamac: could not locate node or native-writer.js; Now Playing will not update.")
+            return
+        }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: node)
+        process.arguments = [script]
+        var childEnv = ProcessInfo.processInfo.environment
+        childEnv["DYNAMAC_STATUS_FILE"] = statusFilePath
+        childEnv["DYNAMAC_STATUS_REFRESH_SIGNAL"] = statusRefreshSignalPath
+        // GUI apps launched from Finder inherit a minimal PATH; make sure Homebrew tools the
+        // writer shells out to (nowplaying-cli) and node's own children remain resolvable.
+        let extraPath = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+        childEnv["PATH"] = childEnv["PATH"].map { "\($0):\(extraPath)" } ?? extraPath
+        process.environment = childEnv
+        // A Finder-launched .app has no console, so route the writer's output to a log
+        // file next to the status snapshot for diagnostics.
+        let logPath = (appSupportDirectory() as NSString).appendingPathComponent("writer.log")
+        FileManager.default.createFile(atPath: logPath, contents: nil)
+        if let logHandle = FileHandle(forWritingAtPath: logPath) {
+            process.standardOutput = logHandle
+            process.standardError = logHandle
+        }
+        process.terminationHandler = { [weak self] proc in
+            DispatchQueue.main.async {
+                self?.writerProcess = nil
+                NSLog("Dynamac: native-writer.js exited (status \(proc.terminationStatus)).")
+            }
+        }
+        do {
+            try process.run()
+            writerProcess = process
+        } catch {
+            NSLog("Dynamac: failed to start native-writer.js: \(error)")
+        }
+    }
+
+    private func stopWriterChild() {
+        guard let process = writerProcess else { return }
+        writerProcess = nil
+        if process.isRunning { process.terminate() }
+    }
+
+    private func resolveNodePath() -> String? {
+        let env = ProcessInfo.processInfo.environment
+        if let override = env["DYNAMAC_NODE"], !override.isEmpty, FileManager.default.isExecutableFile(atPath: override) {
+            return override
+        }
+        for candidate in ["/opt/homebrew/bin/node", "/usr/local/bin/node", "/usr/bin/node"] where FileManager.default.isExecutableFile(atPath: candidate) {
+            return candidate
+        }
+        // Fall back to a login shell so nvm/asdf-managed node installs resolve.
+        let probe = Process()
+        probe.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        probe.arguments = ["-lc", "command -v node"]
+        let pipe = Pipe()
+        probe.standardOutput = pipe
+        probe.standardError = FileHandle.nullDevice
+        do {
+            try probe.run()
+            probe.waitUntilExit()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            if let path = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !path.isEmpty, FileManager.default.isExecutableFile(atPath: path) {
+                return path
+            }
+        } catch {}
+        return nil
+    }
+
+    private func resolveWriterScriptPath() -> String? {
+        let env = ProcessInfo.processInfo.environment
+        if let override = env["DYNAMAC_WRITER_SCRIPT"], !override.isEmpty { return override }
+        if let resources = Bundle.main.resourcePath {
+            let bundled = (resources as NSString).appendingPathComponent("app/scripts/native-writer.js")
+            if FileManager.default.fileExists(atPath: bundled) { return bundled }
+        }
+        return nil
+    }
+
+    private func resolveStatusFilePath() -> String {
+        let env = ProcessInfo.processInfo.environment
+        if let explicit = env["DYNAMAC_STATUS_FILE"], !explicit.isEmpty { return explicit }
+        if isBundledApp {
+            return (appSupportDirectory() as NSString).appendingPathComponent("status.json")
+        }
+        return "status/status.json"
+    }
+
+    private func resolveStatusRefreshSignalPath() -> String {
+        let env = ProcessInfo.processInfo.environment
+        if let explicit = env["DYNAMAC_STATUS_REFRESH_SIGNAL"], !explicit.isEmpty { return explicit }
+        if isBundledApp {
+            return (appSupportDirectory() as NSString).appendingPathComponent("status.refresh")
+        }
+        return ".build/status.refresh"
+    }
+
+    private func appSupportDirectory() -> String {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        if let dir = base?.appendingPathComponent("Dynamac Island", isDirectory: true) {
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            return dir.path
+        }
+        return NSTemporaryDirectory()
+    }
+
+    // MARK: - Launch at login
+
+    private func isLoginItemSupported() -> Bool {
+        if #available(macOS 13.0, *) { return true }
+        return false
+    }
+
+    private func isLoginItemEnabled() -> Bool {
+        if #available(macOS 13.0, *) { return SMAppService.mainApp.status == .enabled }
+        return false
+    }
+
+    private func setLoginItem(_ enabled: Bool) {
+        guard #available(macOS 13.0, *) else { return }
+        do {
+            if enabled {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+        } catch {
+            NSLog("Dynamac: launch-at-login toggle failed: \(error)")
         }
     }
 
@@ -1597,8 +1894,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func requestStatusSnapshotRefresh() {
-        guard let signalPath = ProcessInfo.processInfo.environment["DYNAMAC_STATUS_REFRESH_SIGNAL"] else { return }
-        let url = URL(fileURLWithPath: signalPath)
+        let url = URL(fileURLWithPath: statusRefreshSignalPath)
         try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         let marker = "\(Date().timeIntervalSince1970)\n"
         try? marker.write(to: url, atomically: true, encoding: .utf8)
@@ -1625,8 +1921,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // The writer publishes atomically (temp file + rename), which swaps the inode,
     // so the vnode source must re-arm on the new file after a rename/delete event.
     private func startStatusFileWatch() {
-        let statusPath = ProcessInfo.processInfo.environment["DYNAMAC_STATUS_FILE"] ?? "status/status.json"
-        watchStatusFile(at: statusPath)
+        watchStatusFile(at: statusFilePath)
     }
 
     private func watchStatusFile(at path: String) {
@@ -1666,8 +1961,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func loadStatus() {
-        let statusPath = ProcessInfo.processInfo.environment["DYNAMAC_STATUS_FILE"] ?? "status/status.json"
-        guard let data = try? Data(contentsOf: URL(fileURLWithPath: statusPath)),
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: statusFilePath)),
               let payload = try? JSONDecoder().decode(StatusPayload.self, from: data) else {
             return
         }

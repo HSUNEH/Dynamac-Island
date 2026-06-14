@@ -209,6 +209,20 @@ assert.match(source, /private func setExpanded\(_ shouldExpand: Bool\)/, "expand
 assert.match(source, /expansionGeneration/, "rapid toggle animations should be generation-tagged so stale completion handlers cannot finalize a superseded state");
 assert.match(source, /expanded = shouldExpand\n\s*islandView\.expanded = shouldExpand/, "the view layout must flip to match the controller state synchronously in both directions, not only inside a collapse animation completion handler");
 
+// App mode: a menu-bar utility (no Dock icon) with an on/off settings window and
+// optional launch-at-login, spawning the node writer when run as the standalone .app.
+assert.match(source, /NSStatusBar\.system\.statusItem/, "app mode should add a menu bar status item to reach the settings window");
+assert.match(source, /func applicationShouldHandleReopen/, "launching the .app again should reopen the settings window");
+assert.match(source, /private func setOverlayEnabled\(_ enabled: Bool\)/, "the settings window should toggle the overlay on/off through a single path");
+assert.match(source, /UserDefaults\.standard\.set\(enabled, forKey: overlayEnabledKey\)/, "the on/off choice should persist across launches");
+assert.match(source, /import ServiceManagement/, "launch-at-login should use the ServiceManagement framework");
+assert.match(source, /SMAppService\.mainApp\.(register|unregister)\(\)/, "launch-at-login should register/unregister via SMAppService");
+assert.match(source, /private func startWriterChildIfNeeded\(\)/, "the standalone .app should spawn the node writer itself");
+assert.match(source, /DYNAMAC_MANAGED_WRITER/, "the overlay must not double-spawn the writer when the dev orchestrator already manages it");
+assert.match(source, /resolveNodePath/, "the app must locate node robustly (Finder launches have a minimal PATH)");
+assert.match(source, /command -v node/, "node resolution should fall back to a login shell for nvm/asdf installs");
+assert.match(nativeStartSource, /DYNAMAC_MANAGED_WRITER: "1"/, "the dev orchestrator must mark its spawned overlay as managed so it does not start a second writer");
+
 assert.match(source, /scheduleAutoCollapse/, "expanded mode should auto-collapse back to compact mode after an idle timeout");
 assert.match(source, /DYNAMAC_EXPANDED_AUTO_COLLAPSE_SECONDS\"\] \?\? \"5\"/, "expanded auto-collapse should default to 5 seconds and be tunable");
 assert.match(source, /onExpandedInteraction/, "expanded media interactions should reset the auto-collapse idle timer");
