@@ -14,9 +14,11 @@ const {
 
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "dynamac-shelf-state-"));
 const filePath = path.join(tempDir, "demo note.txt");
+const secondFilePath = path.join(tempDir, "fresh note.txt");
 
 try {
   fs.writeFileSync(filePath, "hello shelf", "utf8");
+  fs.writeFileSync(secondFilePath, "fresh shelf", "utf8");
 
   const initial = createShelfState({ now: 1718323200000 });
   assert.deepEqual(initial, {
@@ -85,6 +87,27 @@ try {
     active: null,
     persisted: false
   }, "clearing shelf should remove file metadata and active shelf activity");
+  const clearedPayload = buildShelfStatusPayload(cleared);
+  assert.deepEqual(clearedPayload, { statuses: [] }, "cleared shelf should serialize to no active shelf status");
+  const clearedJson = JSON.stringify(clearedPayload);
+  assert.equal(clearedJson.includes(filePath), false, "cleared payload must not leak previous dropped file path");
+  assert.equal(clearedJson.includes("demo note.txt"), false, "cleared payload must not leak previous dropped file name");
+  assert.equal(clearedJson.includes("fixture-drop"), false, "cleared payload must not leak previous dropped source metadata");
+
+  const afterClear = addDroppedFileToShelf(cleared, {
+    filePath: secondFilePath,
+    type: "text/plain",
+    source: "fresh-drop",
+    observedAt: 1718323200500
+  }, { now: 1718323200600 });
+  assert.equal(afterClear.items.length, 1, "new drop after clear should start from an empty shelf");
+  assert.equal(afterClear.items[0].itemId, "shelf-1718323200500-000", "new drop after clear should reset shelf item sequence");
+  assert.equal(afterClear.active.status.fileCount, 1, "new drop after clear should not count previously cleared files");
+  const afterClearPayloadJson = JSON.stringify(buildShelfStatusPayload(afterClear));
+  assert.equal(afterClearPayloadJson.includes(secondFilePath), true, "new shelf payload should include the fresh dropped path");
+  assert.equal(afterClearPayloadJson.includes(filePath), false, "new shelf payload after clear must not leak previous dropped path");
+  assert.equal(afterClearPayloadJson.includes("demo note.txt"), false, "new shelf payload after clear must not leak previous dropped name");
+  assert.equal(afterClearPayloadJson.includes("fixture-drop"), false, "new shelf payload after clear must not leak previous source metadata");
 
   assert.throws(
     () => addDroppedFileToShelf(initial, { filePath: path.join(tempDir, "missing.pdf"), observedAt: 1718323200400 }),
