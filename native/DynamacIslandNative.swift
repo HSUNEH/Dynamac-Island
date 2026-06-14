@@ -1062,7 +1062,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         if ProcessInfo.processInfo.environment["DYNAMAC_NATIVE_SMOKE_TEST"] == "1" {
             print("DYNAMAC_NATIVE_READY")
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { NSApp.terminate(nil) }
+            let delayedDumpMilliseconds = Double(ProcessInfo.processInfo.environment["DYNAMAC_NATIVE_STATUS_DUMP_AFTER_MS"] ?? "") ?? 0
+            if delayedDumpMilliseconds > 0 {
+                let delayedDumpSeconds = delayedDumpMilliseconds / 1000
+                DispatchQueue.main.asyncAfter(deadline: .now() + delayedDumpSeconds) { [weak self] in
+                    self?.dumpNativeStatusForSmokeIfRequested()
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + delayedDumpSeconds + 0.2) { NSApp.terminate(nil) }
+            } else {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { NSApp.terminate(nil) }
+            }
         }
     }
 
