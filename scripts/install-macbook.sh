@@ -14,6 +14,20 @@ if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
   exit 1
 fi
 
+# nowplaying-cli exposes macOS MediaRemote, which is how Dynamac reads the
+# actually-playing track/video (title, progress, play/pause) for Spotify,
+# Music, and browser media like Arc/Chrome YouTube. Without it the Now Playing
+# island falls back to title-only tab probes and cannot tell what is playing.
+if ! command -v nowplaying-cli >/dev/null 2>&1; then
+  if command -v brew >/dev/null 2>&1; then
+    echo "Installing nowplaying-cli (macOS MediaRemote bridge)..."
+    brew install nowplaying-cli
+  else
+    echo "nowplaying-cli not found and Homebrew is unavailable." >&2
+    echo "Install Homebrew from https://brew.sh then run: brew install nowplaying-cli" >&2
+  fi
+fi
+
 mkdir -p "$(dirname "$PROJECT_DIR")"
 
 if [ -d "$PROJECT_DIR/.git" ]; then

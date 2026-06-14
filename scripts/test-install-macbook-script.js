@@ -12,6 +12,7 @@ const requiredSnippets = [
   "DYNAMAC_ISLAND_REPO",
   "https://github.com/HSUNEH/dynamac-island.git",
   "git clone",
+  "brew install nowplaying-cli",
   "npm install",
   "npm run check",
   "npm run smoke:launch",
