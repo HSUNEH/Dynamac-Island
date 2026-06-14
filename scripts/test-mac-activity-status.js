@@ -27,6 +27,7 @@ const {
   youtubeThumbnailUrl,
   writeMacActivityStatusSnapshot
 } = require("../src/mac-activity-status");
+const { createClipboardActivityState } = require("../src/clipboard-activity");
 
 process.env.DYNAMAC_YOUTUBE_MEDIA_FILE = path.join(os.tmpdir(), `dynamac-test-youtube-media-${process.pid}.json`);
 const sourceText = fs.readFileSync(path.join(__dirname, "..", "src", "mac-activity-status.js"), "utf8");
@@ -522,6 +523,7 @@ assert.equal(backgroundYoutubeFallbackDoesNotBeatSpotify.media.source, "spotify"
 const payload = buildMacActivityStatusPayload({
   now: new Date("2026-06-11T09:00:00.000Z"),
   mediaInfo: spotifyInfo,
+  clipboardActivityState: createClipboardActivityState(),
   clipboardText: "https://example.com/b",
   pmsetOutput: "Now drawing from 'AC Power'\n -InternalBattery-0\t82%; charging; 0:35 remaining present: true"
 });
@@ -549,6 +551,7 @@ const payloadWithBrightnessHud = buildMacActivityStatusPayload({
     observedAt: Date.parse("2026-06-11T09:00:00.500Z")
   },
   mediaInfo: spotifyInfo,
+  clipboardActivityState: createClipboardActivityState(),
   clipboardText: "https://example.com/c",
   pmsetOutput: "Now drawing from 'AC Power'\n -InternalBattery-0\t82%; charging; 0:35 remaining present: true"
 });

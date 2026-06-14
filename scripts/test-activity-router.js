@@ -34,6 +34,44 @@ function assertCompactWinner(expectedType, candidates, message) {
   assert.equal(selected?.activityType, expectedType, message);
 }
 
+const brightnessConflictCandidates = [
+  {
+    label: "clipboard",
+    status: candidateStatus("clipboard", 900, { agent: "Clipboard" })
+  },
+  {
+    label: "shelf",
+    status: candidateStatus("shelf", 900, {
+      agent: "DynaShelf",
+      revealReadyPath: "/Users/st/Desktop/demo.pdf",
+      metadata: { fileCount: 1 }
+    })
+  },
+  {
+    label: "drop",
+    status: candidateStatus("drop", 900, {
+      agent: "DynaDrop",
+      metadata: { fileCount: 2 }
+    })
+  },
+  {
+    label: "timer",
+    status: candidateStatus("timer", 900, { agent: "Timer" })
+  },
+  {
+    label: "now playing",
+    status: candidateStatus("nowPlaying", 900, { agent: "Now Playing" })
+  },
+  {
+    label: "battery/passive",
+    status: candidateStatus("battery", 900, { agent: "Battery" })
+  },
+  {
+    label: "future passive",
+    status: candidateStatus("futurePassive", 900, { agent: "Unknown Future Provider" })
+  }
+];
+
 const statuses = [
   {
     agent: "Battery",
@@ -135,14 +173,14 @@ for (const passiveType of ["clipboard", "shelf", "drop", "timer", "nowPlaying", 
   );
 }
 
-for (const passiveType of ["clipboard", "shelf", "drop", "timer", "nowPlaying", "battery", "futurePassive"]) {
+for (const { label, status } of brightnessConflictCandidates) {
   assertCompactWinner(
     "brightness",
     [
-      candidateStatus(passiveType, 900, { agent: passiveType === "futurePassive" ? "Unknown Future Provider" : passiveType }),
+      status,
       candidateStatus("brightness", 0, { agent: "Brightness", expiresAt: "2026-06-15T09:00:02.000Z" })
     ],
-    `brightness HUD should beat newer ${passiveType} candidate`
+    `brightness HUD should beat newer ${label} candidate`
   );
 }
 
