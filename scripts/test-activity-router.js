@@ -236,6 +236,59 @@ assert.deepEqual(
   ["clipboard", "timer"]
 );
 
+const shelfVsTimerOnlyLowerPriorityConflict = [
+  candidateStatus("timer", 600, {
+    agent: "Timer",
+    task: "Timer · 1m remaining",
+    detail: "Newer timer candidate should stay below an active shelf activity."
+  }),
+  candidateStatus("shelf", 0, {
+    agent: "DynaShelf",
+    task: "Shelf · 1 file ready",
+    detail: "Active shelf should be compact eligible above timer.",
+    revealReadyPath: "/Users/st/Desktop/shelf-over-timer.pdf",
+    metadata: { fileCount: 1 }
+  })
+];
+const shelfTimerConflictWinner = selectCompactActivity(shelfVsTimerOnlyLowerPriorityConflict, { now });
+assert.equal(
+  shelfTimerConflictWinner.activityType,
+  "shelf",
+  "shelf should win compact routing when timer is the only lower-priority active candidate"
+);
+assert.equal(shelfTimerConflictWinner.compactSurface.activityType, "shelf");
+assert.equal(shelfTimerConflictWinner.revealReadyPath, "/Users/st/Desktop/shelf-over-timer.pdf");
+assert.deepEqual(
+  rankActivities(shelfVsTimerOnlyLowerPriorityConflict, { now }).map((activity) => activity.activityType),
+  ["shelf", "timer"]
+);
+
+const dropVsTimerOnlyLowerPriorityConflict = [
+  candidateStatus("timer", 700, {
+    agent: "Timer",
+    task: "Timer · 30s remaining",
+    detail: "Newer timer candidate should stay below an active drop activity."
+  }),
+  candidateStatus("drop", 0, {
+    agent: "DynaDrop",
+    task: "Drop · 2 files staged",
+    detail: "Active drop should be compact eligible above timer.",
+    metadata: { fileCount: 2 }
+  })
+];
+const dropTimerConflictWinner = selectCompactActivity(dropVsTimerOnlyLowerPriorityConflict, { now });
+assert.equal(
+  dropTimerConflictWinner.activityType,
+  "drop",
+  "drop should win compact routing when timer is the only lower-priority active candidate"
+);
+assert.equal(dropTimerConflictWinner.compactSurface.activityType, "drop");
+assert.equal(dropTimerConflictWinner.metadata.fileCount, 2);
+assert.deepEqual(
+  rankActivities(dropVsTimerOnlyLowerPriorityConflict, { now }).map((activity) => activity.activityType),
+  ["drop", "timer"]
+);
+
 const clipboardVsNowPlayingConflict = [
   candidateStatus("nowPlaying", 750, {
     agent: "Now Playing",
