@@ -284,12 +284,24 @@ assert.match(
 
 const expectedDeferredChecklistItems = [
   [
+    "Native volume/brightness key capture and global observers",
+    /Missing deferred native DynaKeys key capture checklist/
+  ],
+  [
     "DynaKeys global shortcut/action launchers and direct compact-overlay native rendering",
     /Missing deferred native DynaKeys action launchers checklist/
   ],
   [
+    "Native drag-to-island capture and Finder reveal/open execution",
+    /Missing deferred native DynaDrop capture\/reveal checklist/
+  ],
+  [
     "DynaDrop AirDrop/share-link/conversion/transcript/right-click actions",
     /Missing deferred native DynaDrop action checklist/
+  ],
+  [
+    "Clipboard history/paste automation/file handoff",
+    /Missing deferred native DynaClip workflow checklist/
   ],
   [
     "DynaClip Finder companion workflows, file shelf handoff, and quick handoff actions",
