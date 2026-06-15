@@ -15,6 +15,8 @@ assert.match(nativeSource, /struct ActivityRouterSnapshot: Decodable/, "native a
 assert.match(nativeSource, /var activityId: String\?/, "native status items should decode top-level activity ids for exact router binding");
 assert.match(nativeSource, /var volumeHud: RoutedActivityInfo\?/, "native status items should decode DynaKeys volume HUD activity ids for exact app-mode routing");
 assert.match(nativeSource, /status\.volumeHud\?\.activityId/, "native router binding should include embedded volume HUD activity ids");
+assert.match(nativeSource, /var brightnessHud: RoutedActivityInfo\?/, "native status items should decode DynaKeys brightness HUD activity ids for exact app-mode routing");
+assert.match(nativeSource, /status\.brightnessHud\?\.activityId/, "native router binding should include embedded brightness HUD activity ids");
 assert.match(nativeSource, /var activityRouter: ActivityRouterSnapshot\?/, "native island view should retain the current Activity Router snapshot");
 assert.match(nativeSource, /routedStatusForCompactSurface/, "native UI should resolve the routed compact surface before legacy Timer\/media fallback");
 assert.match(nativeSource, /drawRoutedGenericActivity/, "native UI should have a simple generic compact\/expanded activity surface for routed DynaKeys\/DynaClip\/DynaShelf activities");
@@ -340,6 +342,154 @@ assert.match(dynaKeysVolumeExpandedOutput, /expanded=false/, "DynaKeys volume ex
 assert.match(dynaKeysVolumeExpandedOutput, /active=activityRouter[^\n]+presentation=volume[^\n]+expanded=true/, "DynaKeys volume routing should survive compact→expanded app-mode transition");
 assert.match(dynaKeysVolumeExpandedOutput, /task=Volume 61%/, "expanded app-mode dump should retain the routed volume HUD status");
 assert.doesNotMatch(dynaKeysVolumeExpandedOutput, /active=timer[^\n]+expanded=true/, "expanded transition should not fall back to Timer when router selected DynaKeys volume");
+
+const dynaKeysBrightnessPayload = {
+  statuses: [
+    {
+      agent: "Brightness",
+      state: "running",
+      task: "Brightness 18%",
+      updatedAt: "2026-06-15T00:00:05.000Z",
+      detail: "Older brightness HUD must not win exact app-mode routing.",
+      brightnessHud: {
+        activityId: "brightness-older-non-winner",
+        activityType: "brightness",
+        priority: 90,
+        createdAt: 1781481605000,
+        updatedAt: 1781481605000,
+        expiresAt: 1781481606600,
+        isTransient: true,
+        status: {
+          level: 18,
+          previousLevel: null,
+          direction: "initial",
+          displayText: "18%"
+        },
+        compactSurface: {
+          glyph: "sun",
+          label: "18%",
+          progress: 0.18
+        },
+        expandedSurface: {
+          title: "Brightness",
+          subtitle: "Built-in Display · 18%",
+          valueLabel: "18%"
+        },
+        source: "fixture-brightness-observer",
+        metadata: {
+          displayName: "Built-in Display",
+          inputKind: "brightness",
+          rawLevel: 18
+        },
+        revealReadyPath: "",
+        persisted: false
+      }
+    },
+    {
+      agent: "Brightness",
+      state: "running",
+      task: "Brightness 72%",
+      updatedAt: "2026-06-15T00:00:06.000Z",
+      detail: "Display brightness increased from 18% to 72%.",
+      brightnessHud: {
+        activityId: "brightness-exact-router-winner",
+        activityType: "brightness",
+        priority: 90,
+        createdAt: 1781481606000,
+        updatedAt: 1781481606000,
+        expiresAt: 1781481607600,
+        isTransient: true,
+        status: {
+          level: 72,
+          previousLevel: 18,
+          direction: "up",
+          displayText: "72%"
+        },
+        compactSurface: {
+          glyph: "sun",
+          label: "72%",
+          progress: 0.72
+        },
+        expandedSurface: {
+          title: "Brightness",
+          subtitle: "Built-in Display · 72%",
+          valueLabel: "72%"
+        },
+        source: "fixture-brightness-observer",
+        metadata: {
+          displayName: "Built-in Display",
+          inputKind: "brightness",
+          rawLevel: 72
+        },
+        revealReadyPath: "",
+        persisted: false
+      }
+    },
+    {
+      agent: "Timer",
+      state: "running",
+      task: "Timer · 5m",
+      updatedAt: "2026-06-15T00:00:06.000Z",
+      detail: "Timer fallback is present but DynaKeys brightness is routed compact.",
+      timer: {
+        id: "timer-dynakeys-brightness-non-winner",
+        durationSeconds: 300,
+        remainingSeconds: 180,
+        state: "running",
+        startedAt: "2026-06-15T00:00:00.000Z",
+        updatedAt: "2026-06-15T00:00:06.000Z",
+        displayText: "3m 0s",
+        error: "",
+        replacedPrevious: false
+      }
+    }
+  ],
+  activityRouter: {
+    rankedActivities: [
+      {
+        activityId: "brightness-exact-router-winner",
+        activityType: "brightness",
+        priority: 90,
+        createdAt: 1781481606000,
+        updatedAt: 1781481606000
+      },
+      {
+        activityId: "timer-timer-dynakeys-brightness-non-winner",
+        activityType: "timer",
+        priority: 300,
+        createdAt: 1781481600000,
+        updatedAt: 1781481606000
+      }
+    ],
+    compactSurface: {
+      activityId: "brightness-exact-router-winner",
+      activityType: "brightness",
+      priority: 90,
+      label: "72%",
+      glyph: "sun"
+    }
+  }
+};
+writePayload(dynaKeysBrightnessPayload);
+const dynaKeysBrightnessCompactOutput = runNative();
+assert.match(dynaKeysBrightnessCompactOutput, /active=activityRouter/, "native DynaKeys brightness smoke should use Activity Router in app mode");
+assert.match(dynaKeysBrightnessCompactOutput, /presentation=brightness/, "DynaKeys brightness HUD should surface as the compact app-mode presentation");
+assert.match(dynaKeysBrightnessCompactOutput, /routerCompactType=brightness/, "native dump should preserve the DynaKeys brightness compact activity type");
+assert.match(dynaKeysBrightnessCompactOutput, /routerCompactActivityId=brightness-exact-router-winner/, "native dump should preserve the exact DynaKeys brightness compact activity id");
+assert.match(dynaKeysBrightnessCompactOutput, /agent=Brightness/, "native router resolution should bind the DynaKeys brightness status item");
+assert.match(dynaKeysBrightnessCompactOutput, /task=Brightness 72%/, "native app-mode dump should expose the routed brightness level label");
+assert.match(dynaKeysBrightnessCompactOutput, /expanded=false/, "DynaKeys brightness smoke should cover compact app-mode behavior");
+assert.doesNotMatch(dynaKeysBrightnessCompactOutput, /task=Brightness 18%/, "DynaKeys brightness routing must not select the first same-type status when compactSurface.activityId matches another status");
+assert.doesNotMatch(dynaKeysBrightnessCompactOutput, /presentation=timer/, "legacy Timer presentation must not override routed DynaKeys brightness HUD");
+
+const dynaKeysBrightnessExpandedOutput = runNative({
+  DYNAMAC_START_EXPANDED: "1",
+  DYNAMAC_NATIVE_STATUS_DUMP_AFTER_MS: "180"
+});
+assert.match(dynaKeysBrightnessExpandedOutput, /expanded=false/, "DynaKeys brightness expanded smoke should include the initial compact state");
+assert.match(dynaKeysBrightnessExpandedOutput, /active=activityRouter[^\n]+presentation=brightness[^\n]+expanded=true/, "DynaKeys brightness routing should survive compact→expanded app-mode transition");
+assert.match(dynaKeysBrightnessExpandedOutput, /task=Brightness 72%/, "expanded app-mode dump should retain the routed brightness HUD status");
+assert.doesNotMatch(dynaKeysBrightnessExpandedOutput, /active=timer[^\n]+expanded=true/, "expanded transition should not fall back to Timer when router selected DynaKeys brightness");
 
 fs.rmSync(tempDir, { recursive: true, force: true });
 
