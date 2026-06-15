@@ -284,6 +284,57 @@ assert.deepEqual(
   ["battery", "futurePassive"]
 );
 
+const inactiveTimerNowPlayingAndBatteryPassiveConflict = [
+  candidateStatus("timer", 3000, {
+    agent: "Timer",
+    state: "idle",
+    task: "Timer idle",
+    detail: "Inactive timer should not remain compact eligible above passive fallback.",
+    timer: {
+      id: "timer-idle-passive-final-fallback-fixture",
+      durationSeconds: 300,
+      remainingSeconds: 300,
+      state: "stopped",
+      startedAt: "2026-06-15T08:55:00.000Z",
+      updatedAt: "2026-06-15T08:59:59.000Z",
+      displayText: "5m",
+      error: "",
+      replacedPrevious: false
+    }
+  }),
+  candidateStatus("nowPlaying", 2000, {
+    agent: "Now Playing",
+    state: "idle",
+    task: "No active media",
+    detail: "Inactive now playing should not remain compact eligible above passive fallback."
+  }),
+  candidateStatus("battery", 1000, {
+    agent: "Battery",
+    state: "idle",
+    task: "Battery unavailable",
+    detail: "Inactive battery should not remain compact eligible above passive fallback."
+  }),
+  candidateStatus("futurePassive", 0, {
+    agent: "Unknown Future Provider",
+    task: "Passive local utility",
+    detail: "Passive activity is the final compact fallback when timer, now playing, and battery are inactive."
+  })
+];
+const inactiveTimerNowPlayingAndBatteryPassiveConflictWinner = selectCompactActivity(
+  inactiveTimerNowPlayingAndBatteryPassiveConflict,
+  { now }
+);
+assert.equal(
+  inactiveTimerNowPlayingAndBatteryPassiveConflictWinner.activityType,
+  "futurePassive",
+  "passive should win compact routing when timer, now playing, and battery candidates are inactive"
+);
+assert.equal(inactiveTimerNowPlayingAndBatteryPassiveConflictWinner.compactSurface.activityType, "futurePassive");
+assert.deepEqual(
+  rankActivities(inactiveTimerNowPlayingAndBatteryPassiveConflict, { now }).map((activity) => activity.activityType),
+  ["futurePassive"]
+);
+
 assert.equal(activityTypeForStatus({ agent: "DynaKeys Volume" }), "volume");
 assert.equal(activityTypeForStatus({ agent: "DynaClip" }), "clipboard");
 assert.equal(activityTypeForStatus({ agent: "DynaDrop" }), "drop");
