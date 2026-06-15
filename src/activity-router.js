@@ -77,6 +77,7 @@ function isActivityExpired(activity, nowMs) {
 }
 
 function isCompactEligibleActivity(activity) {
+  if (activity.activityType === "nowPlaying") return activity.status?.state === "running";
   if (activity.activityType !== "timer") return true;
 
   const timerState = activity.status?.timer?.state;

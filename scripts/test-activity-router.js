@@ -237,6 +237,53 @@ assert.deepEqual(
   ["nowPlaying", "battery", "futurePassive"]
 );
 
+const inactiveTimerAndNowPlayingPassiveConflict = [
+  candidateStatus("timer", 2000, {
+    agent: "Timer",
+    state: "idle",
+    task: "Timer idle",
+    detail: "Inactive timer should not remain compact eligible above battery.",
+    timer: {
+      id: "timer-idle-battery-fallback-fixture",
+      durationSeconds: 300,
+      remainingSeconds: 300,
+      state: "stopped",
+      startedAt: "2026-06-15T08:55:00.000Z",
+      updatedAt: "2026-06-15T08:59:59.000Z",
+      displayText: "5m",
+      error: "",
+      replacedPrevious: false
+    }
+  }),
+  candidateStatus("nowPlaying", 1500, {
+    agent: "Now Playing",
+    state: "idle",
+    task: "No active media",
+    detail: "Inactive now playing should not remain compact eligible above battery."
+  }),
+  candidateStatus("battery", 1000, {
+    agent: "Battery",
+    task: "Battery 88%",
+    detail: "Battery should be compact fallback when timer and now playing are inactive."
+  }),
+  candidateStatus("futurePassive", 1100, {
+    agent: "Unknown Future Provider",
+    task: "Passive local utility",
+    detail: "Unknown passive providers stay below modeled battery activity."
+  })
+];
+const inactiveTimerAndNowPlayingPassiveConflictWinner = selectCompactActivity(inactiveTimerAndNowPlayingPassiveConflict, { now });
+assert.equal(
+  inactiveTimerAndNowPlayingPassiveConflictWinner.activityType,
+  "battery",
+  "battery should win compact routing when timer and now playing are inactive and passive candidates are available"
+);
+assert.equal(inactiveTimerAndNowPlayingPassiveConflictWinner.compactSurface.activityType, "battery");
+assert.deepEqual(
+  rankActivities(inactiveTimerAndNowPlayingPassiveConflict, { now }).map((activity) => activity.activityType),
+  ["battery", "futurePassive"]
+);
+
 assert.equal(activityTypeForStatus({ agent: "DynaKeys Volume" }), "volume");
 assert.equal(activityTypeForStatus({ agent: "DynaClip" }), "clipboard");
 assert.equal(activityTypeForStatus({ agent: "DynaDrop" }), "drop");
