@@ -12,10 +12,24 @@ extension ISO8601DateFormatter {
 
 struct StatusPayload: Decodable {
     let statuses: [StatusItem]
+    let activityRouter: ActivityRouterSnapshot?
+}
+
+struct ActivityRouterSnapshot: Decodable {
+    var compactSurface: CompactActivitySurface?
+}
+
+struct CompactActivitySurface: Decodable {
+    var activityId: String?
+    var activityType: String?
+    var priority: Double?
+    var label: String?
+    var glyph: String?
 }
 
 struct StatusItem: Decodable {
     var agent: String
+    var activityType: String?
     var state: String
     var task: String
     var detail: String?
@@ -216,6 +230,9 @@ final class IslandView: NSView {
     private var statusLoadedAt = Date()
 
     var statuses: [StatusItem] = []
+    var activityRouter: ActivityRouterSnapshot? {
+        didSet { needsDisplay = true }
+    }
     var compactLayout = NotchWingLayout.compactFromEnvironment() {
         didSet { needsDisplay = true }
     }
@@ -421,6 +438,25 @@ final class IslandView: NSView {
     }
 
     private func drawContent() {
+        if let routed = routedStatusForCompactSurface(), let activityType = routedCompactActivityType() {
+            if activityType == "timer" {
+                if expanded {
+                    drawExpandedTimer(routed)
+                } else {
+                    drawCompactTimer(routed)
+                }
+            } else if activityType == "nowPlaying", let media = routed.media {
+                if expanded {
+                    drawExpandedNowPlaying(media)
+                } else {
+                    drawCompactNowPlaying(media)
+                }
+            } else {
+                drawRoutedGenericActivity(routed, activityType: activityType)
+            }
+            return
+        }
+
         if let timerStatus = activeTimerStatus() {
             if expanded {
                 drawExpandedTimer(timerStatus)
@@ -444,6 +480,61 @@ final class IslandView: NSView {
 
     private func nowPlayingMedia() -> MediaInfo? {
         statuses.first { $0.agent == "Now Playing" }?.media
+    }
+
+    fileprivate func routedCompactSurfaceForSmoke() -> CompactActivitySurface? {
+        activityRouter?.compactSurface
+    }
+
+    fileprivate func routedCompactActivityType() -> String? {
+        guard let value = activityRouter?.compactSurface?.activityType?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
+        return value
+    }
+
+    private func inferredActivityType(for status: StatusItem) -> String {
+        if let explicit = status.activityType?.trimmingCharacters(in: .whitespacesAndNewlines), !explicit.isEmpty {
+            return explicit
+        }
+        switch status.agent {
+        case "Volume", "DynaKeys Volume":
+            return "volume"
+        case "Brightness", "DynaKeys Brightness":
+            return "brightness"
+        case "Clipboard", "DynaClip":
+            return "clipboard"
+        case "DynaShelf", "Shelf":
+            return "shelf"
+        case "DynaDrop", "Drop":
+            return "drop"
+        case "Timer":
+            return "timer"
+        case "Now Playing":
+            return "nowPlaying"
+        case "Battery":
+            return "battery"
+        default:
+            return "futurePassive"
+        }
+    }
+
+    private func statusActivityIds(_ status: StatusItem) -> Set<String> {
+        var ids = Set<String>()
+        if let timerId = status.timer?.id, !timerId.isEmpty {
+            ids.insert(timerId)
+            ids.insert("timer-\(timerId)")
+        }
+        return ids
+    }
+
+    fileprivate func routedStatusForCompactSurface() -> StatusItem? {
+        guard let compactSurface = activityRouter?.compactSurface,
+              let compactType = compactSurface.activityType?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !compactType.isEmpty else { return nil }
+        if let compactId = compactSurface.activityId?.trimmingCharacters(in: .whitespacesAndNewlines), !compactId.isEmpty,
+           let exact = statuses.first(where: { statusActivityIds($0).contains(compactId) }) {
+            return exact
+        }
+        return statuses.first { inferredActivityType(for: $0) == compactType }
     }
 
     private func selectedActiveTimerStatus() -> StatusItem? {
@@ -547,6 +638,11 @@ final class IslandView: NSView {
         needsDisplay = true
     }
 
+    func replaceStatusPayload(_ payload: StatusPayload) {
+        activityRouter = payload.activityRouter
+        replaceStatuses(payload.statuses)
+    }
+
     private func isSameMedia(_ lhs: MediaInfo, _ rhs: MediaInfo) -> Bool {
         lhs.source == rhs.source && lhs.title == rhs.title && lhs.artist == rhs.artist
     }
@@ -624,6 +720,33 @@ final class IslandView: NSView {
         NSString(string: media.durationLabel ?? formatSeconds(media.durationSeconds)).draw(in: expandedDurationRect(progressRect: progressRect), withAttributes: rightAlignedAttributes(timeAttrs))
         drawProgressBar(media: media, positionSeconds: elapsedSeconds, rect: progressRect)
         drawMediaControls(media: media)
+    }
+
+    private func drawRoutedGenericActivity(_ status: StatusItem, activityType: String) {
+        let label = activityRouter?.compactSurface?.label ?? status.task
+        let glyph = activityRouter?.compactSurface?.glyph ?? glyphForRoutedActivity(activityType)
+        let text = expanded ? "\(label)\n\(status.detail ?? status.task)" : "\(glyph) \(label)"
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        paragraph.lineBreakMode = .byTruncatingTail
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: expanded ? 15 : 11, weight: .semibold),
+            .foregroundColor: NSColor.white,
+            .paragraphStyle: paragraph
+        ]
+        let rect = expanded ? bounds.insetBy(dx: 24, dy: max(36, expandedTopContentY())) : bounds.insetBy(dx: 8, dy: max(2, (bounds.height - 18) / 2))
+        NSString(string: text).draw(in: rect, withAttributes: attrs)
+    }
+
+    private func glyphForRoutedActivity(_ activityType: String) -> String {
+        switch activityType {
+        case "volume": return "speaker"
+        case "brightness": return "sun.max"
+        case "clipboard": return "doc.on.clipboard"
+        case "shelf", "drop": return "tray"
+        case "battery": return "battery.100"
+        default: return "circle"
+        }
     }
 
     private func drawCompactTimer(_ status: StatusItem) {
@@ -1965,7 +2088,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
               let payload = try? JSONDecoder().decode(StatusPayload.self, from: data) else {
             return
         }
-        islandView?.replaceStatuses(payload.statuses)
+        islandView?.replaceStatusPayload(payload)
     }
 
     private func dumpNativeStatusForSmokeIfRequested() {
@@ -1977,13 +2100,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let compactViewModel = islandView?.activeTimerCompactViewModel()
         let renderedTimerOutput = islandView?.activeTimerRenderedNotchOutput()
+        let routedCompactSurface = islandView?.routedCompactSurfaceForSmoke()
+        let routedStatus = islandView?.routedStatusForCompactSurface()
+        let routedType = islandView?.routedCompactActivityType()
         let presentation: String
-        if compactViewModel != nil {
+        if let routedType, routedStatus != nil {
+            presentation = routedType == "nowPlaying" ? "media" : routedType
+        } else if compactViewModel != nil {
             presentation = "timer"
         } else if statuses.first(where: { $0.agent == "Now Playing" && $0.media != nil }) != nil {
             presentation = "media"
         } else {
             presentation = "fallback"
+        }
+
+        if let compactSurface = routedCompactSurface,
+           let status = routedStatus,
+           let routedType {
+            print([
+                "DYNAMAC_STATUS_DUMP active=activityRouter",
+                "presentation=\(presentation)",
+                "routerCompactType=\(routedType)",
+                "routerCompactActivityId=\(compactSurface.activityId ?? "")",
+                "expanded=\(islandView?.expanded == true ? "true" : "false")",
+                "agent=\(status.agent)",
+                "statusState=\(status.state)",
+                "task=\(status.task)"
+            ].joined(separator: " "))
+            return
         }
 
         if let status = statuses.first(where: { $0.agent == "Timer" && $0.timer != nil }),
