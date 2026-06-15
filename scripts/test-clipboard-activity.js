@@ -197,6 +197,32 @@ assert.equal(unreadable.status.metadata.clipboardState, "unavailable");
 assert.equal(unreadable.status.detail, "pbpaste exited before clipboard contents could be read.");
 assert.equal(unreadable.state.active, null);
 
+const failedEvaluation = applyClipboardRead({
+  lastSignature: firstSignature,
+  active: {
+    activityId: "clipboard-copy-malformed-active-fixture",
+    activityType: "clipboard",
+    expiresAt: now + DEFAULT_RECENCY_MS
+  }
+}, {
+  plainText: "https://example.com/a",
+  observedAt: now + 260,
+  source: "fixture-clipboard"
+}, { now: now + 260, recencyMs: DEFAULT_RECENCY_MS });
+assert.equal(failedEvaluation.status.state, "error", "clipboard status evaluation failures should be reported as error status instead of throwing");
+assert.equal(failedEvaluation.status.task, "Clipboard error");
+assert.equal(failedEvaluation.status.activityType, "futurePassive");
+assert.equal(failedEvaluation.status.detail, "Clipboard status evaluation failed.");
+assert.equal(failedEvaluation.status.metadata.classification, "error");
+assert.equal(failedEvaluation.status.metadata.clipboardState, "error");
+assert.match(failedEvaluation.status.metadata.errorMessage, /label|status/, "error status should expose a concise failure reason");
+assert.equal(failedEvaluation.status.metadata.recentPlainTextChange, false);
+assert.equal(failedEvaluation.status.clipboardActivity, null, "error status must not keep malformed clipboard activity compact-active");
+assert.equal(failedEvaluation.state.active, null, "failed evaluation should clear malformed compact activity from in-memory state");
+assert.equal(failedEvaluation.state.lastSignature, firstSignature, "failed evaluation should preserve the latest fingerprint baseline without storing raw text");
+assert.equal(validateStatusPayload({ statuses: [failedEvaluation.status] }).ok, true, "error clipboard status should satisfy the shared native status schema");
+assert.equal(JSON.stringify(failedEvaluation).includes("https://example.com/a"), false, "error status must not leak raw clipboard text");
+
 const empty = applyClipboardRead(first.state, {
   plainText: "   \0  ",
   observedAt: now + 300,

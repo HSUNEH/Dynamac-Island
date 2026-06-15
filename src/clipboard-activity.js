@@ -326,6 +326,26 @@ function unavailableClipboardStatus(nowMs, detail = "Clipboard content is unavai
   };
 }
 
+function errorClipboardStatus(nowMs, error, detail = "Clipboard status evaluation failed.") {
+  const message = error instanceof Error ? error.message : String(error || detail);
+  return {
+    agent: "Clipboard",
+    activityType: "futurePassive",
+    state: "error",
+    task: "Clipboard error",
+    updatedAt: new Date(nowMs).toISOString(),
+    detail,
+    metadata: {
+      classification: "error",
+      clipboardState: "error",
+      errorMessage: message,
+      recentPlainTextChange: false
+    },
+    clipboardActivity: null,
+    persisted: false
+  };
+}
+
 function clipboardActivityToNativeStatus(activity) {
   if (!activity || typeof activity !== "object") {
     throw new Error("clipboard activity is required");
@@ -357,7 +377,7 @@ function isActiveClipboardActivityCurrent(activity, nowMs) {
   return activity.activityType === "clipboard" && Number.isFinite(expiresAt) && expiresAt > nowMs;
 }
 
-function applyClipboardRead(state = createClipboardActivityState(), read = {}, options = {}) {
+function evaluateClipboardRead(state = createClipboardActivityState(), read = {}, options = {}) {
   const nowMs = finiteTimestamp(options.now ?? read.observedAt, Date.now());
   const observedAt = finiteTimestamp(read.observedAt ?? nowMs, nowMs);
   const recencyMs = Number.isFinite(Number(options.recencyMs)) ? Number(options.recencyMs) : DEFAULT_RECENCY_MS;
@@ -419,6 +439,19 @@ function applyClipboardRead(state = createClipboardActivityState(), read = {}, o
   };
 }
 
+function applyClipboardRead(state = createClipboardActivityState(), read = {}, options = {}) {
+  const nowMs = finiteTimestamp(options.now ?? read?.observedAt, Date.now());
+  const previous = createClipboardActivityState(state);
+  try {
+    return evaluateClipboardRead(previous, read, options);
+  } catch (error) {
+    return {
+      state: createClipboardActivityState({ ...previous, active: null }),
+      status: errorClipboardStatus(nowMs, error)
+    };
+  }
+}
+
 function buildClipboardStatusFromText(text, options = {}) {
   const nowMs = finiteTimestamp(options.now, Date.now());
   const state = options.state || createClipboardActivityState({ lastSignature: options.previousSignature || "" });
@@ -440,6 +473,7 @@ module.exports = {
   clipboardCopyEventId,
   clipboardActivityToNativeStatus,
   createClipboardActivityState,
+  errorClipboardStatus,
   expiredClipboardStatus,
   formatClipboardPreviewText,
   inactiveClipboardStatus,
