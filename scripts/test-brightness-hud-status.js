@@ -186,13 +186,14 @@ assert.equal(validation.statuses[0].brightnessHud.persisted, false, "brightness 
 const serializedBrightnessState = serializeBrightnessHudState(brighter);
 assert.deepEqual(serializedBrightnessState, {
   schema: "dynamac.brightnessHud.state.v1",
+  version: 1,
   active: brighter.active
 }, "brightness HUD compact state should serialize through a stable schema envelope");
 
 const serializedBrightnessJson = JSON.stringify(serializedBrightnessState);
 assert.equal(
   serializedBrightnessJson,
-  "{\"schema\":\"dynamac.brightnessHud.state.v1\",\"active\":{\"activityId\":\"brightness-1718323200000\",\"activityType\":\"brightness\",\"priority\":90,\"createdAt\":1718323200000,\"updatedAt\":1718323200250,\"expiresAt\":1718323201850,\"isTransient\":true,\"status\":{\"level\":75,\"previousLevel\":12,\"direction\":\"up\",\"displayText\":\"75%\"},\"compactSurface\":{\"glyph\":\"sun.max\",\"label\":\"75%\",\"progress\":0.75},\"expandedSurface\":{\"title\":\"Brightness\",\"subtitle\":\"Studio Display · 75%\",\"valueLabel\":\"75%\"},\"source\":\"fixture-brightness-observer\",\"metadata\":{\"displayName\":\"Studio Display\",\"inputKind\":\"brightness\",\"rawLevel\":75.4},\"revealReadyPath\":\"\",\"persisted\":false}}",
+  "{\"schema\":\"dynamac.brightnessHud.state.v1\",\"version\":1,\"active\":{\"activityId\":\"brightness-1718323200000\",\"activityType\":\"brightness\",\"priority\":90,\"createdAt\":1718323200000,\"updatedAt\":1718323200250,\"expiresAt\":1718323201850,\"isTransient\":true,\"status\":{\"level\":75,\"previousLevel\":12,\"direction\":\"up\",\"displayText\":\"75%\"},\"compactSurface\":{\"glyph\":\"sun.max\",\"label\":\"75%\",\"progress\":0.75},\"expandedSurface\":{\"title\":\"Brightness\",\"subtitle\":\"Studio Display · 75%\",\"valueLabel\":\"75%\"},\"source\":\"fixture-brightness-observer\",\"metadata\":{\"displayName\":\"Studio Display\",\"inputKind\":\"brightness\",\"rawLevel\":75.4},\"revealReadyPath\":\"\",\"persisted\":false}}",
   "brightness HUD compact state JSON should be deterministic for fixture round-trip tests"
 );
 
@@ -205,6 +206,7 @@ assert.equal(
 );
 assert.deepEqual(serializeBrightnessHudState(createBrightnessHudState()), {
   schema: "dynamac.brightnessHud.state.v1",
+  version: 1,
   active: null
 }, "inactive brightness HUD compact state should serialize explicitly without persisted clipboard-like history");
 

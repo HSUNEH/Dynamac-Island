@@ -2,7 +2,7 @@ const DEFAULT_TRANSIENT_MS = 1600;
 const DEFAULT_PRIORITY = 90;
 const DEFAULT_SOURCE = "local-volume-observer";
 const DEFAULT_DEVICE_NAME = "Output";
-const VOLUME_HUD_STATE_SCHEMA = "dynamac.volumeHud.state.v1";
+const { deserializeHudCompactState, serializeHudCompactState } = require("./hud-compact-state-schema");
 
 function createVolumeHudState(active = null) {
   return { active };
@@ -216,20 +216,15 @@ function serializeVolumeHudActivity(activity) {
 }
 
 function serializeVolumeHudState(state = createVolumeHudState()) {
-  const active = state?.active ? serializeVolumeHudActivity(state.active) : null;
-  return {
-    schema: VOLUME_HUD_STATE_SCHEMA,
-    active
-  };
+  return serializeHudCompactState({ hudKey: "volumeHud", state, serializeActivity: serializeVolumeHudActivity });
 }
 
 function deserializeVolumeHudState(serialized) {
-  const payload = assertPlainObject(serialized, "volumeHud state payload");
-  if (payload.schema !== VOLUME_HUD_STATE_SCHEMA) {
-    throw new Error(`volumeHud state schema must be ${VOLUME_HUD_STATE_SCHEMA}`);
-  }
-  if (payload.active === null) return createVolumeHudState();
-  return createVolumeHudState(serializeVolumeHudActivity(payload.active));
+  return deserializeHudCompactState(serialized, {
+    hudKey: "volumeHud",
+    createState: createVolumeHudState,
+    serializeActivity: serializeVolumeHudActivity
+  });
 }
 
 function volumeHudToNativeStatus(activity) {

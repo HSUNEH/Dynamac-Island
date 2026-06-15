@@ -2,7 +2,7 @@ const DEFAULT_TRANSIENT_MS = 1600;
 const DEFAULT_PRIORITY = 90;
 const DEFAULT_SOURCE = "local-brightness-observer";
 const DEFAULT_DISPLAY_NAME = "Display";
-const BRIGHTNESS_HUD_STATE_SCHEMA = "dynamac.brightnessHud.state.v1";
+const { deserializeHudCompactState, serializeHudCompactState } = require("./hud-compact-state-schema");
 
 function createBrightnessHudState(active = null) {
   return { active };
@@ -201,20 +201,15 @@ function serializeBrightnessHudActivity(activity) {
 }
 
 function serializeBrightnessHudState(state = createBrightnessHudState()) {
-  const active = state?.active ? serializeBrightnessHudActivity(state.active) : null;
-  return {
-    schema: BRIGHTNESS_HUD_STATE_SCHEMA,
-    active
-  };
+  return serializeHudCompactState({ hudKey: "brightnessHud", state, serializeActivity: serializeBrightnessHudActivity });
 }
 
 function deserializeBrightnessHudState(serialized) {
-  const payload = assertPlainObject(serialized, "brightnessHud state payload");
-  if (payload.schema !== BRIGHTNESS_HUD_STATE_SCHEMA) {
-    throw new Error(`brightnessHud state schema must be ${BRIGHTNESS_HUD_STATE_SCHEMA}`);
-  }
-  if (payload.active === null) return createBrightnessHudState();
-  return createBrightnessHudState(serializeBrightnessHudActivity(payload.active));
+  return deserializeHudCompactState(serialized, {
+    hudKey: "brightnessHud",
+    createState: createBrightnessHudState,
+    serializeActivity: serializeBrightnessHudActivity
+  });
 }
 
 function showBrightnessHud(input = {}, options = {}) {

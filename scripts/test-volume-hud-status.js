@@ -181,13 +181,14 @@ assert.equal(validation.statuses[0].volumeHud.persisted, false, "clipboard/histo
 const serializedVolumeState = serializeVolumeHudState(louder);
 assert.deepEqual(serializedVolumeState, {
   schema: "dynamac.volumeHud.state.v1",
+  version: 1,
   active: louder.active
 }, "volume HUD compact state should serialize through a stable schema envelope");
 
 const serializedVolumeJson = JSON.stringify(serializedVolumeState);
 assert.equal(
   serializedVolumeJson,
-  "{\"schema\":\"dynamac.volumeHud.state.v1\",\"active\":{\"activityId\":\"volume-1718323200000\",\"activityType\":\"volume\",\"priority\":90,\"createdAt\":1718323200000,\"updatedAt\":1718323200250,\"expiresAt\":1718323201850,\"isTransient\":true,\"status\":{\"level\":42,\"muted\":false,\"previousLevel\":20,\"direction\":\"up\",\"displayText\":\"42%\"},\"compactSurface\":{\"glyph\":\"speaker\",\"label\":\"42%\",\"progress\":0.42},\"expandedSurface\":{\"title\":\"Volume\",\"subtitle\":\"Studio Display Speakers · 42%\",\"valueLabel\":\"42%\"},\"source\":\"fixture-volume-observer\",\"metadata\":{\"deviceName\":\"Studio Display Speakers\",\"inputKind\":\"volume\",\"rawLevel\":42.4,\"rawMuted\":false},\"revealReadyPath\":\"\",\"persisted\":false}}",
+  "{\"schema\":\"dynamac.volumeHud.state.v1\",\"version\":1,\"active\":{\"activityId\":\"volume-1718323200000\",\"activityType\":\"volume\",\"priority\":90,\"createdAt\":1718323200000,\"updatedAt\":1718323200250,\"expiresAt\":1718323201850,\"isTransient\":true,\"status\":{\"level\":42,\"muted\":false,\"previousLevel\":20,\"direction\":\"up\",\"displayText\":\"42%\"},\"compactSurface\":{\"glyph\":\"speaker\",\"label\":\"42%\",\"progress\":0.42},\"expandedSurface\":{\"title\":\"Volume\",\"subtitle\":\"Studio Display Speakers · 42%\",\"valueLabel\":\"42%\"},\"source\":\"fixture-volume-observer\",\"metadata\":{\"deviceName\":\"Studio Display Speakers\",\"inputKind\":\"volume\",\"rawLevel\":42.4,\"rawMuted\":false},\"revealReadyPath\":\"\",\"persisted\":false}}",
   "volume HUD compact state JSON should be deterministic for fixture round-trip tests"
 );
 
@@ -200,6 +201,7 @@ assert.equal(
 );
 assert.deepEqual(serializeVolumeHudState(createVolumeHudState()), {
   schema: "dynamac.volumeHud.state.v1",
+  version: 1,
   active: null
 }, "inactive volume HUD compact state should serialize explicitly without persisted clipboard-like history");
 
