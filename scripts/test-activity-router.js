@@ -775,6 +775,29 @@ assert.equal(
   "expired transient activities should not win compact selection over a lower-priority active candidate"
 );
 
+const samePriorityShelfDropCandidates = [
+  candidateStatus("shelf", 0, {
+    agent: "DynaShelf",
+    activityId: "older-shelf",
+    task: "Shelf · older file ready",
+    revealReadyPath: "/Users/st/Desktop/older.pdf",
+    metadata: { fileCount: 1 }
+  }),
+  candidateStatus("drop", 500, {
+    agent: "DynaDrop",
+    activityId: "newer-drop",
+    task: "Drop · newer files staged",
+    metadata: { fileCount: 2 }
+  })
+];
+const samePriorityShelfDropByRecency = rankActivities(samePriorityShelfDropCandidates, { now });
+assert.deepEqual(
+  samePriorityShelfDropByRecency.map((activity) => activity.activityId),
+  ["newer-drop", "older-shelf"],
+  "same-priority router ties should prefer the most recently updated activity"
+);
+assert.equal(selectCompactActivity(samePriorityShelfDropCandidates, { now })?.activityId, "newer-drop");
+
 
 const tieBrokenByUpdatedAtThenCreatedAtThenId = rankActivities([
   { activityId: "old-volume", activityType: "volume", task: "Volume old", createdAt: "2026-06-15T08:00:00.000Z", updatedAt: "2026-06-15T08:59:00.000Z" },
