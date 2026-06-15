@@ -14,6 +14,14 @@ function finiteTimestamp(value, fallback = Date.now(), fieldName = "timestamp") 
   return timestamp;
 }
 
+function requiredFiniteTimestamp(value, fieldName = "timestamp") {
+  const timestamp = value instanceof Date ? value.getTime() : Number(value);
+  if (!Number.isFinite(timestamp)) {
+    throw new Error(`${fieldName} must be a finite timestamp`);
+  }
+  return timestamp;
+}
+
 function createShelfState(seed = {}) {
   const now = finiteTimestamp(seed.now ?? seed.updatedAt, Date.now());
   const items = Array.isArray(seed.items) ? seed.items.map((item) => ({ ...item })) : [];
@@ -213,18 +221,19 @@ function applyDroppedFileToShelf(state = createShelfState(), drop = {}, options 
 }
 
 function addDroppedFileToShelf(state = createShelfState(), drop = {}, options = {}) {
+  const normalizedDrop = normalizeDropInput(drop);
   const previous = createShelfState(state);
-  const observedAt = finiteTimestamp(drop.observedAt ?? options.now ?? Date.now(), undefined, "observedAt");
+  const observedAt = requiredFiniteTimestamp(normalizedDrop.observedAt ?? options.now ?? Date.now(), "observedAt");
   const recordedAt = finiteTimestamp(options.now ?? observedAt, observedAt);
-  rejectExplicitlyDisallowedDrop(drop);
-  const { resolvedPath, stat } = validateDroppedFilePath(drop.filePath);
+  rejectExplicitlyDisallowedDrop(normalizedDrop);
+  const { resolvedPath, stat } = validateDroppedFilePath(normalizedDrop.filePath);
   const sequence = nextSequence(previous.items);
-  const source = String(drop.source || DEFAULT_SOURCE).trim() || DEFAULT_SOURCE;
+  const source = String(normalizedDrop.source || DEFAULT_SOURCE).trim() || DEFAULT_SOURCE;
   const item = {
     itemId: `shelf-${observedAt}-${String(sequence).padStart(3, "0")}`,
     path: resolvedPath,
     name: path.basename(resolvedPath),
-    type: normalizeType(drop.type),
+    type: normalizeType(normalizedDrop.type),
     size: stat.size,
     source,
     observedAt,
