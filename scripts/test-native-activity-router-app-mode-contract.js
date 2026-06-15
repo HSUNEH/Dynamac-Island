@@ -19,6 +19,8 @@ assert.match(nativeSource, /var brightnessHud: RoutedActivityInfo\?/, "native st
 assert.match(nativeSource, /status\.brightnessHud\?\.activityId/, "native router binding should include embedded brightness HUD activity ids");
 assert.match(nativeSource, /var clipboardActivity: RoutedActivityInfo\?/, "native status items should decode DynaClip clipboard activity ids for exact app-mode routing");
 assert.match(nativeSource, /status\.clipboardActivity\?\.activityId/, "native router binding should include embedded DynaClip activity ids");
+assert.match(nativeSource, /var shelfActivity: RoutedActivityInfo\?/, "native status items should decode DynaDrop shelf activity ids for exact app-mode routing");
+assert.match(nativeSource, /status\.shelfActivity\?\.activityId/, "native router binding should include embedded DynaDrop shelf activity ids");
 assert.match(nativeSource, /var activityRouter: ActivityRouterSnapshot\?/, "native island view should retain the current Activity Router snapshot");
 assert.match(nativeSource, /routedStatusForCompactSurface/, "native UI should resolve the routed compact surface before legacy Timer\/media fallback");
 assert.match(nativeSource, /drawRoutedGenericActivity/, "native UI should have a simple generic compact\/expanded activity surface for routed DynaKeys\/DynaClip\/DynaShelf activities");
@@ -691,6 +693,201 @@ assert.match(dynaKeysBrightnessExpandedOutput, /expanded=false/, "DynaKeys brigh
 assert.match(dynaKeysBrightnessExpandedOutput, /active=activityRouter[^\n]+presentation=brightness[^\n]+expanded=true/, "DynaKeys brightness routing should survive compact→expanded app-mode transition");
 assert.match(dynaKeysBrightnessExpandedOutput, /task=Brightness 72%/, "expanded app-mode dump should retain the routed brightness HUD status");
 assert.doesNotMatch(dynaKeysBrightnessExpandedOutput, /active=timer[^\n]+expanded=true/, "expanded transition should not fall back to Timer when router selected DynaKeys brightness");
+
+const dynaDropShelfPayload = {
+  statuses: [
+    {
+      agent: "DynaShelf",
+      state: "running",
+      task: "Shelf · 1 file ready",
+      updatedAt: "2026-06-15T00:00:09.000Z",
+      detail: "Older shelf metadata must not win exact app-mode routing.",
+      revealReadyPath: "/tmp/dynamac-old.txt",
+      revealStatus: {
+        state: "ready",
+        canReveal: true,
+        canOpen: false,
+        executionState: "deferred",
+        revealReadyPath: "/tmp/dynamac-old.txt",
+        reason: "validated-local-file",
+        detail: "Validated shelf path is ready for future Finder reveal.",
+        persisted: false
+      },
+      metadata: {
+        fileCount: 1,
+        latestFile: {
+          itemId: "shelf-old-000",
+          name: "dynamac-old.txt",
+          path: "/tmp/dynamac-old.txt",
+          revealReadyPath: "/tmp/dynamac-old.txt",
+          type: "text/plain",
+          size: 11
+        }
+      },
+      shelfActivity: {
+        activityId: "dynadrop-shelf-older-non-winner",
+        activityType: "shelf",
+        priority: 400,
+        createdAt: 1781481609000,
+        updatedAt: 1781481609000,
+        expiresAt: null,
+        isTransient: false,
+        status: {
+          fileCount: 1,
+          label: "Shelf · 1 file ready"
+        },
+        compactSurface: {
+          glyph: "tray.full",
+          label: "Shelf · 1 file ready",
+          preview: "dynamac-old.txt"
+        },
+        expandedSurface: {
+          title: "Shelf",
+          subtitle: "1 file ready for local reveal"
+        },
+        source: "fixture-dynadrop",
+        metadata: {
+          fileCount: 1
+        },
+        revealReadyPath: "/tmp/dynamac-old.txt",
+        persisted: false
+      },
+      persisted: false
+    },
+    {
+      agent: "DynaShelf",
+      state: "running",
+      task: "Shelf · 2 files ready",
+      updatedAt: "2026-06-15T00:00:10.000Z",
+      detail: "Local shelf metadata is reveal-ready; native drag capture and Finder reveal/open execution are deferred.",
+      revealReadyPath: "/tmp/dynamac-final.png",
+      revealStatus: {
+        state: "ready",
+        canReveal: true,
+        canOpen: false,
+        executionState: "deferred",
+        revealReadyPath: "/tmp/dynamac-final.png",
+        reason: "validated-local-file",
+        detail: "Validated shelf path is ready for future Finder reveal.",
+        persisted: false
+      },
+      metadata: {
+        fileCount: 2,
+        latestFile: {
+          itemId: "shelf-final-001",
+          name: "dynamac-final.png",
+          path: "/tmp/dynamac-final.png",
+          revealReadyPath: "/tmp/dynamac-final.png",
+          type: "image/png",
+          size: 2048
+        }
+      },
+      shelfActivity: {
+        activityId: "dynadrop-shelf-router-winner",
+        activityType: "shelf",
+        priority: 400,
+        createdAt: 1781481610000,
+        updatedAt: 1781481610000,
+        expiresAt: null,
+        isTransient: false,
+        status: {
+          fileCount: 2,
+          label: "Shelf · 2 files ready"
+        },
+        compactSurface: {
+          glyph: "tray.full",
+          label: "Shelf · 2 files ready",
+          preview: "dynamac-final.png"
+        },
+        expandedSurface: {
+          title: "Shelf",
+          subtitle: "2 files ready for local reveal"
+        },
+        source: "fixture-dynadrop",
+        metadata: {
+          fileCount: 2
+        },
+        revealReadyPath: "/tmp/dynamac-final.png",
+        persisted: false
+      },
+      persisted: false
+    },
+    {
+      agent: "Timer",
+      state: "running",
+      task: "Timer · 5m",
+      updatedAt: "2026-06-15T00:00:10.000Z",
+      detail: "Timer fallback is present but DynaDrop shelf is routed compact.",
+      timer: {
+        id: "timer-dynadrop-shelf-non-winner",
+        durationSeconds: 300,
+        remainingSeconds: 120,
+        state: "running",
+        startedAt: "2026-06-15T00:00:00.000Z",
+        updatedAt: "2026-06-15T00:00:10.000Z",
+        displayText: "2m 0s",
+        error: "",
+        replacedPrevious: false
+      }
+    }
+  ],
+  activityRouter: {
+    rankedActivities: [
+      {
+        activityId: "dynadrop-shelf-router-winner",
+        activityType: "shelf",
+        priority: 400,
+        createdAt: 1781481610000,
+        updatedAt: 1781481610000
+      },
+      {
+        activityId: "dynadrop-shelf-older-non-winner",
+        activityType: "shelf",
+        priority: 400,
+        createdAt: 1781481609000,
+        updatedAt: 1781481609000
+      },
+      {
+        activityId: "timer-timer-dynadrop-shelf-non-winner",
+        activityType: "timer",
+        priority: 300,
+        createdAt: 1781481600000,
+        updatedAt: 1781481610000
+      }
+    ],
+    compactSurface: {
+      activityId: "dynadrop-shelf-router-winner",
+      activityType: "shelf",
+      priority: 400,
+      label: "Shelf · 2 files ready",
+      glyph: "tray.full"
+    }
+  }
+};
+writePayload(dynaDropShelfPayload);
+const dynaDropShelfCompactOutput = runNative();
+assert.match(dynaDropShelfCompactOutput, /active=activityRouter/, "native DynaDrop shelf smoke should use Activity Router in app mode");
+assert.match(dynaDropShelfCompactOutput, /presentation=shelf/, "DynaDrop shelf should surface as the compact app-mode presentation");
+assert.match(dynaDropShelfCompactOutput, /routerCompactType=shelf/, "native dump should preserve the DynaDrop shelf compact activity type");
+assert.match(dynaDropShelfCompactOutput, /routerCompactActivityId=dynadrop-shelf-router-winner/, "native dump should preserve the exact embedded DynaDrop shelf compact activity id");
+assert.match(dynaDropShelfCompactOutput, /agent=DynaShelf/, "native router resolution should bind the DynaDrop shelf status item");
+assert.match(dynaDropShelfCompactOutput, /task=Shelf · 2 files ready/, "native app-mode dump should expose the routed DynaDrop shelf payload label");
+assert.match(dynaDropShelfCompactOutput, /renderedCompactText=tray\.full Shelf · 2 files ready/, "compact app-mode rendering should show the DynaDrop tray glyph and shelf-ready label");
+assert.match(dynaDropShelfCompactOutput, /renderedExpandedText=Shelf · 2 files ready\\nLocal shelf metadata is reveal-ready; native drag capture and Finder reveal\/open execution are deferred\./, "compact smoke dump should expose the expanded DynaDrop preview contract without implying native drag or Finder reveal execution works");
+assert.match(dynaDropShelfCompactOutput, /expanded=false/, "DynaDrop shelf smoke should cover compact app-mode behavior");
+assert.doesNotMatch(dynaDropShelfCompactOutput, /task=Shelf · 1 file ready/, "DynaDrop shelf routing must not select the first same-type status when compactSurface.activityId matches an embedded shelfActivity id");
+assert.doesNotMatch(dynaDropShelfCompactOutput, /presentation=timer/, "legacy Timer presentation must not override routed DynaDrop shelf");
+
+const dynaDropShelfExpandedOutput = runNative({
+  DYNAMAC_START_EXPANDED: "1",
+  DYNAMAC_NATIVE_STATUS_DUMP_AFTER_MS: "180"
+});
+assert.match(dynaDropShelfExpandedOutput, /expanded=false/, "DynaDrop shelf expanded smoke should include the initial compact state");
+assert.match(dynaDropShelfExpandedOutput, /active=activityRouter[^\n]+presentation=shelf[^\n]+expanded=true/, "DynaDrop shelf routing should survive compact→expanded app-mode transition");
+assert.match(dynaDropShelfExpandedOutput, /renderedCompactText=tray\.full Shelf · 2 files ready/, "expanded smoke should retain the same routed DynaDrop compact text contract");
+assert.match(dynaDropShelfExpandedOutput, /renderedExpandedText=Shelf · 2 files ready\\nLocal shelf metadata is reveal-ready; native drag capture and Finder reveal\/open execution are deferred\./, "expanded app-mode rendering should show shelf metadata and honest deferred native behavior copy");
+assert.match(dynaDropShelfExpandedOutput, /task=Shelf · 2 files ready/, "expanded app-mode dump should retain the routed DynaDrop shelf payload");
+assert.doesNotMatch(dynaDropShelfExpandedOutput, /active=timer[^\n]+expanded=true/, "expanded transition should not fall back to Timer when router selected DynaDrop shelf");
 
 fs.rmSync(tempDir, { recursive: true, force: true });
 

@@ -40,6 +40,8 @@ struct StatusItem: Decodable {
     var volumeHud: RoutedActivityInfo?
     var brightnessHud: RoutedActivityInfo?
     var clipboardActivity: RoutedActivityInfo?
+    var shelfActivity: RoutedActivityInfo?
+    var dropActivity: RoutedActivityInfo?
 }
 
 struct RoutedActivityInfo: Decodable {
@@ -518,6 +520,12 @@ final class IslandView: NSView {
         if let clipboardType = status.clipboardActivity?.activityType?.trimmingCharacters(in: .whitespacesAndNewlines), !clipboardType.isEmpty {
             return clipboardType
         }
+        if let shelfType = status.shelfActivity?.activityType?.trimmingCharacters(in: .whitespacesAndNewlines), !shelfType.isEmpty {
+            return shelfType
+        }
+        if let dropType = status.dropActivity?.activityType?.trimmingCharacters(in: .whitespacesAndNewlines), !dropType.isEmpty {
+            return dropType
+        }
         switch status.agent {
         case "Volume", "DynaKeys Volume":
             return "volume"
@@ -557,6 +565,12 @@ final class IslandView: NSView {
         }
         if let clipboardActivityId = status.clipboardActivity?.activityId, !clipboardActivityId.isEmpty {
             ids.insert(clipboardActivityId)
+        }
+        if let shelfActivityId = status.shelfActivity?.activityId, !shelfActivityId.isEmpty {
+            ids.insert(shelfActivityId)
+        }
+        if let dropActivityId = status.dropActivity?.activityId, !dropActivityId.isEmpty {
+            ids.insert(dropActivityId)
         }
         return ids
     }
