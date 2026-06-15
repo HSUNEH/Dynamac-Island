@@ -744,6 +744,38 @@ const expiredHudRanksBelowClipboard = rankActivities([
 ], { now });
 assert.deepEqual(expiredHudRanksBelowClipboard.map((activity) => activity.activityType), ["clipboard"]);
 
+const expiredTransientCompactCandidates = [
+  candidateStatus("volume", 5000, {
+    agent: "Volume",
+    task: "Volume expired",
+    expiresAt: "2026-06-15T08:59:59.999Z",
+    isTransient: true
+  }),
+  candidateStatus("clipboard", 4000, {
+    agent: "Clipboard",
+    task: "Text copied · expired",
+    expiresAt: "2026-06-15T08:59:59.000Z",
+    isTransient: true,
+    persisted: false
+  }),
+  candidateStatus("timer", 0, {
+    agent: "Timer",
+    task: "Timer · still running"
+  })
+];
+const expiredTransientActivitiesArePrunedFromCompactEligibility = rankActivities(expiredTransientCompactCandidates, { now });
+assert.deepEqual(
+  expiredTransientActivitiesArePrunedFromCompactEligibility.map((activity) => activity.activityType),
+  ["timer"],
+  "expired transient activities should be removed from compact eligibility before priority ranking"
+);
+assert.equal(
+  selectCompactActivity(expiredTransientCompactCandidates, { now })?.activityType,
+  "timer",
+  "expired transient activities should not win compact selection over a lower-priority active candidate"
+);
+
+
 const tieBrokenByUpdatedAtThenCreatedAtThenId = rankActivities([
   { activityId: "old-volume", activityType: "volume", task: "Volume old", createdAt: "2026-06-15T08:00:00.000Z", updatedAt: "2026-06-15T08:59:00.000Z" },
   { activityId: "new-volume", activityType: "volume", task: "Volume new", createdAt: "2026-06-15T08:10:00.000Z", updatedAt: "2026-06-15T08:59:30.000Z" }
