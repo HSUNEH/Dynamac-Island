@@ -7,9 +7,80 @@ const path = require("node:path");
 const storePath = path.join(__dirname, "..", "src", "clipboard-activity-store.js");
 const source = fs.readFileSync(storePath, "utf8");
 assert.doesNotMatch(source, /require\("node:fs"\)|writeFile|readFile|localStorage|sessionStorage/, "clipboard activity store must remain in-memory only");
+const activityPath = path.join(__dirname, "..", "src", "clipboard-activity.js");
+const activitySource = fs.readFileSync(activityPath, "utf8");
+assert.doesNotMatch(
+  activitySource,
+  /require\("node:fs"\)|writeFile|appendFile|createWriteStream|localStorage|sessionStorage|indexedDB|sqlite|database/,
+  "clipboard update core must not import or invoke persistence APIs"
+);
 
 const store = require("../src/clipboard-activity-store");
 const { textSignature } = require("../src/clipboard-activity");
+const { collectClipboardStatus } = require("../src/mac-activity-status");
+
+function withPersistenceApisBlocked(callback) {
+  const blockedFsMethods = [
+    "writeFile",
+    "writeFileSync",
+    "appendFile",
+    "appendFileSync",
+    "createWriteStream",
+    "mkdirSync",
+    "renameSync",
+    "copyFileSync",
+    "openSync"
+  ];
+  const originals = new Map();
+  const calls = [];
+  for (const method of blockedFsMethods) {
+    originals.set(method, fs[method]);
+    fs[method] = (...args) => {
+      calls.push({ api: `fs.${method}`, args });
+      throw new Error(`clipboard update attempted persistent storage via fs.${method}`);
+    };
+  }
+
+  const originalLocalStorage = global.localStorage;
+  const originalSessionStorage = global.sessionStorage;
+  const originalIndexedDB = global.indexedDB;
+  const blockedStorage = (name) => ({
+    getItem(key) {
+      calls.push({ api: `${name}.getItem`, args: [key] });
+      throw new Error(`clipboard update attempted persistent storage via ${name}.getItem`);
+    },
+    setItem(key, value) {
+      calls.push({ api: `${name}.setItem`, args: [key, value] });
+      throw new Error(`clipboard update attempted persistent storage via ${name}.setItem`);
+    },
+    removeItem(key) {
+      calls.push({ api: `${name}.removeItem`, args: [key] });
+      throw new Error(`clipboard update attempted persistent storage via ${name}.removeItem`);
+    }
+  });
+  global.localStorage = blockedStorage("localStorage");
+  global.sessionStorage = blockedStorage("sessionStorage");
+  global.indexedDB = {
+    open(name) {
+      calls.push({ api: "indexedDB.open", args: [name] });
+      throw new Error("clipboard update attempted persistent storage via indexedDB.open");
+    }
+  };
+
+  try {
+    const result = callback();
+    assert.deepEqual(calls, [], "clipboard update processing must not call persistence APIs or storage mechanisms");
+    return result;
+  } finally {
+    for (const [method, original] of originals) fs[method] = original;
+    if (originalLocalStorage === undefined) delete global.localStorage;
+    else global.localStorage = originalLocalStorage;
+    if (originalSessionStorage === undefined) delete global.sessionStorage;
+    else global.sessionStorage = originalSessionStorage;
+    if (originalIndexedDB === undefined) delete global.indexedDB;
+    else global.indexedDB = originalIndexedDB;
+  }
+}
 
 const now = 1718323200000;
 
@@ -86,6 +157,29 @@ const afterClear = store.createClipboardActivity({
   type: "text/plain"
 }, { now: now + 200 });
 assert.equal(afterClear.status.activityType, "clipboard", "same text should emit again after explicit in-memory clear");
+
+const guarded = withPersistenceApisBlocked(() => {
+  store.clearClipboardActivityStore();
+  const storeResult = store.createClipboardActivity({
+    plainText: "Clipboard privacy guard text",
+    observedAt: now + 300,
+    source: "persistence-guard-fixture",
+    type: "text/plain"
+  }, { now: now + 300 });
+  const nativeResult = collectClipboardStatus({
+    clipboardText: "Clipboard native guard text",
+    clipboardActivityState: storeResult.state,
+    clipboardObservedAt: now + 350,
+    clipboardSource: "persistence-guard-fixture",
+    clipboardType: "text/plain",
+    now: new Date(now + 350)
+  });
+  return { storeResult, nativeResult };
+});
+assert.equal(guarded.storeResult.status.activityType, "clipboard", "guarded in-memory store update should still produce a clipboard activity");
+assert.equal(guarded.nativeResult.activityType, "clipboard", "guarded native clipboard collection should still produce a clipboard status");
+assert.equal(guarded.storeResult.state.active.persisted, false, "guarded clipboard state remains explicitly non-persistent");
+assert.equal(guarded.nativeResult.persisted, false, "guarded native clipboard status remains explicitly non-persistent");
 
 store.clearClipboardActivityStore();
 const modulePath = require.resolve("../src/clipboard-activity-store");
