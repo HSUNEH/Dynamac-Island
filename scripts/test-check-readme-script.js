@@ -108,6 +108,36 @@ assert.match(
   "check-readme should report the missing Activity Router deterministic tie-break docs"
 );
 
+const missingDynaKeysHudSectionResult = runChecker(
+  readme.replace("### DynaKeys Volume/Brightness HUD Core Model", "### Volume/Brightness HUD Core Model")
+);
+
+assert.notEqual(
+  missingDynaKeysHudSectionResult.status,
+  0,
+  `check-readme should fail when the DynaKeys HUD section heading is missing.\nstdout:\n${missingDynaKeysHudSectionResult.stdout}\nstderr:\n${missingDynaKeysHudSectionResult.stderr}`
+);
+assert.match(
+  missingDynaKeysHudSectionResult.stderr,
+  /Missing DynaKeys HUD section/,
+  "check-readme should report the missing DynaKeys HUD section"
+);
+
+const missingDynaKeysHudBehaviorResult = runChecker(
+  readme.replace("volume changes render a `speaker.wave.2` or muted-speaker compact surface with a percentage label/progress", "")
+);
+
+assert.notEqual(
+  missingDynaKeysHudBehaviorResult.status,
+  0,
+  `check-readme should fail when the implemented DynaKeys HUD behavior is missing.\nstdout:\n${missingDynaKeysHudBehaviorResult.stdout}\nstderr:\n${missingDynaKeysHudBehaviorResult.stderr}`
+);
+assert.match(
+  missingDynaKeysHudBehaviorResult.stderr,
+  /Missing DynaKeys volume compact behavior/,
+  "check-readme should report the missing implemented DynaKeys HUD behavior"
+);
+
 const unsafeInstallerResult = runChecker(
   `${readme}\n\n\`\`\`sh\ncurl -fsSL https://raw.githubusercontent.com/HSUNEH/dynamac-island/main/scripts/install-macbook.sh | bash\n\`\`\`\n`
 );

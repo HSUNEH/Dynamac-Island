@@ -117,7 +117,15 @@ const requiredSnippets = [
   ["Activity Router payload shape", "generated Mac activity payload includes an `activityRouter` object with `rankedActivities` and the selected `compactSurface`"],
   ["Activity Router README validation", "Run `npm run check-readme` to validate that this README keeps documenting the Activity Router section"],
   ["Activity Router drag boundary", "DynaDrop/Shelf does not claim native drag capture or Finder reveal/open execution"],
-  ["Activity Router no implied Finder actions", "must not imply drag-and-drop, Finder reveal, or file open works"]
+  ["Activity Router no implied Finder actions", "must not imply drag-and-drop, Finder reveal, or file open works"],
+  ["DynaKeys HUD section", "### DynaKeys Volume/Brightness HUD Core Model"],
+  ["DynaKeys HUD implementation", "first DynaKeys volume/brightness HUD slice as deterministic pure logic"],
+  ["DynaKeys volume compact behavior", "volume changes render a `speaker.wave.2` or muted-speaker compact surface with a percentage label/progress"],
+  ["DynaKeys brightness compact behavior", "brightness changes render a `sun.max` compact surface with a percentage label/progress"],
+  ["DynaKeys HUD tests", "`npm run test:volume-hud-status`, `npm run test:brightness-hud-status`, `npm run test:hud-event-store`, and the Mac activity integration/restart replay checks in `npm run test:mac-activity-status`"],
+  ["DynaKeys app-mode replay store", "`npm run native:start` defaults the local HUD replay store to `.build/hud-events.json`"],
+  ["DynaKeys README validation", "Run `npm run check-readme` to validate that this README keeps documenting the DynaKeys HUD section"],
+  ["DynaKeys deferred native capture", "Deferred: native global volume-key capture, brightness-key capture, global shortcut/action launchers, and direct compact-overlay rendering of these HUDs are not enabled by this slice"]
 ];
 
 function containsCurlPipeToShellInstall(content) {
