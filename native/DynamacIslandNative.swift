@@ -37,6 +37,13 @@ struct StatusItem: Decodable {
     var updatedAt: String?
     var media: MediaInfo?
     var timer: TimerInfo?
+    var volumeHud: RoutedActivityInfo?
+    var brightnessHud: RoutedActivityInfo?
+}
+
+struct RoutedActivityInfo: Decodable {
+    var activityId: String?
+    var activityType: String?
 }
 
 struct TimerInfo: Decodable {
@@ -496,6 +503,12 @@ final class IslandView: NSView {
         if let explicit = status.activityType?.trimmingCharacters(in: .whitespacesAndNewlines), !explicit.isEmpty {
             return explicit
         }
+        if let volumeType = status.volumeHud?.activityType?.trimmingCharacters(in: .whitespacesAndNewlines), !volumeType.isEmpty {
+            return volumeType
+        }
+        if let brightnessType = status.brightnessHud?.activityType?.trimmingCharacters(in: .whitespacesAndNewlines), !brightnessType.isEmpty {
+            return brightnessType
+        }
         switch status.agent {
         case "Volume", "DynaKeys Volume":
             return "volume"
@@ -526,6 +539,12 @@ final class IslandView: NSView {
         if let timerId = status.timer?.id, !timerId.isEmpty {
             ids.insert(timerId)
             ids.insert("timer-\(timerId)")
+        }
+        if let volumeHudId = status.volumeHud?.activityId, !volumeHudId.isEmpty {
+            ids.insert(volumeHudId)
+        }
+        if let brightnessHudId = status.brightnessHud?.activityId, !brightnessHudId.isEmpty {
+            ids.insert(brightnessHudId)
         }
         return ids
     }

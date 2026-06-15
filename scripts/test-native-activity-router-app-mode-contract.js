@@ -13,6 +13,8 @@ const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json
 
 assert.match(nativeSource, /struct ActivityRouterSnapshot: Decodable/, "native app-mode status payload should decode the Activity Router snapshot");
 assert.match(nativeSource, /var activityId: String\?/, "native status items should decode top-level activity ids for exact router binding");
+assert.match(nativeSource, /var volumeHud: RoutedActivityInfo\?/, "native status items should decode DynaKeys volume HUD activity ids for exact app-mode routing");
+assert.match(nativeSource, /status\.volumeHud\?\.activityId/, "native router binding should include embedded volume HUD activity ids");
 assert.match(nativeSource, /var activityRouter: ActivityRouterSnapshot\?/, "native island view should retain the current Activity Router snapshot");
 assert.match(nativeSource, /routedStatusForCompactSurface/, "native UI should resolve the routed compact surface before legacy Timer\/media fallback");
 assert.match(nativeSource, /drawRoutedGenericActivity/, "native UI should have a simple generic compact\/expanded activity surface for routed DynaKeys\/DynaClip\/DynaShelf activities");
@@ -186,6 +188,158 @@ assert.match(duplicateTypeOutput, /active=activityRouter/, "native router smoke 
 assert.match(duplicateTypeOutput, /routerCompactActivityId=clipboard-exact-router-winner/, "native dump should preserve the exact routed compact id for duplicate activity types");
 assert.match(duplicateTypeOutput, /task=Copied exact routed URL/, "native router resolution should bind by activityId before falling back to activityType");
 assert.doesNotMatch(duplicateTypeOutput, /task=Copied older text/, "native router resolution must not select the first same-type status when compactSurface.activityId matches another status");
+
+const dynaKeysVolumePayload = {
+  statuses: [
+    {
+      agent: "Volume",
+      state: "running",
+      task: "Volume 12%",
+      updatedAt: "2026-06-15T00:00:03.000Z",
+      detail: "Older volume HUD must not win exact app-mode routing.",
+      volumeHud: {
+        activityId: "volume-older-non-winner",
+        activityType: "volume",
+        priority: 90,
+        createdAt: 1781481603000,
+        updatedAt: 1781481603000,
+        expiresAt: 1781481604600,
+        isTransient: true,
+        status: {
+          level: 12,
+          muted: false,
+          previousLevel: null,
+          direction: "initial",
+          displayText: "12%"
+        },
+        compactSurface: {
+          glyph: "speaker",
+          label: "12%",
+          progress: 0.12
+        },
+        expandedSurface: {
+          title: "Volume",
+          subtitle: "MacBook Pro Speakers · 12%",
+          valueLabel: "12%"
+        },
+        source: "fixture-volume-observer",
+        metadata: {
+          deviceName: "MacBook Pro Speakers",
+          inputKind: "volume",
+          rawLevel: 12,
+          rawMuted: false
+        },
+        revealReadyPath: "",
+        persisted: false
+      }
+    },
+    {
+      agent: "Volume",
+      state: "running",
+      task: "Volume 61%",
+      updatedAt: "2026-06-15T00:00:04.000Z",
+      detail: "Output volume increased from 12% to 61%.",
+      volumeHud: {
+        activityId: "volume-exact-router-winner",
+        activityType: "volume",
+        priority: 90,
+        createdAt: 1781481604000,
+        updatedAt: 1781481604000,
+        expiresAt: 1781481605600,
+        isTransient: true,
+        status: {
+          level: 61,
+          muted: false,
+          previousLevel: 12,
+          direction: "up",
+          displayText: "61%"
+        },
+        compactSurface: {
+          glyph: "speaker",
+          label: "61%",
+          progress: 0.61
+        },
+        expandedSurface: {
+          title: "Volume",
+          subtitle: "MacBook Pro Speakers · 61%",
+          valueLabel: "61%"
+        },
+        source: "fixture-volume-observer",
+        metadata: {
+          deviceName: "MacBook Pro Speakers",
+          inputKind: "volume",
+          rawLevel: 61,
+          rawMuted: false
+        },
+        revealReadyPath: "",
+        persisted: false
+      }
+    },
+    {
+      agent: "Timer",
+      state: "running",
+      task: "Timer · 5m",
+      updatedAt: "2026-06-15T00:00:04.000Z",
+      detail: "Timer fallback is present but DynaKeys volume is routed compact.",
+      timer: {
+        id: "timer-dynakeys-volume-non-winner",
+        durationSeconds: 300,
+        remainingSeconds: 240,
+        state: "running",
+        startedAt: "2026-06-15T00:00:00.000Z",
+        updatedAt: "2026-06-15T00:00:04.000Z",
+        displayText: "4m 0s",
+        error: "",
+        replacedPrevious: false
+      }
+    }
+  ],
+  activityRouter: {
+    rankedActivities: [
+      {
+        activityId: "volume-exact-router-winner",
+        activityType: "volume",
+        priority: 90,
+        createdAt: 1781481604000,
+        updatedAt: 1781481604000
+      },
+      {
+        activityId: "timer-timer-dynakeys-volume-non-winner",
+        activityType: "timer",
+        priority: 300,
+        createdAt: 1781481600000,
+        updatedAt: 1781481604000
+      }
+    ],
+    compactSurface: {
+      activityId: "volume-exact-router-winner",
+      activityType: "volume",
+      priority: 90,
+      label: "61%",
+      glyph: "speaker"
+    }
+  }
+};
+writePayload(dynaKeysVolumePayload);
+const dynaKeysVolumeCompactOutput = runNative();
+assert.match(dynaKeysVolumeCompactOutput, /active=activityRouter/, "native DynaKeys volume smoke should use Activity Router in app mode");
+assert.match(dynaKeysVolumeCompactOutput, /presentation=volume/, "DynaKeys volume HUD should surface as the compact app-mode presentation");
+assert.match(dynaKeysVolumeCompactOutput, /routerCompactType=volume/, "native dump should preserve the DynaKeys volume compact activity type");
+assert.match(dynaKeysVolumeCompactOutput, /routerCompactActivityId=volume-exact-router-winner/, "native dump should preserve the exact DynaKeys volume compact activity id");
+assert.match(dynaKeysVolumeCompactOutput, /agent=Volume/, "native router resolution should bind the DynaKeys volume status item");
+assert.match(dynaKeysVolumeCompactOutput, /task=Volume 61%/, "native app-mode dump should expose the routed volume level label");
+assert.match(dynaKeysVolumeCompactOutput, /expanded=false/, "DynaKeys volume smoke should cover compact app-mode behavior");
+assert.doesNotMatch(dynaKeysVolumeCompactOutput, /task=Volume 12%/, "DynaKeys volume routing must not select the first same-type status when compactSurface.activityId matches another status");
+assert.doesNotMatch(dynaKeysVolumeCompactOutput, /presentation=timer/, "legacy Timer presentation must not override routed DynaKeys volume HUD");
+
+const dynaKeysVolumeExpandedOutput = runNative({
+  DYNAMAC_START_EXPANDED: "1",
+  DYNAMAC_NATIVE_STATUS_DUMP_AFTER_MS: "180"
+});
+assert.match(dynaKeysVolumeExpandedOutput, /expanded=false/, "DynaKeys volume expanded smoke should include the initial compact state");
+assert.match(dynaKeysVolumeExpandedOutput, /active=activityRouter[^\n]+presentation=volume[^\n]+expanded=true/, "DynaKeys volume routing should survive compact→expanded app-mode transition");
+assert.match(dynaKeysVolumeExpandedOutput, /task=Volume 61%/, "expanded app-mode dump should retain the routed volume HUD status");
+assert.doesNotMatch(dynaKeysVolumeExpandedOutput, /active=timer[^\n]+expanded=true/, "expanded transition should not fall back to Timer when router selected DynaKeys volume");
 
 fs.rmSync(tempDir, { recursive: true, force: true });
 
