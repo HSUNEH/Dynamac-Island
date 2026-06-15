@@ -14,6 +14,8 @@ const source = fs.readFileSync(path.resolve(__dirname, "package-native-app.js"),
 assert.match(source, /npm", \["run", "native:build"\]/, "packaging must build the Swift overlay first");
 assert.match(source, /Contents\/MacOS|"MacOS"/, "bundle must place the executable under Contents/MacOS");
 assert.match(source, /CFBundleExecutable/, "Info.plist must declare the bundle executable");
+assert.match(source, /CFBundleIconFile/, "Info.plist must declare the custom app icon");
+assert.match(source, /app-icon\.icns/, "native bundle should ship the Dynamac island app icon");
 
 // LSUIElement makes it a menu-bar utility with no Dock icon (the requested behavior).
 assert.match(source, /<key>LSUIElement<\/key>\s*\n\s*<true\/>/, "bundle must set LSUIElement so it has no Dock icon");

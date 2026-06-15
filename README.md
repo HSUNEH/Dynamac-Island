@@ -181,7 +181,7 @@ npm run package:mac
 open dist
 ```
 
-The packaged app is written to `dist/Dynamac Island-darwin-<arch>/Dynamac Island.app`. On Apple Silicon Macs this is usually:
+The packaged app is written to `dist/Dynamac Island-darwin-<arch>/Dynamac Island.app`. Packaging uses the custom island app icon in `assets/app-icon.icns`, sourced from `assets/app-icon.png`. On Apple Silicon Macs this is usually:
 
 ```sh
 open "dist/Dynamac Island-darwin-arm64/Dynamac Island.app"

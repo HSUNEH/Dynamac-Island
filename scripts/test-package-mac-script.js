@@ -13,4 +13,9 @@ assert.match(readme, /\.app/, "README should document .app packaging");
 assert.match(readme, /npm run package:mac/, "README should document npm run package:mac");
 assert.match(readme, /dist\//, "README should document the dist output directory");
 
+const source = fs.readFileSync("scripts/package-mac.js", "utf8");
+assert.match(source, /assets\/app-icon/, "package:mac should use the custom Dynamac app icon basename");
+assert.ok(fs.existsSync("assets/app-icon.icns"), "custom macOS app icon should exist");
+assert.ok(fs.existsSync("assets/app-icon.png"), "source app icon PNG should exist");
+
 console.log("package:mac script documentation test passed.");

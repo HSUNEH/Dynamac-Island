@@ -24,6 +24,8 @@ const contentsDir = path.join(appDir, "Contents");
 const macOSDir = path.join(contentsDir, "MacOS");
 const resourcesDir = path.join(contentsDir, "Resources");
 const appResourceDir = path.join(resourcesDir, "app");
+const appIconPath = path.join(repoRoot, "assets", "app-icon.icns");
+const appIconResourceName = "app-icon.icns";
 
 function run(command, args) {
   const result = childProcess.spawnSync(command, args, { cwd: repoRoot, stdio: "inherit" });
@@ -57,7 +59,13 @@ const executableName = "dynamac-native";
 fs.copyFileSync(path.join(repoRoot, ".build", executableName), path.join(macOSDir, executableName));
 fs.chmodSync(path.join(macOSDir, executableName), 0o755);
 
-// 4. Bundle the node writer service and its (dependency-free) sources.
+// 4. Bundle the app icon plus node writer service and its (dependency-free) sources.
+if (!fs.existsSync(appIconPath)) {
+  console.error(`Missing app icon: ${appIconPath}`);
+  process.exit(1);
+}
+fs.copyFileSync(appIconPath, path.join(resourcesDir, appIconResourceName));
+
 copyInto(appResourceDir, [
   "scripts/native-writer.js",
   "scripts/youtube-media-bridge-server.js",
@@ -84,6 +92,8 @@ const infoPlist = `<?xml version="1.0" encoding="UTF-8"?>
   <string>APPL</string>
   <key>CFBundleExecutable</key>
   <string>${executableName}</string>
+  <key>CFBundleIconFile</key>
+  <string>${appIconResourceName}</string>
   <key>LSMinimumSystemVersion</key>
   <string>13.0</string>
   <key>LSUIElement</key>

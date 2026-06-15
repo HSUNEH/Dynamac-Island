@@ -5,6 +5,7 @@ const { spawnSync } = require("node:child_process");
 const arch = process.env.DYNAMAC_PACKAGE_ARCH || process.arch;
 const normalizedArch = arch === "x64" ? "x64" : arch === "arm64" ? "arm64" : arch;
 const appName = "Dynamac Island";
+const iconPath = "assets/app-icon";
 
 const args = [
   "electron-packager",
@@ -15,6 +16,7 @@ const args = [
   "--out=dist",
   "--overwrite",
   "--prune=true",
+  `--icon=${iconPath}`,
   "--app-bundle-id=com.hsuneh.dynamac-island",
   "--ignore=^/dist($|/)",
   "--ignore=^/\.git($|/)",
