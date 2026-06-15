@@ -123,19 +123,55 @@ const source = makeElement();
 const reload = makeElement();
 const modeToggle = makeElement();
 
+const routedTimerUiCalls = { create: 0, applyCompact: 0, renderExpanded: 0 };
+const routedTimerUi = {
+  ...timerUi,
+  createTimerViewModel(status, options) {
+    routedTimerUiCalls.create += 1;
+    return timerUi.createTimerViewModel(status, options);
+  },
+  applyCompactTimerView(elements, viewModel) {
+    routedTimerUiCalls.applyCompact += 1;
+    return timerUi.applyCompactTimerView(elements, viewModel);
+  },
+  renderTimerStateView(viewModel) {
+    routedTimerUiCalls.renderExpanded += 1;
+    return timerUi.renderTimerStateView(viewModel);
+  }
+};
+
 const payload = {
   ok: true,
   source: "fixtures/timer-running-status.json",
   statuses: [
-    timerStatus,
     {
       agent: "Now Playing",
       state: "running",
       task: "Background track",
       updatedAt: "2026-06-14T00:00:00.000Z",
       detail: "Timer must take compact overlay priority while active."
-    }
-  ]
+    },
+    timerStatus
+  ],
+  activityRouter: {
+    compactSurface: {
+      activityId: "timer-timer-ui-component-test",
+      activityType: "timer",
+      priority: 300,
+      label: "4m 30s",
+      progress: 0.1
+    },
+    rankedActivities: [
+      {
+        activityId: "timer-timer-ui-component-test",
+        activityType: "timer"
+      },
+      {
+        activityId: "now-playing-background-track",
+        activityType: "nowPlaying"
+      }
+    ]
+  }
 };
 
 const context = {
@@ -182,7 +218,7 @@ const context = {
       createOuroborosViewModel(statuses) { return statuses[0]; },
       renderOuroborosStateView(viewModel) { return `<article data-agent="Ouroboros">${viewModel.task}</article>`; }
     },
-    DynamacTimerUi: timerUi,
+    DynamacTimerUi: routedTimerUi,
     dynamacStatus: {
       async read() { return payload; },
       onUpdate() {}
@@ -201,5 +237,8 @@ setImmediate(() => {
   assert.match(rendererCompactPrimary.innerHTML, /timer-compact-time">4:30</, "renderer compact overlay should show Timer time");
   assert.match(rendererCompactMeta.innerHTML, /aria-valuenow="10"/, "renderer compact overlay should show Timer progress");
   assert.match(content.innerHTML, /data-agent="Timer"/, "expanded content should render Timer card through timer UI module");
+  assert.equal(routedTimerUiCalls.applyCompact, 1, "routed compact Timer rendering should delegate to timer-ui.applyCompactTimerView");
+  assert.equal(routedTimerUiCalls.renderExpanded, 1, "routed expanded Timer rendering should delegate to timer-ui.renderTimerStateView");
+  assert.equal(routedTimerUiCalls.create >= 2, true, "routed Timer rendering should build compact and expanded view models through timer-ui.createTimerViewModel");
   console.log("Timer UI component test passed.");
 });

@@ -34,7 +34,7 @@ function renderError(payload) {
 function renderStatuses(payload) {
   const runningCount = payload.statuses.filter((status) => status.state === "running").length;
   const warningCount = payload.statuses.filter((status) => status.state === "warning").length;
-  const compactStatus = selectCompactStatus(payload.statuses);
+  const compactStatus = selectCompactStatus(payload);
   const timerCompactViewModel = timerUi && timerUi.isTimerStatus(compactStatus)
     ? timerUi.createTimerViewModel(compactStatus)
     : null;
@@ -59,7 +59,12 @@ function renderStatuses(payload) {
   source.textContent = payload.source || "status/status.json";
 }
 
-function selectCompactStatus(statuses) {
+function selectCompactStatus(payloadOrStatuses) {
+  const statuses = Array.isArray(payloadOrStatuses) ? payloadOrStatuses : payloadOrStatuses.statuses;
+  const routedCompactSurface = Array.isArray(payloadOrStatuses) ? null : payloadOrStatuses.activityRouter?.compactSurface;
+  const routedStatus = statusForRoutedCompactSurface(statuses, routedCompactSurface);
+  if (routedStatus) return routedStatus;
+
   const statePriority = ["running", "warning", "error", "success", "idle"];
 
   for (const state of statePriority) {
@@ -70,6 +75,41 @@ function selectCompactStatus(statuses) {
   }
 
   return statuses[0];
+}
+
+function statusForRoutedCompactSurface(statuses, compactSurface) {
+  if (!Array.isArray(statuses) || !compactSurface || typeof compactSurface !== "object") return null;
+
+  const activityId = typeof compactSurface.activityId === "string" ? compactSurface.activityId.trim() : "";
+  if (activityId !== "") {
+    const statusByActivityId = statuses.find((status) => embeddedActivityForStatus(status)?.activityId === activityId || status.activityId === activityId);
+    if (statusByActivityId) return statusByActivityId;
+  }
+
+  const activityType = typeof compactSurface.activityType === "string" ? compactSurface.activityType.trim() : "";
+  if (activityType === "") return null;
+  return statuses.find((status) => activityTypeForStatus(status) === activityType) || null;
+}
+
+function embeddedActivityForStatus(status) {
+  if (!status || typeof status !== "object") return null;
+  const candidates = [status.activity, status.volumeHud, status.brightnessHud, status.clipboardActivity, status.shelfActivity, status.dropActivity];
+  return candidates.find((candidate) => candidate && typeof candidate === "object" && !Array.isArray(candidate)) || null;
+}
+
+function activityTypeForStatus(status) {
+  const embedded = embeddedActivityForStatus(status);
+  if (typeof embedded?.activityType === "string" && embedded.activityType.trim() !== "") return embedded.activityType.trim();
+  if (typeof status?.activityType === "string" && status.activityType.trim() !== "") return status.activityType.trim();
+  if (status?.agent === "Timer") return "timer";
+  if (status?.agent === "Now Playing") return "nowPlaying";
+  if (status?.agent === "Battery") return "battery";
+  if (status?.agent === "Volume" || status?.agent === "DynaKeys Volume") return "volume";
+  if (status?.agent === "Brightness" || status?.agent === "DynaKeys Brightness") return "brightness";
+  if (status?.agent === "Clipboard" || status?.agent === "DynaClip") return "clipboard";
+  if (status?.agent === "Shelf" || status?.agent === "DynaShelf") return "shelf";
+  if (status?.agent === "Drop" || status?.agent === "DynaDrop") return "drop";
+  return "futurePassive";
 }
 
 function compactMetaText(counts) {
