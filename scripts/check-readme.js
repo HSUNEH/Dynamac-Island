@@ -125,7 +125,16 @@ const requiredSnippets = [
   ["DynaKeys HUD tests", "`npm run test:volume-hud-status`, `npm run test:brightness-hud-status`, `npm run test:hud-event-store`, and the Mac activity integration/restart replay checks in `npm run test:mac-activity-status`"],
   ["DynaKeys app-mode replay store", "`npm run native:start` defaults the local HUD replay store to `.build/hud-events.json`"],
   ["DynaKeys README validation", "Run `npm run check-readme` to validate that this README keeps documenting the DynaKeys HUD section"],
-  ["DynaKeys deferred native capture", "Deferred: native global volume-key capture, brightness-key capture, global shortcut/action launchers, and direct compact-overlay rendering of these HUDs are not enabled by this slice"]
+  ["DynaKeys deferred native capture", "Deferred: native global volume-key capture, brightness-key capture, global shortcut/action launchers, and direct compact-overlay rendering of these HUDs are not enabled by this slice"],
+  ["DynaClip section", "### DynaClip Clipboard Activity Core Model"],
+  ["DynaClip implementation", "first DynaClip clipboard activity slice as deterministic local plain-text classification and status serialization"],
+  ["DynaClip classification", "classifies recent copied content as text, link, path, code, or empty"],
+  ["DynaClip compact copied HUD", "recent copied plain text shows a compact `Copied` HUD with the classification glyph and a sanitized preview"],
+  ["DynaClip expanded preview", "expanded state shows a bounded preview with character count/classification details"],
+  ["DynaClip non-persistence", "clipboard text is not written to persistent history across restarts"],
+  ["DynaClip runnable tests", "`npm run test:clipboard-activity`, `npm run test:clipboard-activity-store`, `npm run test:clipboard-preview-ui`, `npm run test:clipboard-duplicate-filter`, and `npm run test:mac-activity-status`"],
+  ["DynaClip README validation", "Run `npm run check-readme` to validate that this README keeps documenting the DynaClip section"],
+  ["DynaClip deferred boundaries", "Deferred: clipboard history, cross-restart clipboard persistence, Finder companion workflows, file shelf handoff, paste automation, and quick handoff actions are not implemented by this slice"]
 ];
 
 function containsCurlPipeToShellInstall(content) {

@@ -138,6 +138,51 @@ assert.match(
   "check-readme should report the missing implemented DynaKeys HUD behavior"
 );
 
+const missingDynaClipSectionResult = runChecker(
+  readme.replace("### DynaClip Clipboard Activity Core Model", "### Clipboard Activity Core Model")
+);
+
+assert.notEqual(
+  missingDynaClipSectionResult.status,
+  0,
+  `check-readme should fail when the DynaClip section heading is missing.\nstdout:\n${missingDynaClipSectionResult.stdout}\nstderr:\n${missingDynaClipSectionResult.stderr}`
+);
+assert.match(
+  missingDynaClipSectionResult.stderr,
+  /Missing DynaClip section/,
+  "check-readme should report the missing DynaClip section"
+);
+
+const missingDynaClipBehaviorResult = runChecker(
+  readme.replace("recent copied plain text shows a compact `Copied` HUD with the classification glyph and a sanitized preview", "")
+);
+
+assert.notEqual(
+  missingDynaClipBehaviorResult.status,
+  0,
+  `check-readme should fail when the implemented DynaClip behavior is missing.\nstdout:\n${missingDynaClipBehaviorResult.stdout}\nstderr:\n${missingDynaClipBehaviorResult.stderr}`
+);
+assert.match(
+  missingDynaClipBehaviorResult.stderr,
+  /Missing DynaClip compact copied HUD/,
+  "check-readme should report the missing implemented DynaClip behavior"
+);
+
+const missingDynaClipPersistenceBoundaryResult = runChecker(
+  readme.replace("clipboard text is not written to persistent history across restarts", "")
+);
+
+assert.notEqual(
+  missingDynaClipPersistenceBoundaryResult.status,
+  0,
+  `check-readme should fail when the DynaClip non-persistence boundary is missing.\nstdout:\n${missingDynaClipPersistenceBoundaryResult.stdout}\nstderr:\n${missingDynaClipPersistenceBoundaryResult.stderr}`
+);
+assert.match(
+  missingDynaClipPersistenceBoundaryResult.stderr,
+  /Missing DynaClip non-persistence/,
+  "check-readme should report the missing DynaClip non-persistence boundary"
+);
+
 const unsafeInstallerResult = runChecker(
   `${readme}\n\n\`\`\`sh\ncurl -fsSL https://raw.githubusercontent.com/HSUNEH/dynamac-island/main/scripts/install-macbook.sh | bash\n\`\`\`\n`
 );
