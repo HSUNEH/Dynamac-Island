@@ -39,6 +39,7 @@ struct StatusItem: Decodable {
     var timer: TimerInfo?
     var volumeHud: RoutedActivityInfo?
     var brightnessHud: RoutedActivityInfo?
+    var clipboardActivity: RoutedActivityInfo?
 }
 
 struct RoutedActivityInfo: Decodable {
@@ -509,6 +510,9 @@ final class IslandView: NSView {
         if let brightnessType = status.brightnessHud?.activityType?.trimmingCharacters(in: .whitespacesAndNewlines), !brightnessType.isEmpty {
             return brightnessType
         }
+        if let clipboardType = status.clipboardActivity?.activityType?.trimmingCharacters(in: .whitespacesAndNewlines), !clipboardType.isEmpty {
+            return clipboardType
+        }
         switch status.agent {
         case "Volume", "DynaKeys Volume":
             return "volume"
@@ -545,6 +549,9 @@ final class IslandView: NSView {
         }
         if let brightnessHudId = status.brightnessHud?.activityId, !brightnessHudId.isEmpty {
             ids.insert(brightnessHudId)
+        }
+        if let clipboardActivityId = status.clipboardActivity?.activityId, !clipboardActivityId.isEmpty {
+            ids.insert(clipboardActivityId)
         }
         return ids
     }

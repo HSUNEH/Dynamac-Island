@@ -17,6 +17,8 @@ assert.match(nativeSource, /var volumeHud: RoutedActivityInfo\?/, "native status
 assert.match(nativeSource, /status\.volumeHud\?\.activityId/, "native router binding should include embedded volume HUD activity ids");
 assert.match(nativeSource, /var brightnessHud: RoutedActivityInfo\?/, "native status items should decode DynaKeys brightness HUD activity ids for exact app-mode routing");
 assert.match(nativeSource, /status\.brightnessHud\?\.activityId/, "native router binding should include embedded brightness HUD activity ids");
+assert.match(nativeSource, /var clipboardActivity: RoutedActivityInfo\?/, "native status items should decode DynaClip clipboard activity ids for exact app-mode routing");
+assert.match(nativeSource, /status\.clipboardActivity\?\.activityId/, "native router binding should include embedded DynaClip activity ids");
 assert.match(nativeSource, /var activityRouter: ActivityRouterSnapshot\?/, "native island view should retain the current Activity Router snapshot");
 assert.match(nativeSource, /routedStatusForCompactSurface/, "native UI should resolve the routed compact surface before legacy Timer\/media fallback");
 assert.match(nativeSource, /drawRoutedGenericActivity/, "native UI should have a simple generic compact\/expanded activity surface for routed DynaKeys\/DynaClip\/DynaShelf activities");
@@ -190,6 +192,201 @@ assert.match(duplicateTypeOutput, /active=activityRouter/, "native router smoke 
 assert.match(duplicateTypeOutput, /routerCompactActivityId=clipboard-exact-router-winner/, "native dump should preserve the exact routed compact id for duplicate activity types");
 assert.match(duplicateTypeOutput, /task=Copied exact routed URL/, "native router resolution should bind by activityId before falling back to activityType");
 assert.doesNotMatch(duplicateTypeOutput, /task=Copied older text/, "native router resolution must not select the first same-type status when compactSurface.activityId matches another status");
+
+const dynaClipEmbeddedPayload = {
+  statuses: [
+    {
+      agent: "DynaClip",
+      state: "running",
+      task: "Copied older DynaClip text",
+      detail: "older copied text must not win embedded clipboardActivity routing",
+      updatedAt: "2026-06-15T00:00:07.000Z",
+      metadata: {
+        classification: "text",
+        copied: true,
+        copiedState: "copied",
+        displayLabel: "Text copied · 44 chars",
+        displayPreview: "older copied text must not win routing",
+        displayGlyph: "doc.on.clipboard",
+        hudKind: "copied",
+        recentPlainTextChange: true
+      },
+      clipboardActivity: {
+        activityId: "dynaclip-older-embedded-non-winner",
+        activityType: "clipboard",
+        priority: 500,
+        createdAt: 1781481607000,
+        updatedAt: 1781481607000,
+        expiresAt: 1781481610000,
+        isTransient: true,
+        status: {
+          label: "Text copied · 44 chars",
+          preview: "older copied text must not win routing",
+          classification: "text",
+          characterCount: 44,
+          copied: true
+        },
+        compactSurface: {
+          glyph: "doc.on.clipboard",
+          label: "Text copied · 44 chars",
+          preview: "older copied text must not win routing",
+          hudKind: "copied"
+        },
+        expandedSurface: {
+          title: "Clipboard",
+          subtitle: "Text copied · 44 chars",
+          preview: "older copied text must not win routing",
+          hudKind: "copied"
+        },
+        source: "fixture-dynaclip",
+        metadata: {
+          classification: "text",
+          characterCount: 44,
+          copied: true,
+          copiedState: "copied",
+          displayLabel: "Text copied · 44 chars",
+          displayPreview: "older copied text must not win routing",
+          displayGlyph: "doc.on.clipboard",
+          hudKind: "copied",
+          recentPlainTextChange: true
+        },
+        revealReadyPath: "",
+        persisted: false
+      },
+      persisted: false
+    },
+    {
+      agent: "DynaClip",
+      state: "running",
+      task: "Copied DynaClip code snippet",
+      detail: "const routed = true;",
+      updatedAt: "2026-06-15T00:00:08.000Z",
+      metadata: {
+        classification: "code",
+        copied: true,
+        copiedState: "copied",
+        displayLabel: "Code copied · 20 chars",
+        displayPreview: "const routed = true;",
+        displayGlyph: "curlybraces",
+        hudKind: "copied",
+        recentPlainTextChange: true
+      },
+      clipboardActivity: {
+        activityId: "dynaclip-embedded-router-winner",
+        activityType: "clipboard",
+        priority: 500,
+        createdAt: 1781481608000,
+        updatedAt: 1781481608000,
+        expiresAt: 1781481611000,
+        isTransient: true,
+        status: {
+          label: "Code copied · 20 chars",
+          preview: "const routed = true;",
+          classification: "code",
+          characterCount: 20,
+          copied: true
+        },
+        compactSurface: {
+          glyph: "curlybraces",
+          label: "Code copied · 20 chars",
+          preview: "const routed = true;",
+          hudKind: "copied"
+        },
+        expandedSurface: {
+          title: "Clipboard",
+          subtitle: "Code copied · 20 chars",
+          preview: "const routed = true;",
+          hudKind: "copied"
+        },
+        source: "fixture-dynaclip",
+        metadata: {
+          classification: "code",
+          characterCount: 20,
+          copied: true,
+          copiedState: "copied",
+          displayLabel: "Code copied · 20 chars",
+          displayPreview: "const routed = true;",
+          displayGlyph: "curlybraces",
+          hudKind: "copied",
+          recentPlainTextChange: true
+        },
+        revealReadyPath: "",
+        persisted: false
+      },
+      persisted: false
+    },
+    {
+      agent: "Timer",
+      state: "running",
+      task: "Timer · 5m",
+      updatedAt: "2026-06-15T00:00:08.000Z",
+      detail: "Timer fallback is present but DynaClip is routed compact.",
+      timer: {
+        id: "timer-dynaclip-non-winner",
+        durationSeconds: 300,
+        remainingSeconds: 210,
+        state: "running",
+        startedAt: "2026-06-15T00:00:00.000Z",
+        updatedAt: "2026-06-15T00:00:08.000Z",
+        displayText: "3m 30s",
+        error: "",
+        replacedPrevious: false
+      }
+    }
+  ],
+  activityRouter: {
+    rankedActivities: [
+      {
+        activityId: "dynaclip-embedded-router-winner",
+        activityType: "clipboard",
+        priority: 500,
+        createdAt: 1781481608000,
+        updatedAt: 1781481608000
+      },
+      {
+        activityId: "dynaclip-older-embedded-non-winner",
+        activityType: "clipboard",
+        priority: 500,
+        createdAt: 1781481607000,
+        updatedAt: 1781481607000
+      },
+      {
+        activityId: "timer-timer-dynaclip-non-winner",
+        activityType: "timer",
+        priority: 300,
+        createdAt: 1781481600000,
+        updatedAt: 1781481608000
+      }
+    ],
+    compactSurface: {
+      activityId: "dynaclip-embedded-router-winner",
+      activityType: "clipboard",
+      priority: 500,
+      label: "Code copied · 20 chars",
+      glyph: "curlybraces"
+    }
+  }
+};
+writePayload(dynaClipEmbeddedPayload);
+const dynaClipCompactOutput = runNative();
+assert.match(dynaClipCompactOutput, /active=activityRouter/, "native DynaClip smoke should use Activity Router in app mode");
+assert.match(dynaClipCompactOutput, /presentation=clipboard/, "DynaClip copied HUD should surface as the compact app-mode presentation");
+assert.match(dynaClipCompactOutput, /routerCompactType=clipboard/, "native dump should preserve the DynaClip compact activity type");
+assert.match(dynaClipCompactOutput, /routerCompactActivityId=dynaclip-embedded-router-winner/, "native dump should preserve the exact embedded DynaClip compact activity id");
+assert.match(dynaClipCompactOutput, /agent=DynaClip/, "native router resolution should bind the DynaClip status item");
+assert.match(dynaClipCompactOutput, /task=Copied DynaClip code snippet/, "native app-mode dump should expose the routed DynaClip copied payload label");
+assert.match(dynaClipCompactOutput, /expanded=false/, "DynaClip smoke should cover compact app-mode behavior");
+assert.doesNotMatch(dynaClipCompactOutput, /task=Copied older DynaClip text/, "DynaClip routing must not select the first same-type status when compactSurface.activityId matches an embedded clipboardActivity id");
+assert.doesNotMatch(dynaClipCompactOutput, /presentation=timer/, "legacy Timer presentation must not override routed DynaClip copied HUD");
+
+const dynaClipExpandedOutput = runNative({
+  DYNAMAC_START_EXPANDED: "1",
+  DYNAMAC_NATIVE_STATUS_DUMP_AFTER_MS: "180"
+});
+assert.match(dynaClipExpandedOutput, /expanded=false/, "DynaClip expanded smoke should include the initial compact state");
+assert.match(dynaClipExpandedOutput, /active=activityRouter[^\n]+presentation=clipboard[^\n]+expanded=true/, "DynaClip routing should survive compact→expanded app-mode transition");
+assert.match(dynaClipExpandedOutput, /task=Copied DynaClip code snippet/, "expanded app-mode dump should retain the routed DynaClip copied payload");
+assert.doesNotMatch(dynaClipExpandedOutput, /active=timer[^\n]+expanded=true/, "expanded transition should not fall back to Timer when router selected DynaClip");
 
 const dynaKeysVolumePayload = {
   statuses: [
