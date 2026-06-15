@@ -18,6 +18,12 @@ const {
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "dynamac-shelf-state-"));
 const filePath = path.join(tempDir, "demo note.txt");
 const secondFilePath = path.join(tempDir, "fresh note.txt");
+const deferredRevealExecution = {
+  canExecuteReveal: false,
+  canOpen: false,
+  executionState: "deferred",
+  executionDetail: "Finder reveal/open execution is deferred until a safe app-mode native pattern is implemented."
+};
 
 try {
   fs.writeFileSync(filePath, "hello shelf", "utf8");
@@ -56,12 +62,13 @@ try {
   assert.deepEqual(item.revealStatus, {
     state: "ready",
     canReveal: true,
+    ...deferredRevealExecution,
     revealReadyPath: filePath,
     reason: "",
-    detail: "Validated local file path is ready for future Finder reveal.",
+    detail: "Validated local file path is reveal-ready; Finder reveal/open execution is deferred.",
     updatedAt: 1718323200200,
     persisted: false
-  }, "valid local shelf items should expose a ready reveal status");
+  }, "valid local shelf items should expose a ready path while deferring Finder reveal/open execution");
   assert.equal(item.persisted, false);
 
   assert.equal(first.active.activityId, "shelf-1718323200100");
@@ -87,6 +94,7 @@ try {
   assert.equal(payload.statuses[0].revealReadyPath, filePath);
   assert.deepEqual(payload.statuses[0].revealStatus, item.revealStatus, "native shelf status should expose ready reveal status beside revealReadyPath");
   assert.match(payload.statuses[0].detail, /reveal-ready/, "ready shelf status should describe reveal readiness without implying Finder reveal execution");
+  assert.match(payload.statuses[0].detail, /Finder reveal\/open execution are deferred/, "native shelf status should explicitly defer Finder reveal/open execution");
   assert.deepEqual(payload.statuses[0].metadata.latestFile, {
     path: filePath,
     name: "demo note.txt",
@@ -117,6 +125,7 @@ try {
   assert.deepEqual(unavailableReveal, {
     state: "unavailable",
     canReveal: false,
+    ...deferredRevealExecution,
     revealReadyPath: "",
     reason: "no-validated-path",
     detail: "No validated shelf file path is available for reveal.",
@@ -127,6 +136,7 @@ try {
   assert.deepEqual(missingReveal, {
     state: "unavailable",
     canReveal: false,
+    ...deferredRevealExecution,
     revealReadyPath: "",
     reason: "dropped-file-path-must-exist",
     detail: "dropped file path must exist",
@@ -186,6 +196,7 @@ try {
     revealStatus: {
       state: "unavailable",
       canReveal: false,
+      ...deferredRevealExecution,
       revealReadyPath: "",
       reason: "no-validated-path",
       detail: "No validated shelf file path is available for reveal.",

@@ -46,6 +46,18 @@ assert.equal(duplicate.status.metadata.copiedState, "copied");
 assert.equal(duplicate.state.active.activityId, created.state.active.activityId, "duplicate replay should keep the original copied activity instance");
 assert.equal(duplicate.state.active.expiresAt, created.state.active.expiresAt, "duplicate replay must not extend clipboard visibility");
 
+const expiredDuplicate = store.createClipboardActivity({
+  plainText: "Clipboard store text",
+  observedAt: now + 5001,
+  source: "memory-store-fixture",
+  type: "text/plain"
+}, { now: now + 5001 });
+assert.equal(expiredDuplicate.status.state, "idle", "store should move unchanged copied activity to idle after lifecycle expiry");
+assert.equal(expiredDuplicate.status.task, "Clipboard expired", "store status should expose the copied-to-expired transition");
+assert.equal(expiredDuplicate.status.metadata.copiedState, "expired");
+assert.equal(expiredDuplicate.status.metadata.expiredActivityId, created.state.active.activityId);
+assert.equal(expiredDuplicate.state.active, null, "expired clipboard activity should be cleared from in-memory compact eligibility");
+
 const replacement = store.createClipboardActivity({
   plainText: "Clipboard replacement text",
   observedAt: now + 200,

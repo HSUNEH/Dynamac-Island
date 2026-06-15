@@ -287,6 +287,28 @@ function inactiveClipboardStatus(nowMs, detail = "No recent plain-text clipboard
   };
 }
 
+function expiredClipboardStatus(nowMs, activeActivity, detail = "Clipboard copied activity expired after the recent-change window elapsed.") {
+  const classification = String(activeActivity?.status?.classification || activeActivity?.metadata?.classification || "none").trim() || "none";
+  return {
+    agent: "Clipboard",
+    activityType: "futurePassive",
+    state: "idle",
+    task: "Clipboard expired",
+    updatedAt: new Date(nowMs).toISOString(),
+    detail,
+    metadata: {
+      classification,
+      copied: false,
+      copiedState: "expired",
+      recentPlainTextChange: false,
+      expiredActivityId: activeActivity?.activityId || "",
+      expiredAt: Number.isFinite(Number(activeActivity?.expiresAt)) ? Number(activeActivity.expiresAt) : nowMs
+    },
+    clipboardActivity: null,
+    persisted: false
+  };
+}
+
 function unavailableClipboardStatus(nowMs, detail = "Clipboard content is unavailable.") {
   return {
     agent: "Clipboard",
@@ -370,7 +392,7 @@ function applyClipboardRead(state = createClipboardActivityState(), read = {}, o
     }
     return {
       state: createClipboardActivityState({ lastSignature: signature, active: null }),
-      status: inactiveClipboardStatus(nowMs, "Clipboard copied activity expired after the recent-change window elapsed.")
+      status: expiredClipboardStatus(nowMs, previous.active)
     };
   }
 
@@ -418,6 +440,7 @@ module.exports = {
   clipboardCopyEventId,
   clipboardActivityToNativeStatus,
   createClipboardActivityState,
+  expiredClipboardStatus,
   formatClipboardPreviewText,
   inactiveClipboardStatus,
   isCodeLikeClipboardText,

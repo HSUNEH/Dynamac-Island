@@ -149,8 +149,15 @@ const expiredDuplicate = applyClipboardRead(first.state, {
 }, { now: now + DEFAULT_RECENCY_MS + 1, recencyMs: DEFAULT_RECENCY_MS });
 assert.equal(expiredDuplicate.status.state, "idle");
 assert.equal(expiredDuplicate.status.activityType, "futurePassive", "unchanged clipboard reads after expiry should not remain compact-active");
+assert.equal(expiredDuplicate.status.task, "Clipboard expired", "expired copied activity should transition to an explicit expired status");
+assert.equal(expiredDuplicate.status.metadata.copied, false);
+assert.equal(expiredDuplicate.status.metadata.copiedState, "expired");
 assert.equal(expiredDuplicate.status.metadata.recentPlainTextChange, false);
+assert.equal(expiredDuplicate.status.metadata.expiredActivityId, first.state.active.activityId);
+assert.equal(expiredDuplicate.status.metadata.expiredAt, now + DEFAULT_RECENCY_MS);
+assert.equal(expiredDuplicate.status.clipboardActivity, null, "expired native status must not keep the old compact clipboard activity active");
 assert.equal(expiredDuplicate.state.active, null);
+assert.equal(validateStatusPayload({ statuses: [expiredDuplicate.status] }).ok, true, "expired clipboard status should satisfy the shared native status schema");
 
 const stale = applyClipboardRead(first.state, {
   plainText: "fresh-looking but old",

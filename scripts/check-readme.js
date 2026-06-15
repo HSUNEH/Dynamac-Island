@@ -101,7 +101,11 @@ const requiredSnippets = [
   ["DynaDrop invalid fixture test", "npm run test:dynadrop-invalid-input-fixture"],
   ["DynaDrop deferred native drag capture", "Deferred: native drag-to-island capture"],
   ["DynaDrop no implied drag UI", "UI that implies dragging already works"],
-  ["Activity Router drag boundary", "DynaDrop/Shelf does not claim native drag capture or Finder reveal UI"]
+  ["DynaDrop deferred Finder open", "Finder reveal/open execution are deferred"],
+  ["DynaDrop reveal no action contract", "Ready reveal status is intentionally not an action contract"],
+  ["DynaDrop no safe app-mode Finder pattern", "no safe app-mode Finder file reveal/open pattern"],
+  ["Activity Router drag boundary", "DynaDrop/Shelf does not claim native drag capture or Finder reveal/open execution"],
+  ["Activity Router no implied Finder actions", "must not imply drag-and-drop, Finder reveal, or file open works"]
 ];
 
 function containsCurlPipeToShellInstall(content) {

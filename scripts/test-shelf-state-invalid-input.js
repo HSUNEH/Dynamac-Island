@@ -16,6 +16,12 @@ const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "dynamac-shelf-invalid-"))
 const validPath = path.join(tempDir, "valid-drop.txt");
 const dirPath = path.join(tempDir, "folder-drop");
 const fixedNow = 1718323300000;
+const deferredRevealExecution = {
+  canExecuteReveal: false,
+  canOpen: false,
+  executionState: "deferred",
+  executionDetail: "Finder reveal/open execution is deferred until a safe app-mode native pattern is implemented."
+};
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -114,6 +120,7 @@ try {
     assert.deepEqual(recovery.error.revealStatus, {
       state: "unavailable",
       canReveal: false,
+      ...deferredRevealExecution,
       revealReadyPath: "",
       reason: "no-validated-path",
       detail: "No validated shelf file path is available for reveal.",
@@ -154,6 +161,7 @@ try {
   assert.deepEqual(malformedReveal, {
     state: "unavailable",
     canReveal: false,
+    ...deferredRevealExecution,
     revealReadyPath: "",
     reason: "dropped-file-path-malformed",
     detail: "dropped file path is malformed",

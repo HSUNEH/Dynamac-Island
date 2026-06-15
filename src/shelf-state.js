@@ -4,6 +4,12 @@ const path = require("node:path");
 const DEFAULT_SOURCE = "local-dynadrop";
 const DEFAULT_TYPE = "application/octet-stream";
 const DEFAULT_PRIORITY = 400;
+const DEFERRED_REVEAL_EXECUTION = Object.freeze({
+  canExecuteReveal: false,
+  canOpen: false,
+  executionState: "deferred",
+  executionDetail: "Finder reveal/open execution is deferred until a safe app-mode native pattern is implemented."
+});
 
 function finiteTimestamp(value, fallback = Date.now(), fieldName = "timestamp") {
   const timestamp = value instanceof Date ? value.getTime() : Number(value);
@@ -71,6 +77,7 @@ function buildShelfRevealStatus(filePath, options = {}) {
     return {
       state: "unavailable",
       canReveal: false,
+      ...DEFERRED_REVEAL_EXECUTION,
       revealReadyPath: "",
       reason: "no-validated-path",
       detail: "No validated shelf file path is available for reveal.",
@@ -84,9 +91,10 @@ function buildShelfRevealStatus(filePath, options = {}) {
     return {
       state: "ready",
       canReveal: true,
+      ...DEFERRED_REVEAL_EXECUTION,
       revealReadyPath: resolvedPath,
       reason: "",
-      detail: "Validated local file path is ready for future Finder reveal.",
+      detail: "Validated local file path is reveal-ready; Finder reveal/open execution is deferred.",
       updatedAt,
       persisted: false
     };
@@ -95,6 +103,7 @@ function buildShelfRevealStatus(filePath, options = {}) {
     return {
       state: "unavailable",
       canReveal: false,
+      ...DEFERRED_REVEAL_EXECUTION,
       revealReadyPath: "",
       reason: shelfErrorCodeForMessage(message),
       detail: message,
@@ -294,8 +303,8 @@ function shelfActivityToNativeStatus(activity) {
     task: activity.status?.label || activity.compactSurface?.label || "Shelf ready",
     updatedAt,
     detail: revealStatus.state === "ready"
-      ? "Local shelf metadata is reveal-ready; native drag capture and Finder reveal UI are deferred."
-      : "Local shelf metadata is unavailable for reveal; native drag capture and Finder reveal UI are deferred.",
+      ? "Local shelf metadata is reveal-ready; native drag capture and Finder reveal/open execution are deferred."
+      : "Local shelf metadata is unavailable for reveal; native drag capture and Finder reveal/open execution are deferred.",
     revealReadyPath: revealStatus.revealReadyPath,
     revealStatus,
     metadata: { ...activity.metadata },
