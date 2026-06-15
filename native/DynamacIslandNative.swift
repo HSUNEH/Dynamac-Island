@@ -73,6 +73,11 @@ struct TimerRenderedNotchOutput {
     var progressPercent: Double
 }
 
+struct RoutedGenericActivityRenderedOutput {
+    var compactText: String
+    var expandedText: String
+}
+
 struct MediaInfo: Decodable {
     var source: String?
     var title: String?
@@ -752,10 +757,18 @@ final class IslandView: NSView {
         drawMediaControls(media: media)
     }
 
-    private func drawRoutedGenericActivity(_ status: StatusItem, activityType: String) {
+    fileprivate func routedGenericActivityRenderedOutput(status: StatusItem, activityType: String) -> RoutedGenericActivityRenderedOutput {
         let label = activityRouter?.compactSurface?.label ?? status.task
         let glyph = activityRouter?.compactSurface?.glyph ?? glyphForRoutedActivity(activityType)
-        let text = expanded ? "\(label)\n\(status.detail ?? status.task)" : "\(glyph) \(label)"
+        return RoutedGenericActivityRenderedOutput(
+            compactText: "\(glyph) \(label)",
+            expandedText: "\(label)\n\(status.detail ?? status.task)"
+        )
+    }
+
+    private func drawRoutedGenericActivity(_ status: StatusItem, activityType: String) {
+        let rendered = routedGenericActivityRenderedOutput(status: status, activityType: activityType)
+        let text = expanded ? rendered.expandedText : rendered.compactText
         let paragraph = NSMutableParagraphStyle()
         paragraph.alignment = .center
         paragraph.lineBreakMode = .byTruncatingTail
@@ -2121,6 +2134,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         islandView?.replaceStatusPayload(payload)
     }
 
+    private func nativeSmokeDumpValue(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\n", with: "\\n")
+    }
+
     private func dumpNativeStatusForSmokeIfRequested() {
         guard ProcessInfo.processInfo.environment["DYNAMAC_NATIVE_STATUS_DUMP"] == "1" else { return }
         guard let statuses = islandView?.statuses else {
@@ -2155,7 +2174,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 "expanded=\(islandView?.expanded == true ? "true" : "false")",
                 "agent=\(status.agent)",
                 "statusState=\(status.state)",
-                "task=\(status.task)"
+                "task=\(status.task)",
+                "renderedCompactText=\(nativeSmokeDumpValue(islandView?.routedGenericActivityRenderedOutput(status: status, activityType: routedType).compactText ?? ""))",
+                "renderedExpandedText=\(nativeSmokeDumpValue(islandView?.routedGenericActivityRenderedOutput(status: status, activityType: routedType).expandedText ?? ""))"
             ].joined(separator: " "))
             return
         }

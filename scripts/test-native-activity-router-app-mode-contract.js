@@ -375,6 +375,8 @@ assert.match(dynaClipCompactOutput, /routerCompactType=clipboard/, "native dump 
 assert.match(dynaClipCompactOutput, /routerCompactActivityId=dynaclip-embedded-router-winner/, "native dump should preserve the exact embedded DynaClip compact activity id");
 assert.match(dynaClipCompactOutput, /agent=DynaClip/, "native router resolution should bind the DynaClip status item");
 assert.match(dynaClipCompactOutput, /task=Copied DynaClip code snippet/, "native app-mode dump should expose the routed DynaClip copied payload label");
+assert.match(dynaClipCompactOutput, /renderedCompactText=curlybraces Code copied · 20 chars/, "compact app-mode rendering should show the DynaClip glyph and copied HUD label");
+assert.match(dynaClipCompactOutput, /renderedExpandedText=Code copied · 20 chars\\nconst routed = true;/, "compact smoke dump should expose the expanded DynaClip preview contract even before expansion");
 assert.match(dynaClipCompactOutput, /expanded=false/, "DynaClip smoke should cover compact app-mode behavior");
 assert.doesNotMatch(dynaClipCompactOutput, /task=Copied older DynaClip text/, "DynaClip routing must not select the first same-type status when compactSurface.activityId matches an embedded clipboardActivity id");
 assert.doesNotMatch(dynaClipCompactOutput, /presentation=timer/, "legacy Timer presentation must not override routed DynaClip copied HUD");
@@ -385,6 +387,8 @@ const dynaClipExpandedOutput = runNative({
 });
 assert.match(dynaClipExpandedOutput, /expanded=false/, "DynaClip expanded smoke should include the initial compact state");
 assert.match(dynaClipExpandedOutput, /active=activityRouter[^\n]+presentation=clipboard[^\n]+expanded=true/, "DynaClip routing should survive compact→expanded app-mode transition");
+assert.match(dynaClipExpandedOutput, /renderedCompactText=curlybraces Code copied · 20 chars/, "expanded smoke should retain the same routed DynaClip compact text contract");
+assert.match(dynaClipExpandedOutput, /renderedExpandedText=Code copied · 20 chars\\nconst routed = true;/, "expanded app-mode rendering should show the copied label and clipboard preview rather than Timer fallback text");
 assert.match(dynaClipExpandedOutput, /task=Copied DynaClip code snippet/, "expanded app-mode dump should retain the routed DynaClip copied payload");
 assert.doesNotMatch(dynaClipExpandedOutput, /active=timer[^\n]+expanded=true/, "expanded transition should not fall back to Timer when router selected DynaClip");
 
