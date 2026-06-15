@@ -28,6 +28,8 @@ const { collectTimerActivityStatus } = require("./timer-activity-source");
 let defaultClipboardActivityState = createClipboardActivityState();
 let defaultVolumeHudState = createVolumeHudState();
 let defaultBrightnessHudState = createBrightnessHudState();
+let defaultVolumeSystemObservation = null;
+let defaultBrightnessSystemObservation = null;
 
 function runCommand(command, args, options = {}) {
   try {
@@ -91,6 +93,122 @@ function collectBatteryStatus(options = {}) {
   };
 }
 
+function parseSystemVolumeSettings(output) {
+  const text = String(output || "").trim();
+  if (!text) return null;
+  const [levelText, mutedText = "false"] = text.split("||").map((part) => part.trim());
+  const level = Number(levelText);
+  if (!Number.isFinite(level) || level < 0 || level > 100) return null;
+  return {
+    level: Math.round(level),
+    muted: mutedText.toLowerCase() === "true",
+    deviceName: "System Output",
+    source: "macos-volume-settings"
+  };
+}
+
+function collectSystemVolumeSettings(options = {}) {
+  if (options.systemVolumeSettings !== undefined) return options.systemVolumeSettings;
+  if (options.systemVolumeText !== undefined) return parseSystemVolumeSettings(options.systemVolumeText);
+  const output = runCommand("osascript", [
+    "-e",
+    "set s to get volume settings",
+    "-e",
+    "return (output volume of s as text) & \"||\" & (output muted of s as text)"
+  ], { timeout: 700 });
+  return parseSystemVolumeSettings(output);
+}
+
+function collectChangedSystemVolumeInput(options = {}) {
+  if (options.volumeInput !== undefined) return options.volumeInput;
+  if (options.observeVolumeHud === false || process.env.DYNAMAC_DISABLE_VOLUME_HUD_OBSERVER === "1") return null;
+  const observed = collectSystemVolumeSettings(options);
+  if (!observed) return null;
+  const now = options.now || new Date();
+  const nowMs = now instanceof Date ? now.getTime() : Number(now);
+  const previous = options.previousVolumeObservation !== undefined ? options.previousVolumeObservation : defaultVolumeSystemObservation;
+  if (!previous) {
+    if (options.previousVolumeObservation === undefined) defaultVolumeSystemObservation = observed;
+    return options.emitInitialHudObservations || process.env.DYNAMAC_HUD_EMIT_INITIAL === "1" ? { ...observed, observedAt: nowMs } : null;
+  }
+  const changed = Number(previous.level) !== Number(observed.level) || Boolean(previous.muted) !== Boolean(observed.muted);
+  if (options.previousVolumeObservation === undefined) defaultVolumeSystemObservation = observed;
+  return changed ? { ...observed, observedAt: nowMs } : null;
+}
+
+function parseBrightnessLevelFromText(output) {
+  const text = String(output || "");
+  if (!text.trim()) return null;
+  const direct = text.trim().match(/^(?:brightness\s*[:=]\s*)?(\d+(?:\.\d+)?)%?$/i);
+  if (direct) {
+    const number = Number(direct[1]);
+    if (Number.isFinite(number)) return number <= 1 ? Math.round(number * 100) : Math.round(number);
+  }
+  const brightnessCli = text.match(/brightness\s+([01](?:\.\d+)?|\d+(?:\.\d+)?)\b/i);
+  if (brightnessCli) {
+    const number = Number(brightnessCli[1]);
+    if (Number.isFinite(number)) return number <= 1 ? Math.round(number * 100) : Math.round(number);
+  }
+  const ioreg = text.match(/["']?brightness["']?\s*=\s*(\d+(?:\.\d+)?)/i);
+  if (ioreg) {
+    const number = Number(ioreg[1]);
+    if (Number.isFinite(number)) return number <= 1 ? Math.round(number * 100) : Math.round(Math.min(100, number));
+  }
+  return null;
+}
+
+function normalizeBrightnessObservation(level, options = {}) {
+  if (level === null || level === undefined || level === "") return null;
+  const numericLevel = Number(level);
+  if (!Number.isFinite(numericLevel)) return null;
+  const rounded = Math.round(numericLevel);
+  if (rounded < 0 || rounded > 100) return null;
+  return {
+    level: rounded,
+    displayName: options.brightnessDisplayName || "Main Display",
+    source: options.brightnessSource || "macos-brightness-observer"
+  };
+}
+
+function collectSystemBrightnessSettings(options = {}) {
+  if (options.systemBrightnessSettings !== undefined) return options.systemBrightnessSettings;
+  if (options.systemBrightnessLevel !== undefined) return normalizeBrightnessObservation(options.systemBrightnessLevel, options);
+  if (options.systemBrightnessText !== undefined) return normalizeBrightnessObservation(parseBrightnessLevelFromText(options.systemBrightnessText), options);
+  const envLevel = process.env.DYNAMAC_BRIGHTNESS_LEVEL;
+  if (envLevel !== undefined) return normalizeBrightnessObservation(envLevel, { ...options, brightnessSource: "env-brightness-level" });
+  const observerCommand = process.env.DYNAMAC_BRIGHTNESS_OBSERVER_COMMAND;
+  if (observerCommand) {
+    const output = runCommand("/bin/sh", ["-lc", observerCommand], { timeout: 900 });
+    return normalizeBrightnessObservation(parseBrightnessLevelFromText(output), { ...options, brightnessSource: "brightness-observer-command" });
+  }
+  const brightnessBinary = runCommand("/bin/sh", ["-lc", "command -v brightness || true"], { timeout: 400 });
+  if (brightnessBinary) {
+    const output = runCommand(brightnessBinary, ["-l"], { timeout: 900 });
+    return normalizeBrightnessObservation(parseBrightnessLevelFromText(output), { ...options, brightnessSource: "brightness-cli" });
+  }
+  const ioregOutput = process.env.DYNAMAC_ENABLE_IOREG_BRIGHTNESS === "1"
+    ? runCommand("ioreg", ["-r", "-c", "AppleBacklightDisplay", "-d", "4"], { timeout: 900 })
+    : "";
+  return normalizeBrightnessObservation(parseBrightnessLevelFromText(ioregOutput), { ...options, brightnessSource: "ioreg-apple-backlight" });
+}
+
+function collectChangedSystemBrightnessInput(options = {}) {
+  if (options.brightnessInput !== undefined) return options.brightnessInput;
+  if (options.observeBrightnessHud === false || process.env.DYNAMAC_DISABLE_BRIGHTNESS_HUD_OBSERVER === "1") return null;
+  const observed = collectSystemBrightnessSettings(options);
+  if (!observed) return null;
+  const now = options.now || new Date();
+  const nowMs = now instanceof Date ? now.getTime() : Number(now);
+  const previous = options.previousBrightnessObservation !== undefined ? options.previousBrightnessObservation : defaultBrightnessSystemObservation;
+  if (!previous) {
+    if (options.previousBrightnessObservation === undefined) defaultBrightnessSystemObservation = observed;
+    return options.emitInitialHudObservations || process.env.DYNAMAC_HUD_EMIT_INITIAL === "1" ? { ...observed, observedAt: nowMs } : null;
+  }
+  const changed = Number(previous.level) !== Number(observed.level);
+  if (options.previousBrightnessObservation === undefined) defaultBrightnessSystemObservation = observed;
+  return changed ? { ...observed, observedAt: nowMs } : null;
+}
+
 function classifyClipboardText(text) {
   const classified = classifyClipboardActivityText(text);
   return {
@@ -130,14 +248,15 @@ function collectVolumeHudStatus(options = {}) {
   const now = options.now || new Date();
   const nowMs = now instanceof Date ? now.getTime() : Number(now);
   const replayedState = options.hudReplayState?.volume || null;
-  if (!options.volumeInput) {
+  const volumeInput = collectChangedSystemVolumeInput(options);
+  if (!volumeInput) {
     const replayedActivity = replayedState?.active || null;
     return replayedActivity && Number(replayedActivity.expiresAt) >= nowMs ? volumeHudToNativeStatus(replayedActivity) : null;
   }
   const state = options.volumeActivityState || replayedState || defaultVolumeHudState;
   const result = applyVolumeHudInputChange(state, {
-    ...options.volumeInput,
-    observedAt: options.volumeInput.observedAt ?? options.volumeObservedAt ?? options.observedAt ?? nowMs
+    ...volumeInput,
+    observedAt: volumeInput.observedAt ?? options.volumeObservedAt ?? options.observedAt ?? nowMs
   }, {
     now: nowMs,
     transientMs: options.volumeTransientMs
@@ -146,7 +265,7 @@ function collectVolumeHudStatus(options = {}) {
     recordVolumeHudEvent({
       outputPath: options.hudEventStorePath,
       input: {
-        ...options.volumeInput,
+        ...volumeInput,
         observedAt: result.active.updatedAt
       },
       now: nowMs,
@@ -162,14 +281,15 @@ function collectBrightnessHudStatus(options = {}) {
   const now = options.now || new Date();
   const nowMs = now instanceof Date ? now.getTime() : Number(now);
   const replayedState = options.hudReplayState?.brightness || null;
-  if (!options.brightnessInput) {
+  const brightnessInput = collectChangedSystemBrightnessInput(options);
+  if (!brightnessInput) {
     const replayedActivity = replayedState?.active || null;
     return replayedActivity && Number(replayedActivity.expiresAt) >= nowMs ? brightnessHudToNativeStatus(replayedActivity) : null;
   }
   const state = options.brightnessActivityState || replayedState || defaultBrightnessHudState;
   const result = applyBrightnessHudInputChange(state, {
-    ...options.brightnessInput,
-    observedAt: options.brightnessInput.observedAt ?? options.brightnessObservedAt ?? options.observedAt ?? nowMs
+    ...brightnessInput,
+    observedAt: brightnessInput.observedAt ?? options.brightnessObservedAt ?? options.observedAt ?? nowMs
   }, {
     now: nowMs,
     transientMs: options.brightnessTransientMs
@@ -178,7 +298,7 @@ function collectBrightnessHudStatus(options = {}) {
     recordBrightnessHudEvent({
       outputPath: options.hudEventStorePath,
       input: {
-        ...options.brightnessInput,
+        ...brightnessInput,
         observedAt: result.active.updatedAt
       },
       now: nowMs,
@@ -1012,6 +1132,8 @@ module.exports = {
   classifyClipboardText,
   collectBatteryStatus,
   collectBrightnessHudStatus,
+  collectChangedSystemBrightnessInput,
+  collectChangedSystemVolumeInput,
   collectClipboardStatus,
   collectTimerStatus,
   collectVolumeHudStatus,

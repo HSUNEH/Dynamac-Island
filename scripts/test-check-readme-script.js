@@ -248,8 +248,8 @@ assert.match(
 
 const mixedDeferredChecklistResult = runChecker(
   readme.replace(
-    "#### Deferred native macOS pieces\n\n- [ ] Native volume/brightness",
-    "#### Deferred native macOS pieces\n\n- Activity Router compact selection and rankedActivities are implemented.\n- [ ] Native volume/brightness"
+    "#### Deferred native macOS pieces\n\n- [ ] Private/global key hooks",
+    "#### Deferred native macOS pieces\n\n- Activity Router compact selection and rankedActivities are implemented.\n- [ ] Private/global key hooks"
   )
 );
 
@@ -302,7 +302,7 @@ assert.match(
 
 const expectedDeferredChecklistItems = [
   [
-    "Native volume/brightness key capture and global observers",
+    "Private/global key hooks and global shortcut/action launchers",
     /Missing deferred native DynaKeys key capture checklist/
   ],
   [

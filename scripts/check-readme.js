@@ -156,7 +156,9 @@ const requiredSnippets = [
   ["DynaKeys HUD tests", "`npm run test:volume-hud-status`, `npm run test:brightness-hud-status`, `npm run test:hud-event-store`, and the Mac activity integration/restart replay checks in `npm run test:mac-activity-status`"],
   ["DynaKeys app-mode replay store", "`npm run native:start` defaults the local HUD replay store to `.build/hud-events.json`"],
   ["DynaKeys README validation", "Run `npm run check-readme` to validate that this README keeps documenting the DynaKeys HUD section"],
-  ["DynaKeys deferred native capture", "Deferred: native global volume-key capture, brightness-key capture, global shortcut/action launchers, and direct compact-overlay rendering of these HUDs are not enabled by this slice"],
+  ["DynaKeys shipped observer path", "The native-start writer now polls macOS `get volume settings` and emits a DynaKeys Volume HUD only when the output volume/mute state changes after its quiet baseline; set `DYNAMAC_HUD_EMIT_INITIAL=1`"],
+  ["DynaKeys brightness observer path", "Brightness uses the same observer pipeline when a readable source is available"],
+  ["DynaKeys deferred native capture", "Deferred: global keyboard shortcuts/action launchers, private Accessibility/Input-Monitoring key hooks, and specialized native vector HUD artwork are not required by this slice"],
   ["DynaClip section", "### DynaClip Clipboard Activity Core Model"],
   ["DynaClip implementation", "first DynaClip clipboard activity slice as deterministic local plain-text classification and status serialization"],
   ["DynaClip classification", "classifies recent copied content as text, link, path, code, or empty"],
@@ -175,13 +177,13 @@ const requiredSnippets = [
 
 const implementedChecklistSnippets = [
   ["implemented Activity Router checklist", "Activity Router compact selection and rankedActivities"],
-  ["implemented DynaKeys checklist", "DynaKeys local volume/brightness HUD status models and HUD event replay store"],
+  ["implemented DynaKeys checklist", "DynaKeys local volume/brightness HUD status models, system-volume polling, optional brightness observer inputs, and HUD event replay store"],
   ["implemented DynaClip checklist", "DynaClip transient clipboard classification/copied HUD/expanded preview"],
   ["implemented DynaDrop checklist", "DynaDrop/Shelf local reveal-ready metadata model and invalid-input recovery"]
 ];
 
 const deferredChecklistSnippets = [
-  ["deferred native DynaKeys key capture checklist", "Native volume/brightness key capture and global observers"],
+  ["deferred native DynaKeys key capture checklist", "Private/global key hooks and global shortcut/action launchers"],
   ["deferred native DynaKeys action launchers checklist", "DynaKeys global shortcut/action launchers and direct compact-overlay native rendering"],
   ["deferred native DynaDrop capture/reveal checklist", "Native drag-to-island capture and Finder reveal/open execution"],
   ["deferred native DynaDrop action checklist", "DynaDrop AirDrop/share-link/conversion/transcript/right-click actions"],
@@ -229,7 +231,7 @@ for (const [label, snippet] of deferredChecklistSnippets) {
 }
 
 const implementedSectionForbiddenSnippets = [
-  "Native volume/brightness key capture and global observers",
+  "Private/global key hooks and global shortcut/action launchers",
   "DynaKeys global shortcut/action launchers and direct compact-overlay native rendering",
   "Native drag-to-island capture and Finder reveal/open execution",
   "DynaDrop AirDrop/share-link/conversion/transcript/right-click actions",
@@ -249,7 +251,7 @@ for (const snippet of implementedSectionForbiddenSnippets) {
 
 const deferredSectionForbiddenSnippets = [
   "Activity Router compact selection and rankedActivities are implemented",
-  "DynaKeys local volume/brightness HUD status models and HUD event replay store are implemented",
+  "DynaKeys local volume/brightness HUD status models, system-volume polling, optional brightness observer inputs, and HUD event replay store are implemented",
   "DynaClip transient clipboard classification/copied HUD/expanded preview is implemented",
   "DynaDrop/Shelf local reveal-ready metadata model and invalid-input recovery are implemented"
 ];

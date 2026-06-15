@@ -15,6 +15,8 @@ const {
   classifyClipboardText,
   collectBatteryStatus,
   collectBrightnessHudStatus,
+  collectChangedSystemBrightnessInput,
+  collectChangedSystemVolumeInput,
   collectClipboardStatus,
   collectVolumeHudStatus,
   collectMediaCandidates,
@@ -44,6 +46,51 @@ assert.equal(classifyClipboardText("https://example.com/a").task, "Link copied �
 assert.equal(classifyClipboardText("/Users/st/file.txt").task, "Path copied · 18 chars");
 assert.equal(classifyClipboardText("hello").task, "Text copied · 5 chars");
 assert.equal(formatDuration(65.9), "1:05");
+
+assert.equal(collectChangedSystemVolumeInput({
+  systemVolumeText: "25||false",
+  previousVolumeObservation: null,
+  now: new Date("2026-06-15T00:00:00.000Z")
+}), null, "first volume observation should establish a quiet baseline by default");
+assert.deepEqual(collectChangedSystemVolumeInput({
+  systemVolumeText: "61||false",
+  previousVolumeObservation: { level: 25, muted: false },
+  now: new Date("2026-06-15T00:00:01.000Z")
+}), {
+  level: 61,
+  muted: false,
+  deviceName: "System Output",
+  source: "macos-volume-settings",
+  observedAt: 1781481601000
+});
+assert.deepEqual(collectChangedSystemVolumeInput({
+  systemVolumeText: "61||true",
+  previousVolumeObservation: { level: 61, muted: false },
+  now: new Date("2026-06-15T00:00:02.000Z")
+}).muted, true);
+
+assert.equal(collectChangedSystemBrightnessInput({
+  systemBrightnessText: "brightness 0.40",
+  previousBrightnessObservation: null,
+  now: new Date("2026-06-15T00:00:00.000Z")
+}), null, "first brightness observation should establish a quiet baseline by default");
+assert.equal(collectChangedSystemBrightnessInput({
+  systemBrightnessText: "",
+  previousBrightnessObservation: null,
+  now: new Date("2026-06-15T00:00:00.000Z"),
+  emitInitialHudObservations: true
+}), null, "missing brightness observations must not become a false 0% HUD");
+assert.deepEqual(collectChangedSystemBrightnessInput({
+  systemBrightnessText: "brightness 0.72",
+  previousBrightnessObservation: { level: 40 },
+  now: new Date("2026-06-15T00:00:01.000Z"),
+  brightnessDisplayName: "Built-in Liquid Retina XDR"
+}), {
+  level: 72,
+  displayName: "Built-in Liquid Retina XDR",
+  source: "macos-brightness-observer",
+  observedAt: 1781481601000
+});
 assert.equal(youtubeThumbnailUrl("https://www.youtube.com/watch?v=abcDEF_1234"), "https://img.youtube.com/vi/abcDEF_1234/hqdefault.jpg");
 
 const firstVolumeHudStatus = collectVolumeHudStatus({
