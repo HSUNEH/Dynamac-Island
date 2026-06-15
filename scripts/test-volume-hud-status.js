@@ -5,6 +5,7 @@ const { validateStatusPayload } = require("../src/status-schema");
 const {
   applyVolumeHudInputChange,
   buildVolumeHudStatusPayload,
+  createInitialVolumeHudCompactActivity,
   createVolumeHudState,
   volumeHudToNativeStatus
 } = require("../src/volume-hud-status");
@@ -12,6 +13,24 @@ const {
 const initial = createVolumeHudState();
 assert.deepEqual(initial, { active: null }, "volume HUD starts with no active transient status");
 assert.deepEqual(buildVolumeHudStatusPayload(initial), { statuses: [] }, "inactive volume HUD should not emit a status item");
+
+const initialCompactActivity = createInitialVolumeHudCompactActivity({
+  level: 25,
+  muted: false,
+  deviceName: "MacBook Pro Speakers",
+  source: "fixture-volume-observer",
+  observedAt: 1718323199000
+});
+assert.equal(initialCompactActivity.activityType, "volume", "initial compact state should expose a volume activity");
+assert.equal(initialCompactActivity.isTransient, true, "initial compact state should be transient");
+assert.equal(initialCompactActivity.persisted, false, "initial compact state should not persist by default");
+assert.equal(initialCompactActivity.status.direction, "initial", "initial compact state should mark first observed level as initial");
+assert.deepEqual(initialCompactActivity.compactSurface, {
+  glyph: "speaker",
+  label: "25%",
+  progress: 0.25
+}, "initial compact state should show the observed volume level");
+assert.equal(initialCompactActivity.expiresAt, 1718323200600, "initial compact state should expire after the default HUD window");
 
 const first = applyVolumeHudInputChange(initial, {
   level: 20,

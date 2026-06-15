@@ -100,6 +100,30 @@ function textSignature(text) {
   return crypto.createHash("sha1").update(String(text || ""), "utf8").digest("hex");
 }
 
+function clipboardCopyEventId(observedAt, signature) {
+  return `clipboard-copy-${finiteTimestamp(observedAt, 0)}-${String(signature || "").slice(0, 12)}`;
+}
+
+function buildClipboardCopyEvent(read, classified, signature, options = {}) {
+  const observedAt = finiteTimestamp(read.observedAt ?? options.now, Date.now());
+  const detectedAt = finiteTimestamp(options.now ?? observedAt, observedAt);
+  const source = String(read.source || DEFAULT_SOURCE).trim() || DEFAULT_SOURCE;
+  const contentType = String(read.type || read.mimeType || "text/plain").trim() || "text/plain";
+
+  return {
+    eventId: clipboardCopyEventId(observedAt, signature),
+    eventType: "copy",
+    observedAt,
+    detectedAt,
+    source,
+    contentType,
+    hasPlainText: true,
+    classification: classified.classification,
+    characterCount: classified.characterCount,
+    contentSignature: signature
+  };
+}
+
 function createClipboardActivityState(seed = {}) {
   return {
     lastSignature: typeof seed.lastSignature === "string" ? seed.lastSignature : "",
@@ -183,8 +207,9 @@ function applyClipboardRead(state = createClipboardActivityState(), read = {}, o
 
   const classified = classifyClipboardText(text);
   const source = String(read.source || DEFAULT_SOURCE).trim() || DEFAULT_SOURCE;
+  const copyEvent = buildClipboardCopyEvent(read, classified, signature, { now: nowMs });
   const activity = {
-    activityId: `clipboard-${observedAt}`,
+    activityId: copyEvent.eventId,
     activityType: "clipboard",
     priority: 500,
     createdAt: observedAt,
@@ -212,7 +237,8 @@ function applyClipboardRead(state = createClipboardActivityState(), read = {}, o
       classification: classified.classification,
       characterCount: classified.characterCount,
       recentPlainTextChange: true,
-      observedAt
+      observedAt,
+      copyEvent
     },
     revealReadyPath: "",
     persisted: false
@@ -238,8 +264,10 @@ function buildClipboardStatusFromText(text, options = {}) {
 module.exports = {
   DEFAULT_RECENCY_MS,
   applyClipboardRead,
+  buildClipboardCopyEvent,
   buildClipboardStatusFromText,
   classifyClipboardText,
+  clipboardCopyEventId,
   clipboardActivityToNativeStatus,
   createClipboardActivityState,
   inactiveClipboardStatus,

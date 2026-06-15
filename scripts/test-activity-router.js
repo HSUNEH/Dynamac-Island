@@ -11,6 +11,9 @@ const {
 const { applyBrightnessHudInputChange, brightnessHudToNativeStatus, createBrightnessHudState } = require("../src/brightness-hud-status");
 const { applyVolumeHudInputChange, createVolumeHudState, volumeHudToNativeStatus } = require("../src/volume-hud-status");
 const { buildClipboardStatusFromText } = require("../src/clipboard-activity");
+const { collectTimerActivityStatus } = require("../src/timer-activity-source");
+const { parseTimerDuration } = require("../src/timer-duration");
+const { createTimerState, startTimer } = require("../src/timer-state");
 
 const now = new Date("2026-06-15T09:00:00.000Z");
 const nowMs = now.getTime();
@@ -156,6 +159,40 @@ assert.equal(ACTIVITY_PRIORITIES.shelf > ACTIVITY_PRIORITIES.timer, true);
 assert.equal(ACTIVITY_PRIORITIES.timer > ACTIVITY_PRIORITIES.nowPlaying, true);
 assert.equal(ACTIVITY_PRIORITIES.nowPlaying > ACTIVITY_PRIORITIES.battery, true);
 assert.equal(ACTIVITY_PRIORITIES.battery > ACTIVITY_PRIORITIES.futurePassive, true);
+
+const routedTimerState = createTimerState();
+startTimer(routedTimerState, parseTimerDuration("5m"), {
+  id: "activity-router-visible-timer-fixture",
+  now: () => "2026-06-15T08:56:00.000Z"
+});
+const routedTimerStatus = collectTimerActivityStatus({
+  timerState: routedTimerState,
+  now,
+  source: "activity-router-test"
+});
+const visibleTimerSnapshot = buildActivityRouterSnapshot([
+  candidateStatus("nowPlaying", 1200, {
+    agent: "Now Playing",
+    task: "Background media",
+    detail: "Timer should remain visible and route above passive media."
+  }),
+  candidateStatus("battery", 1300, {
+    agent: "Battery",
+    task: "Battery 88%",
+    detail: "Battery should remain below an active timer."
+  }),
+  routedTimerStatus
+], { now });
+const visibleTimerActivity = visibleTimerSnapshot.rankedActivities.find((activity) => activity.activityId === "timer-activity-router-visible-timer-fixture");
+assert.equal(routedTimerStatus.activityType, "timer");
+assert.equal(visibleTimerActivity?.activityType, "timer", "timer candidate should be routed into the visible activity set");
+assert.equal(visibleTimerActivity?.source, "activity-router-test");
+assert.equal(visibleTimerSnapshot.compactSurface.activityType, "timer");
+assert.deepEqual(
+  visibleTimerSnapshot.rankedActivities.map((activity) => activity.activityType),
+  ["timer", "nowPlaying", "battery"],
+  "shared router should expose the active timer candidate before passive visible activities"
+);
 
 const timerPassiveConflict = [
   candidateStatus("nowPlaying", 900, {
@@ -728,7 +765,7 @@ const clipboardStatus = buildClipboardStatusFromText("hello", {
   source: "fixture-clipboard"
 }).status;
 const rankedClipboardStatus = rankActivities([clipboardStatus], { now })[0];
-assert.equal(rankedClipboardStatus.activityId, "clipboard-1781514000000");
+assert.equal(rankedClipboardStatus.activityId, "clipboard-copy-1781514000000-aaf4c61ddcc5");
 assert.equal(rankedClipboardStatus.source, "fixture-clipboard");
 assert.equal(rankedClipboardStatus.metadata.classification, "text");
 assert.equal(rankedClipboardStatus.compactSurface.activityType, "clipboard");

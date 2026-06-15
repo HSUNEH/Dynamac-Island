@@ -21,7 +21,9 @@ const first = applyClipboardRead(state, {
 assert.equal(first.status.activityType, "clipboard", "first plain-text read should emit a clipboard activity");
 assert.equal(first.status.state, "running");
 assert.equal(first.state.lastSignature, textSignature("Copied once"));
-assert.equal(first.state.active.activityId, "clipboard-1718323200000");
+assert.equal(first.state.active.activityId, `clipboard-copy-${now}-${textSignature("Copied once").slice(0, 12)}`);
+assert.equal(first.state.active.metadata.copyEvent.eventType, "copy");
+assert.equal(first.state.active.metadata.copyEvent.source, "duplicate-filter-fixture");
 state = first.state;
 
 const exactDuplicate = applyClipboardRead(state, {

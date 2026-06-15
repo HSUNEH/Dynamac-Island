@@ -115,6 +115,10 @@ function applyVolumeHudInputChange(state = createVolumeHudState(), input = {}, o
   });
 }
 
+function createInitialVolumeHudCompactActivity(input = {}, options = {}) {
+  return applyVolumeHudInputChange(createVolumeHudState(), input, options).active;
+}
+
 function volumeHudToNativeStatus(activity) {
   if (!activity || typeof activity !== "object") {
     throw new Error("volume HUD activity is required");
@@ -139,6 +143,7 @@ function buildVolumeHudStatusPayload(state) {
 module.exports = {
   applyVolumeHudInputChange,
   buildVolumeHudStatusPayload,
+  createInitialVolumeHudCompactActivity,
   createVolumeHudState,
   volumeHudToNativeStatus
 };

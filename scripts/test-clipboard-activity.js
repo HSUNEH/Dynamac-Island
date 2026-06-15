@@ -20,23 +20,40 @@ const first = applyClipboardRead(initial, {
   observedAt: now,
   source: "fixture-clipboard"
 }, { now, recencyMs: DEFAULT_RECENCY_MS });
+const firstSignature = textSignature("https://example.com/a");
+const firstEventId = `clipboard-copy-${now}-${firstSignature.slice(0, 12)}`;
 
 assert.equal(first.status.agent, "Clipboard");
 assert.equal(first.status.activityType, "clipboard");
 assert.equal(first.status.task, "Link copied · 21 chars");
 assert.equal(first.status.detail, "https://example.com/a");
 assert.equal(first.status.persisted, false);
-assert.equal(first.state.lastSignature, textSignature("https://example.com/a"));
-assert.equal(first.state.active.activityId, "clipboard-1718323200000");
+assert.equal(first.state.lastSignature, firstSignature);
+assert.equal(first.state.active.activityId, firstEventId);
 assert.equal(first.state.active.activityType, "clipboard");
 assert.equal(first.state.active.expiresAt, now + DEFAULT_RECENCY_MS);
 assert.equal(first.state.active.isTransient, true);
+const firstCopyEvent = {
+  eventId: firstEventId,
+  eventType: "copy",
+  observedAt: now,
+  detectedAt: now,
+  source: "fixture-clipboard",
+  contentType: "text/plain",
+  hasPlainText: true,
+  classification: "link",
+  characterCount: 21,
+  contentSignature: firstSignature
+};
 assert.deepEqual(first.state.active.metadata, {
   classification: "link",
   characterCount: 21,
   recentPlainTextChange: true,
-  observedAt: now
+  observedAt: now,
+  copyEvent: firstCopyEvent
 });
+assert.deepEqual(first.status.metadata.copyEvent, firstCopyEvent, "copy event metadata should be exposed without raw clipboard text");
+assert.equal(Object.values(first.status.metadata.copyEvent).includes("https://example.com/a"), false, "copy event metadata must not persist raw clipboard text");
 assert.equal(first.state.active.persisted, false);
 assert.equal(first.state.active.compactSurface.glyph, "link");
 assert.equal(first.state.active.compactSurface.label, "Link copied · 21 chars");
