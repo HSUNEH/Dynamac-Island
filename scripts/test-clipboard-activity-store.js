@@ -41,8 +41,10 @@ const duplicate = store.createClipboardActivity({
   source: "memory-store-fixture",
   type: "text/plain"
 }, { now: now + 100 });
-assert.equal(duplicate.status.activityType, "futurePassive", "store should use its in-memory signature to suppress duplicate clipboard reads");
-assert.equal(duplicate.state.active, null, "suppressed duplicate should clear the active clipboard activity");
+assert.equal(duplicate.status.activityType, "clipboard", "store should replay the in-memory copied activity for duplicate reads before expiry");
+assert.equal(duplicate.status.metadata.copiedState, "copied");
+assert.equal(duplicate.state.active.activityId, created.state.active.activityId, "duplicate replay should keep the original copied activity instance");
+assert.equal(duplicate.state.active.expiresAt, created.state.active.expiresAt, "duplicate replay must not extend clipboard visibility");
 
 const cleared = store.clearClipboardActivityStore();
 assert.deepEqual(cleared, { lastSignature: "", active: null }, "clear should reset clipboard store memory");

@@ -208,6 +208,7 @@ function buildClipboardCopiedHudActivity(copyEvent, options = {}) {
   const rawPreview = String(options.preview || "");
   const preview = Array.from(rawPreview).length <= PREVIEW_MAX_LENGTH ? rawPreview : truncate(rawPreview);
   const source = String(options.source || copyEvent.source || DEFAULT_SOURCE).trim() || DEFAULT_SOURCE;
+  const glyph = clipboardGlyphForClassification(classification);
 
   return {
     activityId: String(copyEvent.eventId || clipboardCopyEventId(observedAt, copyEvent.contentSignature || "clipboard")),
@@ -225,7 +226,7 @@ function buildClipboardCopiedHudActivity(copyEvent, options = {}) {
       copied: true
     },
     compactSurface: {
-      glyph: clipboardGlyphForClassification(classification),
+      glyph,
       label,
       preview,
       hudKind: "copied"
@@ -240,6 +241,12 @@ function buildClipboardCopiedHudActivity(copyEvent, options = {}) {
     metadata: {
       classification,
       characterCount,
+      copied: true,
+      copiedState: "copied",
+      displayLabel: label,
+      displayPreview: preview,
+      displayGlyph: glyph,
+      hudKind: "copied",
       recentPlainTextChange: true,
       observedAt,
       copyEvent: { ...copyEvent }
@@ -291,10 +298,24 @@ function clipboardActivityToNativeStatus(activity) {
     task: activity.status.label,
     updatedAt: new Date(activity.updatedAt).toISOString(),
     detail: activity.status.preview,
-    metadata: { ...activity.metadata },
+    metadata: {
+      ...activity.metadata,
+      copied: activity.status.copied === true,
+      copiedState: activity.status.copied === true ? "copied" : "idle",
+      displayLabel: activity.status.label,
+      displayPreview: activity.status.preview,
+      displayGlyph: activity.compactSurface?.glyph || clipboardGlyphForClassification(activity.status.classification),
+      hudKind: activity.compactSurface?.hudKind || "copied"
+    },
     clipboardActivity: activity,
     persisted: false
   };
+}
+
+function isActiveClipboardActivityCurrent(activity, nowMs) {
+  if (!activity || typeof activity !== "object") return false;
+  const expiresAt = Number(activity.expiresAt);
+  return activity.activityType === "clipboard" && Number.isFinite(expiresAt) && expiresAt > nowMs;
 }
 
 function applyClipboardRead(state = createClipboardActivityState(), read = {}, options = {}) {
@@ -323,10 +344,23 @@ function applyClipboardRead(state = createClipboardActivityState(), read = {}, o
   const changed = signature !== previous.lastSignature;
   const recent = nowMs - observedAt >= 0 && nowMs - observedAt <= recencyMs;
 
-  if (!changed || !recent) {
+  if (!changed) {
+    if (isActiveClipboardActivityCurrent(previous.active, nowMs)) {
+      return {
+        state: createClipboardActivityState({ lastSignature: signature, active: previous.active }),
+        status: clipboardActivityToNativeStatus(previous.active)
+      };
+    }
     return {
       state: createClipboardActivityState({ lastSignature: signature, active: null }),
-      status: inactiveClipboardStatus(nowMs, changed ? "Clipboard text is older than the recent-change window." : "Clipboard text has not changed since the previous read.")
+      status: inactiveClipboardStatus(nowMs, "Clipboard copied activity expired after the recent-change window elapsed.")
+    };
+  }
+
+  if (!recent) {
+    return {
+      state: createClipboardActivityState({ lastSignature: signature, active: null }),
+      status: inactiveClipboardStatus(nowMs, "Clipboard text is older than the recent-change window.")
     };
   }
 

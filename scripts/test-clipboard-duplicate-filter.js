@@ -33,11 +33,12 @@ const exactDuplicate = applyClipboardRead(state, {
   type: "text/plain"
 }, { now: now + 250, recencyMs: DEFAULT_RECENCY_MS });
 
-assert.equal(exactDuplicate.status.state, "idle", "exact duplicate should be suppressed");
-assert.equal(exactDuplicate.status.activityType, "futurePassive", "suppressed duplicate must not route as compact clipboard activity");
-assert.match(exactDuplicate.status.detail, /has not changed/);
-assert.equal(exactDuplicate.status.metadata.recentPlainTextChange, false);
-assert.equal(exactDuplicate.state.active, null, "suppressed duplicate should clear active emission");
+assert.equal(exactDuplicate.status.state, "running", "exact duplicate should replay the active copied state until expiry");
+assert.equal(exactDuplicate.status.activityType, "clipboard", "duplicate replay remains compact-eligible while the original copied activity is active");
+assert.equal(exactDuplicate.status.metadata.recentPlainTextChange, true);
+assert.equal(exactDuplicate.status.metadata.copiedState, "copied");
+assert.equal(exactDuplicate.state.active.activityId, first.state.active.activityId, "duplicate replay should not create a new copied activity");
+assert.equal(exactDuplicate.state.active.expiresAt, first.state.active.expiresAt, "duplicate replay must not extend clipboard visibility");
 assert.equal(exactDuplicate.state.lastSignature, textSignature("Copied once"), "duplicate baseline should remain the copied text signature");
 state = exactDuplicate.state;
 
@@ -48,9 +49,9 @@ const normalizedDuplicate = applyClipboardRead(state, {
   type: "text/plain"
 }, { now: now + 500, recencyMs: DEFAULT_RECENCY_MS });
 
-assert.equal(normalizedDuplicate.status.state, "idle", "whitespace-normalized duplicate should be suppressed");
-assert.equal(normalizedDuplicate.status.activityType, "futurePassive");
-assert.equal(normalizedDuplicate.state.active, null);
+assert.equal(normalizedDuplicate.status.state, "running", "whitespace-normalized duplicate should replay the active copied state until expiry");
+assert.equal(normalizedDuplicate.status.activityType, "clipboard");
+assert.equal(normalizedDuplicate.state.active.activityId, first.state.active.activityId);
 assert.equal(normalizedDuplicate.state.lastSignature, textSignature("Copied once"));
 state = normalizedDuplicate.state;
 

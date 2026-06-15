@@ -50,10 +50,35 @@ const firstCopyEvent = {
 assert.deepEqual(first.state.active.metadata, {
   classification: "link",
   characterCount: 21,
+  copied: true,
+  copiedState: "copied",
+  displayLabel: "Link copied · 21 chars",
+  displayPreview: "example.com/a",
+  displayGlyph: "link",
+  hudKind: "copied",
   recentPlainTextChange: true,
   observedAt: now,
   copyEvent: firstCopyEvent
 });
+assert.deepEqual(
+  {
+    copied: first.status.metadata.copied,
+    copiedState: first.status.metadata.copiedState,
+    displayLabel: first.status.metadata.displayLabel,
+    displayPreview: first.status.metadata.displayPreview,
+    displayGlyph: first.status.metadata.displayGlyph,
+    hudKind: first.status.metadata.hudKind
+  },
+  {
+    copied: true,
+    copiedState: "copied",
+    displayLabel: "Link copied · 21 chars",
+    displayPreview: "example.com/a",
+    displayGlyph: "link",
+    hudKind: "copied"
+  },
+  "active clipboard status should report copied state with display-ready metadata"
+);
 assert.deepEqual(first.status.metadata.copyEvent, firstCopyEvent, "copy event metadata should be exposed without raw clipboard text");
 assert.equal(Object.values(first.status.metadata.copyEvent).includes("https://example.com/a"), false, "copy event metadata must not persist raw clipboard text");
 assert.equal(first.state.active.persisted, false);
@@ -82,10 +107,22 @@ const unchanged = applyClipboardRead(first.state, {
   observedAt: now + 100,
   source: "fixture-clipboard"
 }, { now: now + 100, recencyMs: DEFAULT_RECENCY_MS });
-assert.equal(unchanged.status.state, "idle");
-assert.equal(unchanged.status.activityType, "futurePassive", "unchanged clipboard reads must not keep winning the compact router");
-assert.equal(unchanged.status.metadata.recentPlainTextChange, false);
-assert.equal(unchanged.state.active, null);
+assert.equal(unchanged.status.state, "running");
+assert.equal(unchanged.status.activityType, "clipboard", "unchanged clipboard reads should keep the original short-lived copied activity active before expiry");
+assert.equal(unchanged.status.metadata.recentPlainTextChange, true);
+assert.equal(unchanged.status.metadata.copiedState, "copied");
+assert.equal(unchanged.state.active.activityId, first.state.active.activityId, "duplicate reads before expiry should replay the same activity instance");
+assert.equal(unchanged.state.active.expiresAt, now + DEFAULT_RECENCY_MS, "duplicate reads before expiry must not extend clipboard visibility");
+
+const expiredDuplicate = applyClipboardRead(first.state, {
+  plainText: "https://example.com/a",
+  observedAt: now + DEFAULT_RECENCY_MS + 1,
+  source: "fixture-clipboard"
+}, { now: now + DEFAULT_RECENCY_MS + 1, recencyMs: DEFAULT_RECENCY_MS });
+assert.equal(expiredDuplicate.status.state, "idle");
+assert.equal(expiredDuplicate.status.activityType, "futurePassive", "unchanged clipboard reads after expiry should not remain compact-active");
+assert.equal(expiredDuplicate.status.metadata.recentPlainTextChange, false);
+assert.equal(expiredDuplicate.state.active, null);
 
 const stale = applyClipboardRead(first.state, {
   plainText: "fresh-looking but old",
