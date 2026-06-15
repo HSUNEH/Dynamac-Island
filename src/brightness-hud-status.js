@@ -102,6 +102,17 @@ function applyBrightnessHudInputChange(state = createBrightnessHudState(), input
   });
 }
 
+function showBrightnessHud(input = {}, options = {}) {
+  const state = applyBrightnessHudInputChange(options.state || createBrightnessHudState(), input, options);
+  const activity = state.active;
+  return {
+    state,
+    activity,
+    compactSurface: activity.compactSurface,
+    status: brightnessHudToNativeStatus(activity)
+  };
+}
+
 function brightnessHudToNativeStatus(activity) {
   if (!activity || typeof activity !== "object") {
     throw new Error("brightness HUD activity is required");
@@ -127,5 +138,6 @@ module.exports = {
   applyBrightnessHudInputChange,
   brightnessHudToNativeStatus,
   buildBrightnessHudStatusPayload,
-  createBrightnessHudState
+  createBrightnessHudState,
+  showBrightnessHud
 };

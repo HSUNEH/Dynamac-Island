@@ -1,4 +1,5 @@
 const crypto = require("node:crypto");
+const path = require("node:path");
 
 const DEFAULT_RECENCY_MS = 5000;
 const DEFAULT_SOURCE = "local-clipboard";
@@ -13,6 +14,47 @@ function truncate(value, maxLength = PREVIEW_MAX_LENGTH) {
   const text = String(value || "").replace(/\s+/g, " ").trim();
   if (text.length <= maxLength) return text;
   return `${text.slice(0, Math.max(0, maxLength - 1))}…`;
+}
+
+function formatClipboardPreviewText(text, classification = "text", maxLength = PREVIEW_MAX_LENGTH) {
+  const clean = normalizeClipboardText(text);
+  if (!clean) return "";
+
+  if (classification === "link") {
+    try {
+      const url = new URL(clean);
+      const compactUrl = `${url.hostname}${url.pathname === "/" ? "" : url.pathname}${url.search}`;
+      return truncate(compactUrl, maxLength);
+    } catch (_error) {
+      return truncate(clean, maxLength);
+    }
+  }
+
+  if (classification === "path") {
+    let pathText = clean;
+    if (/^file:\/\//i.test(clean)) {
+      try {
+        pathText = decodeURIComponent(new URL(clean).pathname);
+      } catch (_error) {
+        pathText = clean.replace(/^file:\/\//i, "");
+      }
+    }
+    const basename = path.basename(pathText);
+    const dirname = path.dirname(pathText);
+    const preview = basename && dirname && dirname !== "." ? `${basename} — ${dirname}` : pathText;
+    return truncate(preview, maxLength);
+  }
+
+  if (classification === "code") {
+    const fenced = clean.match(/^```([^\n`]*)\n([\s\S]*?)\n?```$/) || clean.match(/^~~~([^\n~]*)\n([\s\S]*?)\n?~~~$/);
+    const language = fenced ? fenced[1].trim() : "";
+    const codeText = fenced ? fenced[2] : clean;
+    const firstLine = codeText.split(/\r?\n/).map((line) => line.trim()).find(Boolean) || "";
+    const preview = language ? `${language} · ${firstLine}` : firstLine;
+    return truncate(preview || clean, maxLength);
+  }
+
+  return truncate(clean, maxLength);
 }
 
 function normalizeClipboardText(text) {
@@ -90,9 +132,9 @@ function classifyClipboardText(text) {
   return {
     classification,
     label: `${type} copied · ${lengthLabel}`,
-    detail: truncate(clean),
+    detail: formatClipboardPreviewText(clean, classification),
     characterCount,
-    preview: truncate(clean)
+    preview: formatClipboardPreviewText(clean, classification)
   };
 }
 
@@ -312,6 +354,7 @@ module.exports = {
   clipboardCopyEventId,
   clipboardActivityToNativeStatus,
   createClipboardActivityState,
+  formatClipboardPreviewText,
   inactiveClipboardStatus,
   isCodeLikeClipboardText,
   isValidHttpUrl,

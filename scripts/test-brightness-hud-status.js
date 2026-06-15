@@ -6,12 +6,32 @@ const {
   applyBrightnessHudInputChange,
   brightnessHudToNativeStatus,
   buildBrightnessHudStatusPayload,
-  createBrightnessHudState
+  createBrightnessHudState,
+  showBrightnessHud
 } = require("../src/brightness-hud-status");
 
 const initial = createBrightnessHudState();
 assert.deepEqual(initial, { active: null }, "brightness HUD starts with no active transient status");
 assert.deepEqual(buildBrightnessHudStatusPayload(initial), { statuses: [] }, "inactive brightness HUD should not emit a status item");
+
+const shownBrightness = showBrightnessHud({
+  level: 64,
+  displayName: "Built-in Liquid Retina XDR",
+  source: "fixture-brightness-observer",
+  observedAt: 1718323199000
+});
+assert.equal(shownBrightness.activity.activityType, "brightness", "showing brightness should expose a brightness activity");
+assert.equal(shownBrightness.activity.isTransient, true, "shown brightness HUD should be transient");
+assert.equal(shownBrightness.activity.persisted, false, "shown brightness HUD should not persist by default");
+assert.equal(shownBrightness.activity.status.level, 64, "shown brightness HUD should keep the requested brightness level");
+assert.deepEqual(shownBrightness.activity.compactSurface, {
+  glyph: "sun.max",
+  label: "64%",
+  progress: 0.64
+}, "shown brightness HUD should create a visible compact brightness surface at the requested level");
+assert.equal(shownBrightness.activity.expiresAt, 1718323200600, "shown brightness HUD should use the default transient window");
+assert.deepEqual(shownBrightness.state, { active: shownBrightness.activity }, "showing brightness should return the state that owns the visible activity");
+assert.equal(shownBrightness.status.task, "Brightness 64%", "shown brightness HUD should be serializable for the native status bridge");
 
 const first = applyBrightnessHudInputChange(initial, {
   level: 12,

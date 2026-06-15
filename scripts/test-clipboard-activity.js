@@ -9,6 +9,7 @@ const {
   buildClipboardStatusFromText,
   classifyClipboardText,
   createClipboardActivityState,
+  formatClipboardPreviewText,
   textSignature
 } = require("../src/clipboard-activity");
 
@@ -27,7 +28,7 @@ const firstEventId = `clipboard-copy-${now}-${firstSignature.slice(0, 12)}`;
 assert.equal(first.status.agent, "Clipboard");
 assert.equal(first.status.activityType, "clipboard");
 assert.equal(first.status.task, "Link copied · 21 chars");
-assert.equal(first.status.detail, "https://example.com/a");
+assert.equal(first.status.detail, "example.com/a");
 assert.equal(first.status.persisted, false);
 assert.equal(first.state.lastSignature, firstSignature);
 assert.equal(first.state.active.activityId, firstEventId);
@@ -64,7 +65,7 @@ const copiedHudActivity = buildClipboardCopiedHudActivity(firstCopyEvent, {
   classification: "link",
   characterCount: 21,
   label: "Link copied · 21 chars",
-  preview: "https://example.com/a",
+  preview: "example.com/a",
   recencyMs: DEFAULT_RECENCY_MS
 });
 assert.deepEqual(copiedHudActivity, first.state.active, "detected copy events should convert into the same compact copied HUD activity used by router/display tests");
@@ -122,6 +123,7 @@ assert.equal(pathClass.label, "Path copied · 18 chars");
 const validUrlClass = classifyClipboardText("https://example.com/a?b=1#frag");
 assert.equal(validUrlClass.classification, "link", "valid URL strings should classify as URL/link content");
 assert.equal(validUrlClass.label, "Link copied · 30 chars");
+assert.equal(validUrlClass.preview, "example.com/a?b=1", "URL previews should be compact and omit protocol/hash noise");
 for (const invalidUrl of ["https://", "http://", "https:// example.com"]) {
   const invalidUrlClass = classifyClipboardText(invalidUrl);
   assert.equal(invalidUrlClass.classification, "text", `invalid URL string should remain plain text: ${invalidUrl}`);
@@ -129,6 +131,7 @@ for (const invalidUrl of ["https://", "http://", "https:// example.com"]) {
 const textClass = classifyClipboardText("hello");
 assert.equal(textClass.classification, "text");
 assert.equal(textClass.label, "Text copied · 5 chars");
+assert.equal(textClass.preview, "hello");
 
 const jsSnippet = `function greet(name) {
   return \`hello, ${"${name}"}\`;
@@ -146,6 +149,23 @@ assert.equal(pythonSnippetClass.label, "Code copied · 44 chars");
 const fencedSnippet = "```swift\nlet enabled = true\n```";
 const fencedSnippetClass = classifyClipboardText(fencedSnippet);
 assert.equal(fencedSnippetClass.classification, "code", "fenced snippets should classify as code-like clipboard text");
+assert.equal(fencedSnippetClass.preview, "swift · let enabled = true", "code previews should show language and first code line instead of raw fences");
+
+assert.equal(
+  formatClipboardPreviewText("file:///Users/st/Documents/demo%20note.txt", "path"),
+  "demo note.txt — /Users/st/Documents",
+  "file URL path previews should decode names and show parent context"
+);
+assert.equal(
+  formatClipboardPreviewText("/Users/st/Documents/demo note.txt", "path"),
+  "demo note.txt — /Users/st/Documents",
+  "absolute path previews should show basename and parent context"
+);
+assert.equal(
+  formatClipboardPreviewText("const enabled = true;", "code"),
+  "const enabled = true;",
+  "inline code previews should preserve the first code line"
+);
 
 const proseClass = classifyClipboardText("Meeting notes: please return the file before lunch and confirm when you are done.");
 assert.equal(proseClass.classification, "text", "ordinary prose with punctuation should remain plain text");
