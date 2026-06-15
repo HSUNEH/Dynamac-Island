@@ -10,6 +10,7 @@ const {
   addDroppedFilesToShelf,
   applyDroppedFileToShelf,
   buildShelfStatusPayload,
+  buildShelfRevealStatus,
   clearShelf,
   createShelfState
 } = require("../src/shelf-state");
@@ -52,15 +53,27 @@ try {
   assert.equal(item.source, "fixture-drop");
   assert.equal(item.observedAt, 1718323200100);
   assert.equal(item.revealReadyPath, filePath);
+  assert.deepEqual(item.revealStatus, {
+    state: "ready",
+    canReveal: true,
+    revealReadyPath: filePath,
+    reason: "",
+    detail: "Validated local file path is ready for future Finder reveal.",
+    updatedAt: 1718323200200,
+    persisted: false
+  }, "valid local shelf items should expose a ready reveal status");
   assert.equal(item.persisted, false);
 
   assert.equal(first.active.activityId, "shelf-1718323200100");
   assert.equal(first.active.activityType, "shelf");
   assert.equal(first.active.status.fileCount, 1);
   assert.equal(first.active.status.latestFile.name, "demo note.txt");
+  assert.deepEqual(first.active.status.revealStatus, item.revealStatus);
   assert.equal(first.active.metadata.fileCount, 1);
   assert.equal(first.active.metadata.latestFile.path, filePath);
+  assert.deepEqual(first.active.metadata.revealStatus, item.revealStatus);
   assert.equal(first.active.revealReadyPath, filePath);
+  assert.deepEqual(first.active.revealStatus, item.revealStatus);
   assert.equal(first.active.persisted, false);
   assert.deepEqual(first.active.compactSurface, {
     glyph: "tray.full",
@@ -72,6 +85,8 @@ try {
   assert.equal(payload.statuses[0].agent, "DynaShelf");
   assert.equal(payload.statuses[0].activityType, "shelf");
   assert.equal(payload.statuses[0].revealReadyPath, filePath);
+  assert.deepEqual(payload.statuses[0].revealStatus, item.revealStatus, "native shelf status should expose ready reveal status beside revealReadyPath");
+  assert.match(payload.statuses[0].detail, /reveal-ready/, "ready shelf status should describe reveal readiness without implying Finder reveal execution");
   assert.deepEqual(payload.statuses[0].metadata.latestFile, {
     path: filePath,
     name: "demo note.txt",
@@ -97,6 +112,27 @@ try {
   assert.equal(clearedJson.includes(filePath), false, "cleared payload must not leak previous dropped file path");
   assert.equal(clearedJson.includes("demo note.txt"), false, "cleared payload must not leak previous dropped file name");
   assert.equal(clearedJson.includes("fixture-drop"), false, "cleared payload must not leak previous dropped source metadata");
+
+  const unavailableReveal = buildShelfRevealStatus("", { now: 1718323200350 });
+  assert.deepEqual(unavailableReveal, {
+    state: "unavailable",
+    canReveal: false,
+    revealReadyPath: "",
+    reason: "no-validated-path",
+    detail: "No validated shelf file path is available for reveal.",
+    updatedAt: 1718323200350,
+    persisted: false
+  }, "empty shelf reveal status should be explicit and unavailable");
+  const missingReveal = buildShelfRevealStatus(path.join(tempDir, "missing-reveal.txt"), { now: 1718323200360 });
+  assert.deepEqual(missingReveal, {
+    state: "unavailable",
+    canReveal: false,
+    revealReadyPath: "",
+    reason: "dropped-file-path-must-exist",
+    detail: "dropped file path must exist",
+    updatedAt: 1718323200360,
+    persisted: false
+  }, "missing shelf reveal paths should be unavailable instead of exposing a stale revealReadyPath");
 
   const afterClear = addDroppedFileToShelf(cleared, {
     filePath: secondFilePath,
@@ -147,6 +183,15 @@ try {
     observedAt: 1718323200820,
     updatedAt: 1718323200830,
     recoverable: true,
+    revealStatus: {
+      state: "unavailable",
+      canReveal: false,
+      revealReadyPath: "",
+      reason: "no-validated-path",
+      detail: "No validated shelf file path is available for reveal.",
+      updatedAt: 1718323200830,
+      persisted: false
+    },
     persisted: false
   };
   assert.equal(blankRecovery.ok, false, "invalid dropped inputs should be represented as a recoverable shelf result");

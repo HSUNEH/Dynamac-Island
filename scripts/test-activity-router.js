@@ -191,6 +191,52 @@ assert.deepEqual(
   ["timer", "nowPlaying", "battery", "futurePassive"]
 );
 
+const inactiveTimerPassiveConflict = [
+  candidateStatus("timer", 2000, {
+    agent: "Timer",
+    state: "idle",
+    task: "Timer idle",
+    detail: "Inactive timer should not remain compact eligible above now playing.",
+    timer: {
+      id: "timer-idle-fixture",
+      durationSeconds: 300,
+      remainingSeconds: 300,
+      state: "stopped",
+      startedAt: "2026-06-15T08:55:00.000Z",
+      updatedAt: "2026-06-15T08:59:59.000Z",
+      displayText: "5m",
+      error: "",
+      replacedPrevious: false
+    }
+  }),
+  candidateStatus("battery", 1000, {
+    agent: "Battery",
+    task: "Battery 88%",
+    detail: "Battery should stay below now playing when timer is inactive."
+  }),
+  candidateStatus("futurePassive", 1100, {
+    agent: "Unknown Future Provider",
+    task: "Passive local utility",
+    detail: "Unknown passive providers stay below now playing fallback."
+  }),
+  candidateStatus("nowPlaying", 0, {
+    agent: "Now Playing",
+    task: "Song Title",
+    detail: "Now playing should be the compact fallback when the timer is inactive."
+  })
+];
+const inactiveTimerPassiveConflictWinner = selectCompactActivity(inactiveTimerPassiveConflict, { now });
+assert.equal(
+  inactiveTimerPassiveConflictWinner.activityType,
+  "nowPlaying",
+  "now playing should win compact routing when timer is inactive and battery/passive candidates are available"
+);
+assert.equal(inactiveTimerPassiveConflictWinner.compactSurface.activityType, "nowPlaying");
+assert.deepEqual(
+  rankActivities(inactiveTimerPassiveConflict, { now }).map((activity) => activity.activityType),
+  ["nowPlaying", "battery", "futurePassive"]
+);
+
 assert.equal(activityTypeForStatus({ agent: "DynaKeys Volume" }), "volume");
 assert.equal(activityTypeForStatus({ agent: "DynaClip" }), "clipboard");
 assert.equal(activityTypeForStatus({ agent: "DynaDrop" }), "drop");

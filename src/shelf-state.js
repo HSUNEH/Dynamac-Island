@@ -57,6 +57,45 @@ function validateDroppedFilePath(filePath) {
   return { resolvedPath, stat };
 }
 
+function buildShelfRevealStatus(filePath, options = {}) {
+  const updatedAt = finiteTimestamp(options.now ?? options.updatedAt, Date.now());
+  if (typeof filePath !== "string" || filePath.trim() === "") {
+    return {
+      state: "unavailable",
+      canReveal: false,
+      revealReadyPath: "",
+      reason: "no-validated-path",
+      detail: "No validated shelf file path is available for reveal.",
+      updatedAt,
+      persisted: false
+    };
+  }
+
+  try {
+    const { resolvedPath } = validateDroppedFilePath(filePath);
+    return {
+      state: "ready",
+      canReveal: true,
+      revealReadyPath: resolvedPath,
+      reason: "",
+      detail: "Validated local file path is ready for future Finder reveal.",
+      updatedAt,
+      persisted: false
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error || "shelf reveal path is unavailable");
+    return {
+      state: "unavailable",
+      canReveal: false,
+      revealReadyPath: "",
+      reason: shelfErrorCodeForMessage(message),
+      detail: message,
+      updatedAt,
+      persisted: false
+    };
+  }
+}
+
 function publicFileMetadata(item) {
   return {
     path: item.path,
@@ -77,6 +116,7 @@ function buildShelfActivity(state, options = {}) {
   const updatedAt = finiteTimestamp(options.now ?? state.updatedAt, state.updatedAt);
   const fileCount = state.items.length;
   const latestFile = publicFileMetadata(latest);
+  const revealStatus = buildShelfRevealStatus(latest.path, { now: updatedAt });
   return {
     activityId: `shelf-${latest.observedAt}`,
     activityType: "shelf",
@@ -88,7 +128,8 @@ function buildShelfActivity(state, options = {}) {
     status: {
       fileCount,
       latestFile,
-      label: `Shelf · ${fileLabel(fileCount)} ready`
+      label: `Shelf · ${fileLabel(fileCount)} ready`,
+      revealStatus
     },
     compactSurface: {
       glyph: "tray.full",
@@ -104,9 +145,11 @@ function buildShelfActivity(state, options = {}) {
     metadata: {
       fileCount,
       files: state.items.map(publicFileMetadata),
-      latestFile
+      latestFile,
+      revealStatus
     },
-    revealReadyPath: latest.path,
+    revealReadyPath: revealStatus.revealReadyPath,
+    revealStatus,
     persisted: false
   };
 }
@@ -142,6 +185,7 @@ function buildShelfError(error, drop = {}, options = {}) {
     observedAt,
     updatedAt,
     recoverable: true,
+    revealStatus: buildShelfRevealStatus("", { now: updatedAt }),
     persisted: false
   };
 }
@@ -186,6 +230,7 @@ function addDroppedFileToShelf(state = createShelfState(), drop = {}, options = 
     observedAt,
     recordedAt,
     revealReadyPath: resolvedPath,
+    revealStatus: buildShelfRevealStatus(resolvedPath, { now: recordedAt }),
     persisted: false
   };
   const next = createShelfState({
@@ -230,14 +275,20 @@ function shelfActivityToNativeStatus(activity) {
     throw new Error("shelf activity is required");
   }
   const updatedAt = new Date(finiteTimestamp(activity.updatedAt, undefined, "activity.updatedAt")).toISOString();
+  const revealStatus = activity.revealStatus && typeof activity.revealStatus === "object"
+    ? { ...activity.revealStatus }
+    : buildShelfRevealStatus(activity.revealReadyPath || "", { now: activity.updatedAt });
   return {
     agent: "DynaShelf",
     activityType: "shelf",
     state: "running",
     task: activity.status?.label || activity.compactSurface?.label || "Shelf ready",
     updatedAt,
-    detail: "Local shelf metadata is ready; native drag capture and Finder reveal UI are deferred.",
-    revealReadyPath: activity.revealReadyPath || "",
+    detail: revealStatus.state === "ready"
+      ? "Local shelf metadata is reveal-ready; native drag capture and Finder reveal UI are deferred."
+      : "Local shelf metadata is unavailable for reveal; native drag capture and Finder reveal UI are deferred.",
+    revealReadyPath: revealStatus.revealReadyPath,
+    revealStatus,
     metadata: { ...activity.metadata },
     shelfActivity: activity,
     persisted: false
@@ -254,6 +305,7 @@ module.exports = {
   addDroppedFilesToShelf,
   applyDroppedFileToShelf,
   buildShelfActivity,
+  buildShelfRevealStatus,
   buildShelfStatusPayload,
   clearShelf,
   createShelfState,

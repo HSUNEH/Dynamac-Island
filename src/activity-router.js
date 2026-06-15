@@ -76,6 +76,14 @@ function isActivityExpired(activity, nowMs) {
   return Number.isFinite(activity.expiresAt) && activity.expiresAt <= nowMs;
 }
 
+function isCompactEligibleActivity(activity) {
+  if (activity.activityType !== "timer") return true;
+
+  const timerState = activity.status?.timer?.state;
+  if (typeof timerState === "string") return timerState === "running";
+  return activity.status?.state === "running";
+}
+
 function compactLabelForActivity(activity) {
   if (activity.status?.compactLabel) return String(activity.status.compactLabel);
   if (activity.status?.task) return String(activity.status.task);
@@ -156,6 +164,7 @@ function rankActivities(statuses, options = {}) {
   return suppressOverlappingHudActivities(statuses
     .map((status, index) => normalizeActivity(status, index, options))
     .filter((activity) => !isActivityExpired(activity, nowMs))
+    .filter(isCompactEligibleActivity)
     .sort(compareActivities));
 }
 
