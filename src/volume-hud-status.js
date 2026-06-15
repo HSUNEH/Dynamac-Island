@@ -2,6 +2,7 @@ const DEFAULT_TRANSIENT_MS = 1600;
 const DEFAULT_PRIORITY = 90;
 const DEFAULT_SOURCE = "local-volume-observer";
 const DEFAULT_DEVICE_NAME = "Output";
+const VOLUME_HUD_STATE_SCHEMA = "dynamac.volumeHud.state.v1";
 
 function createVolumeHudState(active = null) {
   return { active };
@@ -137,6 +138,100 @@ function createInitialVolumeHudCompactActivity(input = {}, options = {}) {
   return applyVolumeHudInputChange(createVolumeHudState(), input, options).active;
 }
 
+function assertPlainObject(value, fieldName) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`${fieldName} must be an object`);
+  }
+  return value;
+}
+
+function assertString(value, fieldName) {
+  if (typeof value !== "string") {
+    throw new Error(`${fieldName} must be a string`);
+  }
+  return value;
+}
+
+function assertBoolean(value, fieldName) {
+  if (typeof value !== "boolean") {
+    throw new Error(`${fieldName} must be a boolean`);
+  }
+  return value;
+}
+
+function assertFiniteNumber(value, fieldName) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    throw new Error(`${fieldName} must be a finite number`);
+  }
+  return number;
+}
+
+function serializeVolumeHudActivity(activity) {
+  assertPlainObject(activity, "volumeHud.active");
+  const status = assertPlainObject(activity.status, "volumeHud.active.status");
+  const compactSurface = assertPlainObject(activity.compactSurface, "volumeHud.active.compactSurface");
+  const expandedSurface = assertPlainObject(activity.expandedSurface, "volumeHud.active.expandedSurface");
+  const metadata = assertPlainObject(activity.metadata, "volumeHud.active.metadata");
+
+  if (activity.activityType !== "volume") {
+    throw new Error("volumeHud.active.activityType must be volume");
+  }
+
+  return {
+    activityId: assertString(activity.activityId, "volumeHud.active.activityId"),
+    activityType: "volume",
+    priority: assertFiniteNumber(activity.priority, "volumeHud.active.priority"),
+    createdAt: assertFiniteTimestamp(activity.createdAt, "volumeHud.active.createdAt"),
+    updatedAt: assertFiniteTimestamp(activity.updatedAt, "volumeHud.active.updatedAt"),
+    expiresAt: assertFiniteTimestamp(activity.expiresAt, "volumeHud.active.expiresAt"),
+    isTransient: assertBoolean(activity.isTransient, "volumeHud.active.isTransient"),
+    status: {
+      level: normalizeLevel(status.level),
+      muted: assertBoolean(status.muted, "volumeHud.active.status.muted"),
+      previousLevel: status.previousLevel === null ? null : normalizeLevel(status.previousLevel),
+      direction: assertString(status.direction, "volumeHud.active.status.direction"),
+      displayText: assertString(status.displayText, "volumeHud.active.status.displayText")
+    },
+    compactSurface: {
+      glyph: assertString(compactSurface.glyph, "volumeHud.active.compactSurface.glyph"),
+      label: assertString(compactSurface.label, "volumeHud.active.compactSurface.label"),
+      progress: assertFiniteNumber(compactSurface.progress, "volumeHud.active.compactSurface.progress")
+    },
+    expandedSurface: {
+      title: assertString(expandedSurface.title, "volumeHud.active.expandedSurface.title"),
+      subtitle: assertString(expandedSurface.subtitle, "volumeHud.active.expandedSurface.subtitle"),
+      valueLabel: assertString(expandedSurface.valueLabel, "volumeHud.active.expandedSurface.valueLabel")
+    },
+    source: assertString(activity.source, "volumeHud.active.source"),
+    metadata: {
+      deviceName: assertString(metadata.deviceName, "volumeHud.active.metadata.deviceName"),
+      inputKind: assertString(metadata.inputKind, "volumeHud.active.metadata.inputKind"),
+      rawLevel: metadata.rawLevel,
+      rawMuted: assertBoolean(metadata.rawMuted, "volumeHud.active.metadata.rawMuted")
+    },
+    revealReadyPath: assertString(activity.revealReadyPath, "volumeHud.active.revealReadyPath"),
+    persisted: assertBoolean(activity.persisted, "volumeHud.active.persisted")
+  };
+}
+
+function serializeVolumeHudState(state = createVolumeHudState()) {
+  const active = state?.active ? serializeVolumeHudActivity(state.active) : null;
+  return {
+    schema: VOLUME_HUD_STATE_SCHEMA,
+    active
+  };
+}
+
+function deserializeVolumeHudState(serialized) {
+  const payload = assertPlainObject(serialized, "volumeHud state payload");
+  if (payload.schema !== VOLUME_HUD_STATE_SCHEMA) {
+    throw new Error(`volumeHud state schema must be ${VOLUME_HUD_STATE_SCHEMA}`);
+  }
+  if (payload.active === null) return createVolumeHudState();
+  return createVolumeHudState(serializeVolumeHudActivity(payload.active));
+}
+
 function volumeHudToNativeStatus(activity) {
   if (!activity || typeof activity !== "object") {
     throw new Error("volume HUD activity is required");
@@ -163,7 +258,9 @@ module.exports = {
   buildVolumeHudStatusPayload,
   createInitialVolumeHudCompactActivity,
   createVolumeHudState,
+  deserializeVolumeHudState,
   expireVolumeHudState,
+  serializeVolumeHudState,
   updateVisibleVolumeHudState,
   volumeHudToNativeStatus
 };

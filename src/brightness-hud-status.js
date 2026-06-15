@@ -2,6 +2,7 @@ const DEFAULT_TRANSIENT_MS = 1600;
 const DEFAULT_PRIORITY = 90;
 const DEFAULT_SOURCE = "local-brightness-observer";
 const DEFAULT_DISPLAY_NAME = "Display";
+const BRIGHTNESS_HUD_STATE_SCHEMA = "dynamac.brightnessHud.state.v1";
 
 function createBrightnessHudState(active = null) {
   return { active };
@@ -120,6 +121,102 @@ function updateVisibleBrightnessHudState(state = createBrightnessHudState(), inp
   };
 }
 
+function createInitialBrightnessHudCompactActivity(input = {}, options = {}) {
+  return applyBrightnessHudInputChange(createBrightnessHudState(), input, options).active;
+}
+
+function assertPlainObject(value, fieldName) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`${fieldName} must be an object`);
+  }
+  return value;
+}
+
+function assertString(value, fieldName) {
+  if (typeof value !== "string") {
+    throw new Error(`${fieldName} must be a string`);
+  }
+  return value;
+}
+
+function assertBoolean(value, fieldName) {
+  if (typeof value !== "boolean") {
+    throw new Error(`${fieldName} must be a boolean`);
+  }
+  return value;
+}
+
+function assertFiniteNumber(value, fieldName) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    throw new Error(`${fieldName} must be a finite number`);
+  }
+  return number;
+}
+
+function serializeBrightnessHudActivity(activity) {
+  assertPlainObject(activity, "brightnessHud.active");
+  const status = assertPlainObject(activity.status, "brightnessHud.active.status");
+  const compactSurface = assertPlainObject(activity.compactSurface, "brightnessHud.active.compactSurface");
+  const expandedSurface = assertPlainObject(activity.expandedSurface, "brightnessHud.active.expandedSurface");
+  const metadata = assertPlainObject(activity.metadata, "brightnessHud.active.metadata");
+
+  if (activity.activityType !== "brightness") {
+    throw new Error("brightnessHud.active.activityType must be brightness");
+  }
+
+  return {
+    activityId: assertString(activity.activityId, "brightnessHud.active.activityId"),
+    activityType: "brightness",
+    priority: assertFiniteNumber(activity.priority, "brightnessHud.active.priority"),
+    createdAt: assertFiniteTimestamp(activity.createdAt, "brightnessHud.active.createdAt"),
+    updatedAt: assertFiniteTimestamp(activity.updatedAt, "brightnessHud.active.updatedAt"),
+    expiresAt: assertFiniteTimestamp(activity.expiresAt, "brightnessHud.active.expiresAt"),
+    isTransient: assertBoolean(activity.isTransient, "brightnessHud.active.isTransient"),
+    status: {
+      level: normalizeLevel(status.level),
+      previousLevel: status.previousLevel === null ? null : normalizeLevel(status.previousLevel),
+      direction: assertString(status.direction, "brightnessHud.active.status.direction"),
+      displayText: assertString(status.displayText, "brightnessHud.active.status.displayText")
+    },
+    compactSurface: {
+      glyph: assertString(compactSurface.glyph, "brightnessHud.active.compactSurface.glyph"),
+      label: assertString(compactSurface.label, "brightnessHud.active.compactSurface.label"),
+      progress: assertFiniteNumber(compactSurface.progress, "brightnessHud.active.compactSurface.progress")
+    },
+    expandedSurface: {
+      title: assertString(expandedSurface.title, "brightnessHud.active.expandedSurface.title"),
+      subtitle: assertString(expandedSurface.subtitle, "brightnessHud.active.expandedSurface.subtitle"),
+      valueLabel: assertString(expandedSurface.valueLabel, "brightnessHud.active.expandedSurface.valueLabel")
+    },
+    source: assertString(activity.source, "brightnessHud.active.source"),
+    metadata: {
+      displayName: assertString(metadata.displayName, "brightnessHud.active.metadata.displayName"),
+      inputKind: assertString(metadata.inputKind, "brightnessHud.active.metadata.inputKind"),
+      rawLevel: metadata.rawLevel
+    },
+    revealReadyPath: assertString(activity.revealReadyPath, "brightnessHud.active.revealReadyPath"),
+    persisted: assertBoolean(activity.persisted, "brightnessHud.active.persisted")
+  };
+}
+
+function serializeBrightnessHudState(state = createBrightnessHudState()) {
+  const active = state?.active ? serializeBrightnessHudActivity(state.active) : null;
+  return {
+    schema: BRIGHTNESS_HUD_STATE_SCHEMA,
+    active
+  };
+}
+
+function deserializeBrightnessHudState(serialized) {
+  const payload = assertPlainObject(serialized, "brightnessHud state payload");
+  if (payload.schema !== BRIGHTNESS_HUD_STATE_SCHEMA) {
+    throw new Error(`brightnessHud state schema must be ${BRIGHTNESS_HUD_STATE_SCHEMA}`);
+  }
+  if (payload.active === null) return createBrightnessHudState();
+  return createBrightnessHudState(serializeBrightnessHudActivity(payload.active));
+}
+
 function showBrightnessHud(input = {}, options = {}) {
   const state = applyBrightnessHudInputChange(options.state || createBrightnessHudState(), input, options);
   const activity = state.active;
@@ -156,8 +253,11 @@ module.exports = {
   applyBrightnessHudInputChange,
   brightnessHudToNativeStatus,
   buildBrightnessHudStatusPayload,
+  createInitialBrightnessHudCompactActivity,
   createBrightnessHudState,
+  deserializeBrightnessHudState,
   expireBrightnessHudState,
+  serializeBrightnessHudState,
   showBrightnessHud,
   updateVisibleBrightnessHudState
 };

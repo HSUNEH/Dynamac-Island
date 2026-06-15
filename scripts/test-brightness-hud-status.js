@@ -6,8 +6,11 @@ const {
   applyBrightnessHudInputChange,
   brightnessHudToNativeStatus,
   buildBrightnessHudStatusPayload,
+  createInitialBrightnessHudCompactActivity,
   createBrightnessHudState,
+  deserializeBrightnessHudState,
   expireBrightnessHudState,
+  serializeBrightnessHudState,
   showBrightnessHud,
   updateVisibleBrightnessHudState
 } = require("../src/brightness-hud-status");
@@ -15,6 +18,23 @@ const {
 const initial = createBrightnessHudState();
 assert.deepEqual(initial, { active: null }, "brightness HUD starts with no active transient status");
 assert.deepEqual(buildBrightnessHudStatusPayload(initial), { statuses: [] }, "inactive brightness HUD should not emit a status item");
+
+const initialCompactActivity = createInitialBrightnessHudCompactActivity({
+  level: 25,
+  displayName: "Built-in Liquid Retina XDR",
+  source: "fixture-brightness-observer",
+  observedAt: 1718323199000
+});
+assert.equal(initialCompactActivity.activityType, "brightness", "initial compact state should expose a brightness activity");
+assert.equal(initialCompactActivity.isTransient, true, "initial compact state should be transient");
+assert.equal(initialCompactActivity.persisted, false, "initial compact state should not persist by default");
+assert.equal(initialCompactActivity.status.direction, "initial", "initial compact state should mark first observed level as initial");
+assert.deepEqual(initialCompactActivity.compactSurface, {
+  glyph: "sun.max",
+  label: "25%",
+  progress: 0.25
+}, "initial compact state should show the observed brightness level");
+assert.equal(initialCompactActivity.expiresAt, 1718323200600, "initial compact state should expire after the default HUD window");
 
 const shownBrightness = showBrightnessHud({
   level: 64,
@@ -163,6 +183,31 @@ assert.equal(validation.ok, true, "brightness HUD payload should pass shared sta
 assert.deepEqual(validation.errors, []);
 assert.equal(validation.statuses[0].brightnessHud.persisted, false, "brightness HUD state must not persist by default");
 
+const serializedBrightnessState = serializeBrightnessHudState(brighter);
+assert.deepEqual(serializedBrightnessState, {
+  schema: "dynamac.brightnessHud.state.v1",
+  active: brighter.active
+}, "brightness HUD compact state should serialize through a stable schema envelope");
+
+const serializedBrightnessJson = JSON.stringify(serializedBrightnessState);
+assert.equal(
+  serializedBrightnessJson,
+  "{\"schema\":\"dynamac.brightnessHud.state.v1\",\"active\":{\"activityId\":\"brightness-1718323200000\",\"activityType\":\"brightness\",\"priority\":90,\"createdAt\":1718323200000,\"updatedAt\":1718323200250,\"expiresAt\":1718323201850,\"isTransient\":true,\"status\":{\"level\":75,\"previousLevel\":12,\"direction\":\"up\",\"displayText\":\"75%\"},\"compactSurface\":{\"glyph\":\"sun.max\",\"label\":\"75%\",\"progress\":0.75},\"expandedSurface\":{\"title\":\"Brightness\",\"subtitle\":\"Studio Display · 75%\",\"valueLabel\":\"75%\"},\"source\":\"fixture-brightness-observer\",\"metadata\":{\"displayName\":\"Studio Display\",\"inputKind\":\"brightness\",\"rawLevel\":75.4},\"revealReadyPath\":\"\",\"persisted\":false}}",
+  "brightness HUD compact state JSON should be deterministic for fixture round-trip tests"
+);
+
+const deserializedBrightnessState = deserializeBrightnessHudState(JSON.parse(serializedBrightnessJson));
+assert.deepEqual(deserializedBrightnessState, brighter, "deserialized brightness HUD compact state should match the source state exactly");
+assert.equal(
+  JSON.stringify(serializeBrightnessHudState(deserializedBrightnessState)),
+  serializedBrightnessJson,
+  "brightness HUD compact state should survive a deterministic serialize/deserialize/serialize round trip"
+);
+assert.deepEqual(serializeBrightnessHudState(createBrightnessHudState()), {
+  schema: "dynamac.brightnessHud.state.v1",
+  active: null
+}, "inactive brightness HUD compact state should serialize explicitly without persisted clipboard-like history");
+
 assert.throws(
   () => applyBrightnessHudInputChange(initial, { level: 101, observedAt: 1718323200000 }),
   /brightness level must be between 0 and 100/,
@@ -177,6 +222,16 @@ assert.throws(
   () => expireBrightnessHudState(brighter, { now: "bad" }),
   /now must be a finite timestamp/,
   "invalid expiry timestamps should fail predictably"
+);
+assert.throws(
+  () => deserializeBrightnessHudState({ schema: "dynamac.brightnessHud.state.v0", active: null }),
+  /brightnessHud state schema must be dynamac\.brightnessHud\.state\.v1/,
+  "brightness HUD compact state should reject unknown serialization schemas"
+);
+assert.throws(
+  () => deserializeBrightnessHudState({ schema: "dynamac.brightnessHud.state.v1", active: { ...brighter.active, activityType: "volume" } }),
+  /brightnessHud\.active\.activityType must be brightness/,
+  "brightness HUD compact state should reject non-brightness activities during deserialization"
 );
 
 console.log("Brightness HUD status model test passed.");

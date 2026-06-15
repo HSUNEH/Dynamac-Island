@@ -7,7 +7,9 @@ const {
   buildVolumeHudStatusPayload,
   createInitialVolumeHudCompactActivity,
   createVolumeHudState,
+  deserializeVolumeHudState,
   expireVolumeHudState,
+  serializeVolumeHudState,
   updateVisibleVolumeHudState,
   volumeHudToNativeStatus
 } = require("../src/volume-hud-status");
@@ -176,6 +178,31 @@ assert.equal(validation.ok, true, "volume HUD payload should pass shared status 
 assert.deepEqual(validation.errors, []);
 assert.equal(validation.statuses[0].volumeHud.persisted, false, "clipboard/history-like HUD state must not persist by default");
 
+const serializedVolumeState = serializeVolumeHudState(louder);
+assert.deepEqual(serializedVolumeState, {
+  schema: "dynamac.volumeHud.state.v1",
+  active: louder.active
+}, "volume HUD compact state should serialize through a stable schema envelope");
+
+const serializedVolumeJson = JSON.stringify(serializedVolumeState);
+assert.equal(
+  serializedVolumeJson,
+  "{\"schema\":\"dynamac.volumeHud.state.v1\",\"active\":{\"activityId\":\"volume-1718323200000\",\"activityType\":\"volume\",\"priority\":90,\"createdAt\":1718323200000,\"updatedAt\":1718323200250,\"expiresAt\":1718323201850,\"isTransient\":true,\"status\":{\"level\":42,\"muted\":false,\"previousLevel\":20,\"direction\":\"up\",\"displayText\":\"42%\"},\"compactSurface\":{\"glyph\":\"speaker\",\"label\":\"42%\",\"progress\":0.42},\"expandedSurface\":{\"title\":\"Volume\",\"subtitle\":\"Studio Display Speakers · 42%\",\"valueLabel\":\"42%\"},\"source\":\"fixture-volume-observer\",\"metadata\":{\"deviceName\":\"Studio Display Speakers\",\"inputKind\":\"volume\",\"rawLevel\":42.4,\"rawMuted\":false},\"revealReadyPath\":\"\",\"persisted\":false}}",
+  "volume HUD compact state JSON should be deterministic for fixture round-trip tests"
+);
+
+const deserializedVolumeState = deserializeVolumeHudState(JSON.parse(serializedVolumeJson));
+assert.deepEqual(deserializedVolumeState, louder, "deserialized volume HUD compact state should match the source state exactly");
+assert.equal(
+  JSON.stringify(serializeVolumeHudState(deserializedVolumeState)),
+  serializedVolumeJson,
+  "volume HUD compact state should survive a deterministic serialize/deserialize/serialize round trip"
+);
+assert.deepEqual(serializeVolumeHudState(createVolumeHudState()), {
+  schema: "dynamac.volumeHud.state.v1",
+  active: null
+}, "inactive volume HUD compact state should serialize explicitly without persisted clipboard-like history");
+
 assert.throws(
   () => applyVolumeHudInputChange(initial, { level: -1, observedAt: 1718323200000 }),
   /volume level must be between 0 and 100/,
@@ -190,6 +217,16 @@ assert.throws(
   () => expireVolumeHudState(louder, { now: "bad" }),
   /now must be a finite timestamp/,
   "invalid expiry timestamps should fail predictably"
+);
+assert.throws(
+  () => deserializeVolumeHudState({ schema: "dynamac.volumeHud.state.v0", active: null }),
+  /volumeHud state schema must be dynamac\.volumeHud\.state\.v1/,
+  "volume HUD compact state should reject unknown serialization schemas"
+);
+assert.throws(
+  () => deserializeVolumeHudState({ schema: "dynamac.volumeHud.state.v1", active: { ...louder.active, activityType: "brightness" } }),
+  /volumeHud\.active\.activityType must be volume/,
+  "volume HUD compact state should reject non-volume activities during deserialization"
 );
 
 console.log("Volume HUD status model test passed.");

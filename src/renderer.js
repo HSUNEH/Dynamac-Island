@@ -15,6 +15,7 @@ const snufflesUi = window.DynamacSnufflesUi;
 const codexUi = window.DynamacCodexUi;
 const ouroborosUi = window.DynamacOuroborosUi;
 const timerUi = window.DynamacTimerUi;
+const clipboardPreviewUi = window.DynamacClipboardPreviewUi;
 
 function renderError(payload) {
   summary.textContent = "Status input error";
@@ -145,6 +146,10 @@ function createStatusViews(statuses) {
       return timerUi.renderTimerStateView(viewModel);
     }
 
+    if (clipboardPreviewUi && viewModel.agent === clipboardPreviewUi.CLIPBOARD_AGENT) {
+      return clipboardPreviewUi.renderClipboardExpandedPreview(viewModel);
+    }
+
     if (viewModel.agent === codexUi.CODEX_AGENT) {
       return codexUi.renderCodexStateView(viewModel);
     }
@@ -161,6 +166,10 @@ function createStatusViewModels(statuses) {
   return statuses.map((status) => {
     if (timerUi && timerUi.isTimerStatus(status)) {
       return timerUi.createTimerViewModel(status);
+    }
+
+    if (clipboardPreviewUi && clipboardPreviewUi.isClipboardStatus(status)) {
+      return clipboardPreviewUi.createClipboardPreviewViewModel(status);
     }
 
     if (status.agent.trim().toLowerCase() === codexUi.CODEX_AGENT.toLowerCase()) {

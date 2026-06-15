@@ -384,3 +384,68 @@ h1 {
 .status-card.timer .timer-compact-progress-row {
   margin-top: 10px;
 }
+
+.clipboard-preview {
+  grid-column: span 2;
+}
+
+.clipboard-preview-header {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  margin-top: 8px;
+}
+
+.clipboard-preview-header p {
+  display: block;
+  -webkit-line-clamp: unset;
+}
+
+.clipboard-preview-icon {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 12px;
+  color: #f7f7f2;
+  background: rgba(84, 198, 255, 0.18);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.clipboard-preview-text {
+  display: block;
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 14px;
+  color: #f7f7f2;
+  background: rgba(255, 255, 255, 0.08);
+  -webkit-line-clamp: unset;
+}
+
+.clipboard-preview-kind {
+  display: inline-block;
+  margin-top: 8px;
+  color: #aeb4be;
+  font-size: 10px;
+}
+
+.clipboard-preview-fallback {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.clipboard-preview-fallback strong {
+  color: #f7f7f2;
+  font-size: 12px;
+}
+
+.clipboard-preview-fallback p {
+  display: block;
+  margin-top: 5px;
+  -webkit-line-clamp: unset;
+}

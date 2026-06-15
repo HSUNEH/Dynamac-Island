@@ -1,0 +1,65 @@
+#!/usr/bin/env node
+
+const assert = require("node:assert");
+const fs = require("node:fs");
+const path = require("node:path");
+
+const storePath = path.join(__dirname, "..", "src", "clipboard-activity-store.js");
+const source = fs.readFileSync(storePath, "utf8");
+assert.doesNotMatch(source, /require\("node:fs"\)|writeFile|readFile|localStorage|sessionStorage/, "clipboard activity store must remain in-memory only");
+
+const store = require("../src/clipboard-activity-store");
+const { textSignature } = require("../src/clipboard-activity");
+
+const now = 1718323200000;
+
+const initial = store.createClipboardActivityStore();
+assert.deepEqual(initial, { lastSignature: "", active: null }, "in-memory clipboard store should start empty");
+assert.deepEqual(store.readClipboardActivityStore(), initial, "read should return the current in-memory clipboard state");
+
+const created = store.createClipboardActivity({
+  plainText: "Clipboard store text",
+  observedAt: now,
+  source: "memory-store-fixture",
+  type: "text/plain"
+}, { now });
+
+assert.equal(created.status.activityType, "clipboard", "creating from a fresh text read should emit clipboard activity status");
+assert.equal(created.state.lastSignature, textSignature("Clipboard store text"));
+assert.equal(created.state.active.activityType, "clipboard");
+assert.equal(created.state.active.persisted, false, "clipboard activity store entries must not opt into persistence");
+assert.equal(JSON.stringify(created.state).includes("plainText"), false, "clipboard store should never retain raw plainText fields");
+
+const readBack = store.readClipboardActivityStore();
+assert.deepEqual(readBack, created.state, "read should return the created in-memory state");
+readBack.active.status.label = "mutated outside";
+assert.notEqual(store.readClipboardActivityStore().active.status.label, "mutated outside", "read should return a defensive copy, not the mutable module state");
+
+const duplicate = store.createClipboardActivity({
+  plainText: "Clipboard store text",
+  observedAt: now + 100,
+  source: "memory-store-fixture",
+  type: "text/plain"
+}, { now: now + 100 });
+assert.equal(duplicate.status.activityType, "futurePassive", "store should use its in-memory signature to suppress duplicate clipboard reads");
+assert.equal(duplicate.state.active, null, "suppressed duplicate should clear the active clipboard activity");
+
+const cleared = store.clearClipboardActivityStore();
+assert.deepEqual(cleared, { lastSignature: "", active: null }, "clear should reset clipboard store memory");
+assert.deepEqual(store.readClipboardActivityStore(), cleared, "read after clear should show no retained clipboard activity");
+
+const afterClear = store.createClipboardActivity({
+  plainText: "Clipboard store text",
+  observedAt: now + 200,
+  source: "memory-store-fixture",
+  type: "text/plain"
+}, { now: now + 200 });
+assert.equal(afterClear.status.activityType, "clipboard", "same text should emit again after explicit in-memory clear");
+
+store.clearClipboardActivityStore();
+const modulePath = require.resolve("../src/clipboard-activity-store");
+delete require.cache[modulePath];
+const reloadedStore = require("../src/clipboard-activity-store");
+assert.deepEqual(reloadedStore.readClipboardActivityStore(), { lastSignature: "", active: null }, "module reload should not recover clipboard history from disk or restart state");
+
+console.log("Clipboard activity in-memory store test passed.");
