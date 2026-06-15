@@ -7,6 +7,7 @@ const {
   brightnessHudToNativeStatus,
   buildBrightnessHudStatusPayload,
   createBrightnessHudState,
+  expireBrightnessHudState,
   showBrightnessHud,
   updateVisibleBrightnessHudState
 } = require("../src/brightness-hud-status");
@@ -138,6 +139,14 @@ assert.equal(replacedVisibleBrightness.activity.createdAt, 1718323204101, "repla
 assert.equal(replacedVisibleBrightness.activity.status.previousLevel, null, "replacement should not leak the expired previous brightness level");
 assert.equal(replacedVisibleBrightness.activity.compactSurface.label, "35%", "replacement should expose the new visible brightness level");
 
+const stillVisibleAtExpiryBoundary = expireBrightnessHudState(brighter, { now: 1718323201850 });
+assert.equal(stillVisibleAtExpiryBoundary.active.activityId, "brightness-1718323200000", "brightness HUD should remain visible through its exact expiry boundary");
+assert.equal(stillVisibleAtExpiryBoundary.active.status.level, 75, "visible brightness level should remain available before clearing");
+
+const clearedAfterTransientLifetime = expireBrightnessHudState(brighter, { now: 1718323201851 });
+assert.deepEqual(clearedAfterTransientLifetime, { active: null }, "brightness HUD should clear compact level state after its transient lifetime");
+assert.deepEqual(buildBrightnessHudStatusPayload(clearedAfterTransientLifetime), { statuses: [] }, "cleared brightness HUD should not emit a native status item");
+
 const status = brightnessHudToNativeStatus(brighter.active);
 assert.deepEqual(status, {
   agent: "Brightness",
@@ -163,6 +172,11 @@ assert.throws(
   () => applyBrightnessHudInputChange(initial, { level: 50, observedAt: "bad" }),
   /observedAt must be a finite timestamp/,
   "invalid observation timestamps should fail predictably"
+);
+assert.throws(
+  () => expireBrightnessHudState(brighter, { now: "bad" }),
+  /now must be a finite timestamp/,
+  "invalid expiry timestamps should fail predictably"
 );
 
 console.log("Brightness HUD status model test passed.");

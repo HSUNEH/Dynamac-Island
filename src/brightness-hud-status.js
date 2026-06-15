@@ -64,6 +64,12 @@ function reusablePreviousActivity(state, observedAt) {
   return Number(previous.expiresAt) >= observedAt ? previous : null;
 }
 
+function expireBrightnessHudState(state = createBrightnessHudState(), options = {}) {
+  const now = assertFiniteTimestamp(options.now ?? Date.now(), "now");
+  const active = reusablePreviousActivity(state, now);
+  return active ? createBrightnessHudState(active) : createBrightnessHudState();
+}
+
 function applyBrightnessHudInputChange(state = createBrightnessHudState(), input = {}, options = {}) {
   const observedAt = assertFiniteTimestamp(input.observedAt ?? options.now ?? Date.now(), "observedAt");
   const level = normalizeLevel(input.level);
@@ -151,6 +157,7 @@ module.exports = {
   brightnessHudToNativeStatus,
   buildBrightnessHudStatusPayload,
   createBrightnessHudState,
+  expireBrightnessHudState,
   showBrightnessHud,
   updateVisibleBrightnessHudState
 };
