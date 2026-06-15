@@ -29,6 +29,7 @@ struct CompactActivitySurface: Decodable {
 
 struct StatusItem: Decodable {
     var agent: String
+    var activityId: String?
     var activityType: String?
     var state: String
     var task: String
@@ -519,6 +520,9 @@ final class IslandView: NSView {
 
     private func statusActivityIds(_ status: StatusItem) -> Set<String> {
         var ids = Set<String>()
+        if let activityId = status.activityId, !activityId.isEmpty {
+            ids.insert(activityId)
+        }
         if let timerId = status.timer?.id, !timerId.isEmpty {
             ids.insert(timerId)
             ids.insert("timer-\(timerId)")

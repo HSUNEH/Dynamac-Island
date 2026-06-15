@@ -12,6 +12,7 @@ const nativeSource = fs.readFileSync(path.join(repoRoot, "native", "DynamacIslan
 const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8"));
 
 assert.match(nativeSource, /struct ActivityRouterSnapshot: Decodable/, "native app-mode status payload should decode the Activity Router snapshot");
+assert.match(nativeSource, /var activityId: String\?/, "native status items should decode top-level activity ids for exact router binding");
 assert.match(nativeSource, /var activityRouter: ActivityRouterSnapshot\?/, "native island view should retain the current Activity Router snapshot");
 assert.match(nativeSource, /routedStatusForCompactSurface/, "native UI should resolve the routed compact surface before legacy Timer\/media fallback");
 assert.match(nativeSource, /drawRoutedGenericActivity/, "native UI should have a simple generic compact\/expanded activity surface for routed DynaKeys\/DynaClip\/DynaShelf activities");
@@ -87,7 +88,12 @@ const payload = {
     }
   }
 };
-fs.writeFileSync(statusPath, `${JSON.stringify(payload, null, 2)}\n`);
+
+function writePayload(nextPayload) {
+  fs.writeFileSync(statusPath, `${JSON.stringify(nextPayload, null, 2)}\n`);
+}
+
+writePayload(payload);
 
 function runNative(extraEnv = {}) {
   const result = childProcess.spawnSync(nativePath, {
@@ -124,6 +130,62 @@ assert.match(expandedOutput, /expanded=false/, "expanded smoke run should still 
 assert.match(expandedOutput, /expanded=true/, "expanded smoke run should cover the post-transition app-mode state");
 assert.match(expandedOutput, /active=activityRouter[^\n]+presentation=clipboard[^\n]+expanded=true/, "Activity Router selection should survive the compact→expanded app-mode transition");
 assert.doesNotMatch(expandedOutput, /active=timer[^\n]+expanded=true/, "expanded transition should not fall back to Timer when router selected Clipboard");
+
+const duplicateTypePayload = {
+  statuses: [
+    {
+      agent: "Clipboard",
+      activityId: "clipboard-older-non-winner",
+      activityType: "clipboard",
+      state: "running",
+      task: "Copied older text",
+      detail: "first clipboard item must not win by type-only fallback",
+      updatedAt: "2026-06-15T00:00:01.000Z",
+      persisted: false
+    },
+    {
+      agent: "Clipboard",
+      activityId: "clipboard-exact-router-winner",
+      activityType: "clipboard",
+      state: "running",
+      task: "Copied exact routed URL",
+      detail: "https://example.com/exact-router-winner",
+      updatedAt: "2026-06-15T00:00:02.000Z",
+      persisted: false
+    }
+  ],
+  activityRouter: {
+    rankedActivities: [
+      {
+        activityId: "clipboard-exact-router-winner",
+        activityType: "clipboard",
+        priority: 500,
+        createdAt: 1781481602000,
+        updatedAt: 1781481602000
+      },
+      {
+        activityId: "clipboard-older-non-winner",
+        activityType: "clipboard",
+        priority: 500,
+        createdAt: 1781481601000,
+        updatedAt: 1781481601000
+      }
+    ],
+    compactSurface: {
+      activityId: "clipboard-exact-router-winner",
+      activityType: "clipboard",
+      priority: 500,
+      label: "Copied exact routed URL",
+      glyph: "link"
+    }
+  }
+};
+writePayload(duplicateTypePayload);
+const duplicateTypeOutput = runNative();
+assert.match(duplicateTypeOutput, /active=activityRouter/, "native router smoke should stay active for duplicate activity-type routing");
+assert.match(duplicateTypeOutput, /routerCompactActivityId=clipboard-exact-router-winner/, "native dump should preserve the exact routed compact id for duplicate activity types");
+assert.match(duplicateTypeOutput, /task=Copied exact routed URL/, "native router resolution should bind by activityId before falling back to activityType");
+assert.doesNotMatch(duplicateTypeOutput, /task=Copied older text/, "native router resolution must not select the first same-type status when compactSurface.activityId matches another status");
 
 fs.rmSync(tempDir, { recursive: true, force: true });
 
