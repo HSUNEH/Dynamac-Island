@@ -1,11 +1,25 @@
 #!/usr/bin/env node
 
 const assert = require("node:assert");
+const fs = require("node:fs");
+const path = require("node:path");
 const { buildActivityRouterSnapshot, normalizeActivity, rankActivities, selectCompactActivity } = require("../src/activity-router");
 const { buildMacActivityStatusPayload, collectTimerStatus } = require("../src/mac-activity-status");
 const { parseTimerDuration } = require("../src/timer-duration");
 const { completeTimerIfElapsed, createTimerState, startTimer, stopTimer, TIMER_STATES } = require("../src/timer-state");
 const { buildTimerActivityFromStatus, collectTimerActivityStatus } = require("../src/timer-activity-source");
+
+const activityRouterSource = fs.readFileSync(path.join(__dirname, "..", "src", "activity-router.js"), "utf8");
+assert.match(
+  activityRouterSource,
+  /const \{ isRunningTimer \} = require\("\.\/timer-state"\);/,
+  "activity router must import the existing Timer MVP model helper for compact eligibility"
+);
+assert.doesNotMatch(
+  activityRouterSource,
+  /timerState\s*===\s*["']running["']/,
+  "activity router must not duplicate Timer MVP running-state logic inline"
+);
 
 const activeNow = new Date("2026-06-15T09:00:30.000Z");
 const activeTimerState = createTimerState();

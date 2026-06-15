@@ -1,3 +1,5 @@
+const { isRunningTimer } = require("./timer-state");
+
 const ACTIVITY_PRIORITIES = Object.freeze({
   volume: 600,
   brightness: 600,
@@ -81,8 +83,25 @@ function isCompactEligibleActivity(activity) {
   if (activity.activityType === "battery") return activity.status?.state === "running";
   if (activity.activityType !== "timer") return true;
 
-  const timerState = activity.status?.timer?.state;
-  if (typeof timerState === "string") return timerState === "running";
+  return isTimerActivityCompactEligible(activity);
+}
+
+function timerModelForActivity(activity) {
+  if (activity.status?.timer && typeof activity.status.timer === "object" && !Array.isArray(activity.status.timer)) {
+    return activity.status.timer;
+  }
+
+  const embeddedTimerState = activity.status?.activity?.status?.timerState || activity.status?.timerState;
+  if (typeof embeddedTimerState === "string" && embeddedTimerState.trim() !== "") {
+    return { state: embeddedTimerState };
+  }
+
+  return null;
+}
+
+function isTimerActivityCompactEligible(activity) {
+  const timer = timerModelForActivity(activity);
+  if (timer) return isRunningTimer(timer);
   return activity.status?.state === "running";
 }
 
@@ -189,6 +208,7 @@ module.exports = {
   activityTypeForStatus,
   buildActivityRouterSnapshot,
   compareActivities,
+  isTimerActivityCompactEligible,
   normalizeActivity,
   rankActivities,
   suppressOverlappingHudActivities,

@@ -102,6 +102,18 @@ function applyBrightnessHudInputChange(state = createBrightnessHudState(), input
   });
 }
 
+function updateVisibleBrightnessHudState(state = createBrightnessHudState(), input = {}, options = {}) {
+  const observedAt = assertFiniteTimestamp(input.observedAt ?? options.now ?? Date.now(), "observedAt");
+  const previousActivity = reusablePreviousActivity(state, observedAt);
+  const nextState = applyBrightnessHudInputChange(state, { ...input, observedAt }, options);
+
+  return {
+    state: nextState,
+    activity: nextState.active,
+    updateKind: previousActivity ? "refreshed" : "replaced"
+  };
+}
+
 function showBrightnessHud(input = {}, options = {}) {
   const state = applyBrightnessHudInputChange(options.state || createBrightnessHudState(), input, options);
   const activity = state.active;
@@ -139,5 +151,6 @@ module.exports = {
   brightnessHudToNativeStatus,
   buildBrightnessHudStatusPayload,
   createBrightnessHudState,
-  showBrightnessHud
+  showBrightnessHud,
+  updateVisibleBrightnessHudState
 };

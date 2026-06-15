@@ -198,6 +198,7 @@ module.exports = {
   completeTimerIfElapsed,
   createTimerId,
   createTimerState,
+  isRunningTimer,
   pauseTimer,
   resetTimer,
   stopTimer,

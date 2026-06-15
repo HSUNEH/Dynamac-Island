@@ -12,8 +12,20 @@ function finiteTimestamp(value, fallback = Date.now()) {
 
 function truncate(value, maxLength = PREVIEW_MAX_LENGTH) {
   const text = String(value || "").replace(/\s+/g, " ").trim();
-  if (text.length <= maxLength) return text;
-  return `${text.slice(0, Math.max(0, maxLength - 1))}…`;
+  const limit = Number.isFinite(Number(maxLength)) ? Math.max(0, Math.floor(Number(maxLength))) : PREVIEW_MAX_LENGTH;
+  const characters = Array.from(text);
+  if (characters.length <= limit) return text;
+  if (limit <= 0) return "";
+  if (limit === 1) return "…";
+
+  let headLength = Math.ceil((limit - 1) / 2);
+  if (characters[headLength - 1] && /\S/.test(characters[headLength - 1]) && characters[headLength] && /\S/.test(characters[headLength])) {
+    const nextBreakIndex = characters.findIndex((character, index) => index >= headLength && /\s/.test(character));
+    const wordEnd = nextBreakIndex === -1 ? characters.length : nextBreakIndex;
+    if (wordEnd < characters.length && wordEnd < limit - 1) headLength = wordEnd;
+  }
+  const tailLength = limit - 1 - headLength;
+  return `${characters.slice(0, headLength).join("")}…${characters.slice(characters.length - tailLength).join("")}`;
 }
 
 function formatClipboardPreviewText(text, classification = "text", maxLength = PREVIEW_MAX_LENGTH) {
@@ -193,7 +205,8 @@ function buildClipboardCopiedHudActivity(copyEvent, options = {}) {
   const classification = String(options.classification || copyEvent.classification || "text").trim() || "text";
   const characterCount = Number.isFinite(Number(options.characterCount ?? copyEvent.characterCount)) ? Number(options.characterCount ?? copyEvent.characterCount) : 0;
   const label = String(options.label || labelForClipboardClassification(classification, characterCount));
-  const preview = truncate(options.preview || "");
+  const rawPreview = String(options.preview || "");
+  const preview = Array.from(rawPreview).length <= PREVIEW_MAX_LENGTH ? rawPreview : truncate(rawPreview);
   const source = String(options.source || copyEvent.source || DEFAULT_SOURCE).trim() || DEFAULT_SOURCE;
 
   return {

@@ -7,7 +7,8 @@ const {
   brightnessHudToNativeStatus,
   buildBrightnessHudStatusPayload,
   createBrightnessHudState,
-  showBrightnessHud
+  showBrightnessHud,
+  updateVisibleBrightnessHudState
 } = require("../src/brightness-hud-status");
 
 const initial = createBrightnessHudState();
@@ -92,6 +93,21 @@ assert.equal(brighter.active.compactSurface.label, "75%");
 assert.equal(brighter.active.compactSurface.progress, 0.75);
 assert.equal(brighter.active.expandedSurface.subtitle, "Studio Display · 75%");
 
+const refreshedVisibleBrightness = updateVisibleBrightnessHudState(brighter, {
+  level: 75,
+  displayName: "Studio Display",
+  source: "fixture-brightness-observer",
+  observedAt: 1718323200900
+});
+assert.equal(refreshedVisibleBrightness.updateKind, "refreshed", "visible brightness HUD should refresh an unexpired visible activity");
+assert.equal(refreshedVisibleBrightness.activity.activityId, "brightness-1718323200000", "refreshed visible brightness should keep one stable activity identity");
+assert.equal(refreshedVisibleBrightness.activity.createdAt, 1718323200000, "refreshed visible brightness should preserve the original creation timestamp");
+assert.equal(refreshedVisibleBrightness.activity.updatedAt, 1718323200900, "refreshed visible brightness should advance updatedAt");
+assert.equal(refreshedVisibleBrightness.activity.expiresAt, 1718323202500, "refreshed visible brightness should extend the visible HUD expiry");
+assert.equal(refreshedVisibleBrightness.activity.status.direction, "steady", "refreshing the same brightness should keep deterministic steady direction");
+assert.equal(refreshedVisibleBrightness.activity.compactSurface.label, "75%", "refreshed visible brightness should keep the visible level label current");
+assert.deepEqual(refreshedVisibleBrightness.state, { active: refreshedVisibleBrightness.activity }, "visible brightness updates should keep a single active state slot instead of overlapping activities");
+
 const dimmer = applyBrightnessHudInputChange(brighter, {
   level: 8,
   displayName: "Studio Display",
@@ -109,6 +125,18 @@ const freshAfterExpiry = applyBrightnessHudInputChange(dimmer, {
 });
 assert.equal(freshAfterExpiry.active.activityId, "brightness-1718323202501", "new input after expiry should start a new activity instance");
 assert.equal(freshAfterExpiry.active.status.direction, "initial", "expired previous level should not leak into a new burst");
+
+const replacedVisibleBrightness = updateVisibleBrightnessHudState(refreshedVisibleBrightness.state, {
+  level: 35,
+  displayName: "Studio Display",
+  source: "fixture-brightness-observer",
+  observedAt: 1718323204101
+});
+assert.equal(replacedVisibleBrightness.updateKind, "replaced", "expired visible brightness HUD should be replaced by the next input");
+assert.equal(replacedVisibleBrightness.activity.activityId, "brightness-1718323204101", "replacement should receive a fresh activity identity");
+assert.equal(replacedVisibleBrightness.activity.createdAt, 1718323204101, "replacement should start a fresh creation timestamp");
+assert.equal(replacedVisibleBrightness.activity.status.previousLevel, null, "replacement should not leak the expired previous brightness level");
+assert.equal(replacedVisibleBrightness.activity.compactSurface.label, "35%", "replacement should expose the new visible brightness level");
 
 const status = brightnessHudToNativeStatus(brighter.active);
 assert.deepEqual(status, {

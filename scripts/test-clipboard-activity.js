@@ -167,6 +167,25 @@ assert.equal(
   "inline code previews should preserve the first code line"
 );
 
+const oversizedCopiedText = `Alpha ${"middle ".repeat(20)}Omega`;
+const oversizedPreview = formatClipboardPreviewText(oversizedCopiedText, "text", 24);
+assert.equal(oversizedPreview, "Alpha middle…iddle Omega", "oversized text previews should keep deterministic head/tail context");
+assert.equal(Array.from(oversizedPreview).length, 24, "oversized text previews should respect the exact preview length cap");
+
+const oversizedUnicodePreview = formatClipboardPreviewText("🐶".repeat(40), "text", 7);
+assert.equal(oversizedUnicodePreview, "🐶🐶🐶…🐶🐶🐶", "oversized previews should truncate by Unicode characters instead of UTF-16 units");
+assert.equal(Array.from(oversizedUnicodePreview).length, 7);
+
+const oversizedStatus = buildClipboardStatusFromText(oversizedCopiedText, {
+  now: now + 450,
+  observedAt: now + 450,
+  previousSignature: textSignature("previous copied text"),
+  source: "fixture-clipboard"
+});
+assert.equal(oversizedStatus.status.detail, formatClipboardPreviewText(oversizedCopiedText, "text"), "clipboard status should use the same deterministic oversized preview formatter");
+assert.equal(Array.from(oversizedStatus.status.detail).length, 120, "clipboard status previews should use the default deterministic cap");
+assert.equal(JSON.stringify(oversizedStatus.status).includes(oversizedCopiedText), false, "oversized raw clipboard text must not leak into status payloads");
+
 const proseClass = classifyClipboardText("Meeting notes: please return the file before lunch and confirm when you are done.");
 assert.equal(proseClass.classification, "text", "ordinary prose with punctuation should remain plain text");
 assert.equal(proseClass.label, "Text copied · 81 chars");
