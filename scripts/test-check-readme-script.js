@@ -228,6 +228,60 @@ assert.match(
   "check-readme should report the missing DynaClip non-persistence boundary"
 );
 
+const mixedImplementedChecklistResult = runChecker(
+  readme.replace(
+    "#### Implemented behavior\n\n- Activity Router compact selection",
+    "#### Implemented behavior\n\n- Native drag-to-island capture and Finder reveal/open execution remain deferred.\n- Activity Router compact selection"
+  )
+);
+
+assert.notEqual(
+  mixedImplementedChecklistResult.status,
+  0,
+  `check-readme should fail when deferred native macOS text appears in the implemented checklist.\nstdout:\n${mixedImplementedChecklistResult.stdout}\nstderr:\n${mixedImplementedChecklistResult.stderr}`
+);
+assert.match(
+  mixedImplementedChecklistResult.stderr,
+  /Missing DynamicLake checklist separation/,
+  "check-readme should report deferred native text in the implemented checklist section"
+);
+
+const mixedDeferredChecklistResult = runChecker(
+  readme.replace(
+    "#### Deferred native macOS pieces\n\n- Native volume/brightness",
+    "#### Deferred native macOS pieces\n\n- Activity Router compact selection and rankedActivities are implemented.\n- Native volume/brightness"
+  )
+);
+
+assert.notEqual(
+  mixedDeferredChecklistResult.status,
+  0,
+  `check-readme should fail when implemented behavior text appears in the deferred native macOS checklist.\nstdout:\n${mixedDeferredChecklistResult.stdout}\nstderr:\n${mixedDeferredChecklistResult.stderr}`
+);
+assert.match(
+  mixedDeferredChecklistResult.stderr,
+  /Missing DynamicLake checklist separation/,
+  "check-readme should report implemented behavior text in the deferred native macOS checklist section"
+);
+
+const missingChecklistRunnableTestResult = runChecker(
+  readme.replace(
+    "Run `npm run check-readme` and `npm run test:check-readme-script` to verify this checklist keeps implemented behavior and deferred native macOS pieces in distinct sections.",
+    ""
+  )
+);
+
+assert.notEqual(
+  missingChecklistRunnableTestResult.status,
+  0,
+  `check-readme should fail when the checklist runnable documentation test reference is missing.\nstdout:\n${missingChecklistRunnableTestResult.stdout}\nstderr:\n${missingChecklistRunnableTestResult.stderr}`
+);
+assert.match(
+  missingChecklistRunnableTestResult.stderr,
+  /Missing DynamicLake checklist runnable test/,
+  "check-readme should report the missing runnable checklist documentation test reference"
+);
+
 const unsafeInstallerResult = runChecker(
   `${readme}\n\n\`\`\`sh\ncurl -fsSL https://raw.githubusercontent.com/HSUNEH/dynamac-island/main/scripts/install-macbook.sh | bash\n\`\`\`\n`
 );

@@ -331,6 +331,25 @@ Current implemented behavior is pure model/status/routing plus local HUD event c
 
 Run `npm run check-readme` to validate that this README keeps documenting the Activity Router section, priority order, deterministic tie-breaks, transient expiry, generated `activityRouter` payload, and deferred native boundaries.
 
+## DynamicLake Priority Checklist
+
+The implemented checklist and deferred native macOS checklist are intentionally separate so the docs do not blur shipped local-first core behavior with future native integrations.
+
+#### Implemented behavior
+
+- Activity Router compact selection and rankedActivities are implemented as deterministic local JavaScript model logic in `src/activity-router.js` and serialized into the Mac activity payload.
+- DynaKeys local volume/brightness HUD status models and HUD event replay store are implemented as transient local status logic plus `.build/hud-events.json` replay for app-mode launches.
+- DynaClip transient clipboard classification/copied HUD/expanded preview is implemented without cross-restart clipboard text persistence or clipboard history.
+- DynaDrop/Shelf local reveal-ready metadata model and invalid-input recovery are implemented for validated existing local file paths without reading file contents.
+
+#### Deferred native macOS pieces
+
+- Native volume/brightness key capture and global observers remain deferred; current DynaKeys tests exercise deterministic observed-input fixtures and replay, not system-wide key hooks.
+- Native drag-to-island capture and Finder reveal/open execution remain deferred; current DynaDrop/Shelf UI and statuses must not imply drag-and-drop, Finder reveal, or file open actions already work.
+- Clipboard history/paste automation/file handoff remain deferred; current DynaClip behavior is a short-lived local copied HUD and bounded expanded preview only.
+
+Run `npm run check-readme` and `npm run test:check-readme-script` to verify this checklist keeps implemented behavior and deferred native macOS pieces in distinct sections.
+
 ## Status File
 
 The renderer still consumes a local JSON file because it gives the UI a simple, testable boundary. The important change is what writes that file:

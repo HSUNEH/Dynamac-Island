@@ -19,6 +19,31 @@ function getSection(heading) {
     : followingContent.slice(0, heading.length + nextHeadingIndex);
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function getMarkdownSection(heading) {
+  const headingMatch = heading.match(/^(#+)\s+/);
+  if (!headingMatch) {
+    return getSection(heading);
+  }
+
+  const headingLevel = headingMatch[1].length;
+  const headingPattern = new RegExp(`^${escapeRegExp(heading)}\\s*$`, "m");
+  const match = readme.match(headingPattern);
+  if (!match || match.index === undefined) {
+    return "";
+  }
+
+  const followingContent = readme.slice(match.index);
+  const nextHeadingPattern = new RegExp(`\\n#{1,${headingLevel}}\\s+`);
+  const nextHeadingIndex = followingContent.slice(heading.length).search(nextHeadingPattern);
+  return nextHeadingIndex === -1
+    ? followingContent
+    : followingContent.slice(0, heading.length + nextHeadingIndex);
+}
+
 function hasShellCommandAfterHeading(heading, command) {
   const section = getSection(heading);
   const shellBlocks = section.match(/```(?:sh|bash)?\n[\s\S]*?\n```/g) || [];
@@ -140,7 +165,25 @@ const requiredSnippets = [
   ["DynaClip non-persistence", "clipboard text is not written to persistent history across restarts"],
   ["DynaClip runnable tests", "`npm run test:clipboard-activity`, `npm run test:clipboard-activity-store`, `npm run test:clipboard-preview-ui`, `npm run test:clipboard-duplicate-filter`, and `npm run test:mac-activity-status`"],
   ["DynaClip README validation", "Run `npm run check-readme` to validate that this README keeps documenting the DynaClip section"],
-  ["DynaClip deferred boundaries", "Deferred: clipboard history, cross-restart clipboard persistence, Finder companion workflows, file shelf handoff, paste automation, and quick handoff actions are not implemented by this slice"]
+  ["DynaClip deferred boundaries", "Deferred: clipboard history, cross-restart clipboard persistence, Finder companion workflows, file shelf handoff, paste automation, and quick handoff actions are not implemented by this slice"],
+  ["DynamicLake priority checklist section", "## DynamicLake Priority Checklist"],
+  ["DynamicLake checklist separation statement", "The implemented checklist and deferred native macOS checklist are intentionally separate"],
+  ["DynamicLake implemented checklist heading", "#### Implemented behavior"],
+  ["DynamicLake deferred checklist heading", "#### Deferred native macOS pieces"],
+  ["DynamicLake checklist runnable test", "Run `npm run check-readme` and `npm run test:check-readme-script` to verify this checklist keeps implemented behavior and deferred native macOS pieces in distinct sections"]
+];
+
+const implementedChecklistSnippets = [
+  ["implemented Activity Router checklist", "Activity Router compact selection and rankedActivities"],
+  ["implemented DynaKeys checklist", "DynaKeys local volume/brightness HUD status models and HUD event replay store"],
+  ["implemented DynaClip checklist", "DynaClip transient clipboard classification/copied HUD/expanded preview"],
+  ["implemented DynaDrop checklist", "DynaDrop/Shelf local reveal-ready metadata model and invalid-input recovery"]
+];
+
+const deferredChecklistSnippets = [
+  ["deferred native DynaKeys checklist", "Native volume/brightness key capture and global observers"],
+  ["deferred native DynaDrop checklist", "Native drag-to-island capture and Finder reveal/open execution"],
+  ["deferred native DynaClip checklist", "Clipboard history/paste automation/file handoff"]
 ];
 
 function containsCurlPipeToShellInstall(content) {
@@ -148,6 +191,53 @@ function containsCurlPipeToShellInstall(content) {
 }
 
 const missing = requiredSnippets.filter(([, snippet]) => !readme.includes(snippet));
+
+const implementedChecklistSection = getMarkdownSection("#### Implemented behavior");
+const deferredChecklistSection = getMarkdownSection("#### Deferred native macOS pieces");
+
+for (const [label, snippet] of implementedChecklistSnippets) {
+  if (!implementedChecklistSection.includes(snippet)) {
+    missing.push([label, `${snippet} in the Implemented behavior checklist section`]);
+  }
+}
+
+for (const [label, snippet] of deferredChecklistSnippets) {
+  if (!deferredChecklistSection.includes(snippet)) {
+    missing.push([label, `${snippet} in the Deferred native macOS pieces checklist section`]);
+  }
+}
+
+const implementedSectionForbiddenSnippets = [
+  "Native volume/brightness key capture and global observers",
+  "Native drag-to-island capture and Finder reveal/open execution",
+  "Clipboard history/paste automation/file handoff",
+  "Deferred:"
+];
+
+for (const snippet of implementedSectionForbiddenSnippets) {
+  if (implementedChecklistSection.includes(snippet)) {
+    missing.push([
+      "DynamicLake checklist separation",
+      `implemented checklist section must not contain deferred native macOS text: ${snippet}`
+    ]);
+  }
+}
+
+const deferredSectionForbiddenSnippets = [
+  "Activity Router compact selection and rankedActivities are implemented",
+  "DynaKeys local volume/brightness HUD status models and HUD event replay store are implemented",
+  "DynaClip transient clipboard classification/copied HUD/expanded preview is implemented",
+  "DynaDrop/Shelf local reveal-ready metadata model and invalid-input recovery are implemented"
+];
+
+for (const snippet of deferredSectionForbiddenSnippets) {
+  if (deferredChecklistSection.includes(snippet)) {
+    missing.push([
+      "DynamicLake checklist separation",
+      `deferred native macOS checklist section must not contain implemented behavior text: ${snippet}`
+    ]);
+  }
+}
 
 if (containsCurlPipeToShellInstall(readme)) {
   missing.push([
