@@ -321,6 +321,8 @@ Ties are deterministic: higher priority wins, then newer `updatedAt`, older `cre
 
 Current implemented behavior is pure model/status/routing plus local HUD event capture/replay only. DynaKeys does not yet install global keyboard hooks or native volume/brightness observers; DynaClip does not persist clipboard history across restarts; DynaDrop/Shelf does not claim native drag capture or Finder reveal/open execution. Any shelf fixture/status should describe reveal readiness only when a validated path is already available, and the UI must not imply drag-and-drop, Finder reveal, or file open works until a safe native pattern is added.
 
+Run `npm run check-readme` to validate that this README keeps documenting the Activity Router section, priority order, deterministic tie-breaks, transient expiry, generated `activityRouter` payload, and deferred native boundaries.
+
 ## Status File
 
 The renderer still consumes a local JSON file because it gives the UI a simple, testable boundary. The important change is what writes that file:

@@ -104,6 +104,18 @@ const requiredSnippets = [
   ["DynaDrop deferred Finder open", "Finder reveal/open execution are deferred"],
   ["DynaDrop reveal no action contract", "Ready reveal status is intentionally not an action contract"],
   ["DynaDrop no safe app-mode Finder pattern", "no safe app-mode Finder file reveal/open pattern"],
+  ["Activity Router section", "## Activity Router MVP"],
+  ["Activity Router implementation boundary", "pure/testable JavaScript in `src/activity-router.js` rather than native event capture"],
+  ["Activity Router DynaKeys priority", "DynaKeys-style transient volume/brightness HUD statuses"],
+  ["Activity Router DynaClip priority", "DynaClip-style clipboard activity from the current local clipboard classification"],
+  ["Activity Router DynaDrop priority", "DynaDrop/Shelf-style local shelf/drop status with optional `revealReadyPath` metadata"],
+  ["Activity Router timer priority", "Local Timer status"],
+  ["Activity Router media priority", "Now Playing media status"],
+  ["Activity Router passive priority", "Battery and future passive activities"],
+  ["Activity Router deterministic ties", "higher priority wins, then newer `updatedAt`, older `createdAt`, and stable `activityId`"],
+  ["Activity Router transient expiry", "Transient activities with an expired `expiresAt` are removed from compact eligibility"],
+  ["Activity Router payload shape", "generated Mac activity payload includes an `activityRouter` object with `rankedActivities` and the selected `compactSurface`"],
+  ["Activity Router README validation", "Run `npm run check-readme` to validate that this README keeps documenting the Activity Router section"],
   ["Activity Router drag boundary", "DynaDrop/Shelf does not claim native drag capture or Finder reveal/open execution"],
   ["Activity Router no implied Finder actions", "must not imply drag-and-drop, Finder reveal, or file open works"]
 ];

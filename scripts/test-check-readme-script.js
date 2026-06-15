@@ -78,6 +78,36 @@ assert.match(
   "check-readme should report the missing DynaDrop native drag deferral"
 );
 
+const missingActivityRouterSectionResult = runChecker(
+  readme.replace("## Activity Router MVP", "## Router Notes")
+);
+
+assert.notEqual(
+  missingActivityRouterSectionResult.status,
+  0,
+  `check-readme should fail when the Activity Router section heading is missing.\nstdout:\n${missingActivityRouterSectionResult.stdout}\nstderr:\n${missingActivityRouterSectionResult.stderr}`
+);
+assert.match(
+  missingActivityRouterSectionResult.stderr,
+  /Missing Activity Router section/,
+  "check-readme should report the missing Activity Router section"
+);
+
+const missingActivityRouterTieBreakResult = runChecker(
+  readme.replace("higher priority wins, then newer `updatedAt`, older `createdAt`, and stable `activityId`", "")
+);
+
+assert.notEqual(
+  missingActivityRouterTieBreakResult.status,
+  0,
+  `check-readme should fail when Activity Router deterministic tie-break docs are missing.\nstdout:\n${missingActivityRouterTieBreakResult.stdout}\nstderr:\n${missingActivityRouterTieBreakResult.stderr}`
+);
+assert.match(
+  missingActivityRouterTieBreakResult.stderr,
+  /Missing Activity Router deterministic ties/,
+  "check-readme should report the missing Activity Router deterministic tie-break docs"
+);
+
 const unsafeInstallerResult = runChecker(
   `${readme}\n\n\`\`\`sh\ncurl -fsSL https://raw.githubusercontent.com/HSUNEH/dynamac-island/main/scripts/install-macbook.sh | bash\n\`\`\`\n`
 );
