@@ -7,6 +7,7 @@ const {
   buildVolumeHudStatusPayload,
   createInitialVolumeHudCompactActivity,
   createVolumeHudState,
+  updateVisibleVolumeHudState,
   volumeHudToNativeStatus
 } = require("../src/volume-hud-status");
 
@@ -95,6 +96,21 @@ assert.equal(louder.active.compactSurface.label, "42%");
 assert.equal(louder.active.compactSurface.progress, 0.42);
 assert.equal(louder.active.expandedSurface.subtitle, "Studio Display Speakers · 42%");
 
+const refreshedVisibleVolume = updateVisibleVolumeHudState(louder, {
+  level: 42,
+  muted: false,
+  deviceName: "Studio Display Speakers",
+  source: "fixture-volume-observer",
+  observedAt: 1718323200900
+});
+assert.equal(refreshedVisibleVolume.updateKind, "refreshed", "visible volume HUD should refresh an unexpired visible activity");
+assert.equal(refreshedVisibleVolume.activity.activityId, "volume-1718323200000", "refreshed visible volume should keep the same activity identity");
+assert.equal(refreshedVisibleVolume.activity.createdAt, 1718323200000, "refreshed visible volume should preserve the original creation timestamp");
+assert.equal(refreshedVisibleVolume.activity.updatedAt, 1718323200900, "refreshed visible volume should advance updatedAt");
+assert.equal(refreshedVisibleVolume.activity.expiresAt, 1718323202500, "refreshed visible volume should extend the visible HUD expiry");
+assert.equal(refreshedVisibleVolume.activity.status.direction, "steady", "refreshing the same level should keep deterministic steady direction");
+assert.equal(refreshedVisibleVolume.activity.compactSurface.label, "42%", "refreshed visible volume should keep the visible level label current");
+
 const muted = applyVolumeHudInputChange(louder, {
   level: 42,
   muted: true,
@@ -121,6 +137,19 @@ const freshAfterExpiry = applyVolumeHudInputChange(muted, {
 
 assert.equal(freshAfterExpiry.active.activityId, "volume-1718323202501", "new input after expiry should start a new activity instance");
 assert.equal(freshAfterExpiry.active.status.direction, "initial", "expired previous level should not leak into a new burst");
+
+const replacedVisibleVolume = updateVisibleVolumeHudState(refreshedVisibleVolume.state, {
+  level: 18,
+  muted: false,
+  deviceName: "Studio Display Speakers",
+  source: "fixture-volume-observer",
+  observedAt: 1718323204101
+});
+assert.equal(replacedVisibleVolume.updateKind, "replaced", "expired visible volume HUD should be replaced by the next input");
+assert.equal(replacedVisibleVolume.activity.activityId, "volume-1718323204101", "replacement should receive a fresh activity identity");
+assert.equal(replacedVisibleVolume.activity.createdAt, 1718323204101, "replacement should start a fresh creation timestamp");
+assert.equal(replacedVisibleVolume.activity.status.previousLevel, null, "replacement should not leak the expired previous level");
+assert.equal(replacedVisibleVolume.activity.compactSurface.label, "18%", "replacement should expose the new visible volume level");
 
 const status = volumeHudToNativeStatus(louder.active);
 assert.deepEqual(status, {

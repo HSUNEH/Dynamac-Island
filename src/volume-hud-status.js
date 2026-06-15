@@ -115,6 +115,18 @@ function applyVolumeHudInputChange(state = createVolumeHudState(), input = {}, o
   });
 }
 
+function updateVisibleVolumeHudState(state = createVolumeHudState(), input = {}, options = {}) {
+  const observedAt = assertFiniteTimestamp(input.observedAt ?? options.now ?? Date.now(), "observedAt");
+  const previousActivity = reusablePreviousActivity(state, observedAt);
+  const nextState = applyVolumeHudInputChange(state, { ...input, observedAt }, options);
+
+  return {
+    state: nextState,
+    activity: nextState.active,
+    updateKind: previousActivity ? "refreshed" : "replaced"
+  };
+}
+
 function createInitialVolumeHudCompactActivity(input = {}, options = {}) {
   return applyVolumeHudInputChange(createVolumeHudState(), input, options).active;
 }
@@ -145,5 +157,6 @@ module.exports = {
   buildVolumeHudStatusPayload,
   createInitialVolumeHudCompactActivity,
   createVolumeHudState,
+  updateVisibleVolumeHudState,
   volumeHudToNativeStatus
 };
