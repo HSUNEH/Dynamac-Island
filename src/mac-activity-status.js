@@ -23,6 +23,7 @@ const {
   recordBrightnessHudEvent,
   recordVolumeHudEvent
 } = require("./hud-event-store");
+const { collectTimerActivityStatus } = require("./timer-activity-source");
 
 let defaultClipboardActivityState = createClipboardActivityState();
 let defaultVolumeHudState = createVolumeHudState();
@@ -187,6 +188,16 @@ function collectBrightnessHudStatus(options = {}) {
   }
   if (!options.brightnessActivityState) defaultBrightnessHudState = result;
   return brightnessHudToNativeStatus(result.active);
+}
+
+function collectTimerStatus(options = {}) {
+  return collectTimerActivityStatus({
+    timer: options.timer,
+    timerState: options.timerState,
+    now: options.now,
+    source: options.timerSource,
+    completeTimerIfElapsed: options.completeTimerIfElapsed
+  });
 }
 
 function spotifyScript() {
@@ -927,6 +938,7 @@ function buildMacActivityStatusPayload(options = {}) {
   const statuses = [
     collectVolumeHudStatus({ ...options, hudEventStorePath, hudReplayState }),
     collectBrightnessHudStatus({ ...options, hudEventStorePath, hudReplayState }),
+    collectTimerStatus(options),
     collectMediaStatus(options),
     collectClipboardStatus(options),
     collectBatteryStatus(options)
@@ -1001,6 +1013,7 @@ module.exports = {
   collectBatteryStatus,
   collectBrightnessHudStatus,
   collectClipboardStatus,
+  collectTimerStatus,
   collectVolumeHudStatus,
   collectMediaCandidates,
   collectMediaStatus,
