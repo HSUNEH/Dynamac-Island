@@ -194,6 +194,47 @@ assert.deepEqual(
   "shared router should expose the active timer candidate before passive visible activities"
 );
 
+const lowerPriorityTimerVisibilityCases = [
+  {
+    type: "nowPlaying",
+    status: candidateStatus("nowPlaying", 2400, {
+      agent: "Now Playing",
+      task: "Fresh background media",
+      detail: "A newer lower-priority media activity must not hide the running timer."
+    })
+  },
+  {
+    type: "battery",
+    status: candidateStatus("battery", 2500, {
+      agent: "Battery",
+      task: "Battery 91%",
+      detail: "A newer lower-priority battery activity must not hide the running timer."
+    })
+  },
+  {
+    type: "futurePassive",
+    status: candidateStatus("futurePassive", 2600, {
+      agent: "Unknown Future Provider",
+      task: "Passive future utility",
+      detail: "Unknown passive activity remains below the modeled running timer."
+    })
+  }
+];
+
+for (const { type, status } of lowerPriorityTimerVisibilityCases) {
+  const rankedLowerPriorityCase = rankActivities([status, routedTimerStatus], { now });
+  assert.deepEqual(
+    rankedLowerPriorityCase.map((activity) => activity.activityType),
+    ["timer", type],
+    `running timer should remain visible ahead of lower-priority ${type} activity even when the lower-priority candidate is newer`
+  );
+  assert.equal(
+    selectCompactActivity([status, routedTimerStatus], { now })?.activityType,
+    "timer",
+    `running timer should be selected over lower-priority ${type} compact candidate`
+  );
+}
+
 const higherPriorityTimerYieldCases = [
   {
     type: "volume",
