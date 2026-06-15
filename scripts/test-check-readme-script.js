@@ -248,8 +248,8 @@ assert.match(
 
 const mixedDeferredChecklistResult = runChecker(
   readme.replace(
-    "#### Deferred native macOS pieces\n\n- Native volume/brightness",
-    "#### Deferred native macOS pieces\n\n- Activity Router compact selection and rankedActivities are implemented.\n- Native volume/brightness"
+    "#### Deferred native macOS pieces\n\n- [ ] Native volume/brightness",
+    "#### Deferred native macOS pieces\n\n- Activity Router compact selection and rankedActivities are implemented.\n- [ ] Native volume/brightness"
   )
 );
 
@@ -280,6 +280,24 @@ assert.match(
   missingChecklistRunnableTestResult.stderr,
   /Missing DynamicLake checklist runnable test/,
   "check-readme should report the missing runnable checklist documentation test reference"
+);
+
+const completedDeferredChecklistResult = runChecker(
+  readme.replace(
+    "- [ ] Native drag-to-island capture and Finder reveal/open execution remain deferred",
+    "- [x] Native drag-to-island capture and Finder reveal/open execution remain deferred"
+  )
+);
+
+assert.notEqual(
+  completedDeferredChecklistResult.status,
+  0,
+  `check-readme should fail when a deferred native macOS checklist item is marked complete.\nstdout:\n${completedDeferredChecklistResult.stdout}\nstderr:\n${completedDeferredChecklistResult.stderr}`
+);
+assert.match(
+  completedDeferredChecklistResult.stderr,
+  /must remain an unchecked deferred checklist item|must not be marked complete/,
+  "check-readme should report completed markers in the deferred native macOS checklist section"
 );
 
 const expectedDeferredChecklistItems = [

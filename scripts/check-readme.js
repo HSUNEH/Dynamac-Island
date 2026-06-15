@@ -198,6 +198,16 @@ const missing = requiredSnippets.filter(([, snippet]) => !readme.includes(snippe
 const implementedChecklistSection = getMarkdownSection("#### Implemented behavior");
 const deferredChecklistSection = getMarkdownSection("#### Deferred native macOS pieces");
 
+function deferredChecklistHasIncompleteItem(snippet) {
+  const incompletePattern = new RegExp(`^- \\[ \\] ${escapeRegExp(snippet)}.*$`, "m");
+  return incompletePattern.test(deferredChecklistSection);
+}
+
+function deferredChecklistHasCompletedItem(snippet) {
+  const completedPattern = new RegExp(`^- \\[[xX]\\] ${escapeRegExp(snippet)}.*$`, "m");
+  return completedPattern.test(deferredChecklistSection);
+}
+
 for (const [label, snippet] of implementedChecklistSnippets) {
   if (!implementedChecklistSection.includes(snippet)) {
     missing.push([label, `${snippet} in the Implemented behavior checklist section`]);
@@ -207,6 +217,14 @@ for (const [label, snippet] of implementedChecklistSnippets) {
 for (const [label, snippet] of deferredChecklistSnippets) {
   if (!deferredChecklistSection.includes(snippet)) {
     missing.push([label, `${snippet} in the Deferred native macOS pieces checklist section`]);
+  }
+
+  if (!deferredChecklistHasIncompleteItem(snippet)) {
+    missing.push([`${label} incomplete marker`, `${snippet} must remain an unchecked deferred checklist item`]);
+  }
+
+  if (deferredChecklistHasCompletedItem(snippet)) {
+    missing.push([`${label} completion marker`, `${snippet} must not be marked complete in the deferred native macOS checklist`]);
   }
 }
 

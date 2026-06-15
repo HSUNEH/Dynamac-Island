@@ -344,12 +344,12 @@ The implemented checklist and deferred native macOS checklist are intentionally 
 
 #### Deferred native macOS pieces
 
-- Native volume/brightness key capture and global observers remain deferred; current DynaKeys tests exercise deterministic observed-input fixtures and replay, not system-wide key hooks.
-- DynaKeys global shortcut/action launchers and direct compact-overlay native rendering remain deferred; the current slice only serializes local HUD status/replay data for the existing app-mode surface.
-- Native drag-to-island capture and Finder reveal/open execution remain deferred; current DynaDrop/Shelf UI and statuses must not imply drag-and-drop, Finder reveal, or file open actions already work.
-- DynaDrop AirDrop/share-link/conversion/transcript/right-click actions remain deferred; the current shelf MVP only validates local paths and exposes reveal-ready metadata/error recovery.
-- Clipboard history/paste automation/file handoff remain deferred; current DynaClip behavior is a short-lived local copied HUD and bounded expanded preview only.
-- DynaClip Finder companion workflows, file shelf handoff, and quick handoff actions remain deferred; clipboard text is not persisted across restarts by default.
+- [ ] Native volume/brightness key capture and global observers remain deferred; current DynaKeys tests exercise deterministic observed-input fixtures and replay, not system-wide key hooks.
+- [ ] DynaKeys global shortcut/action launchers and direct compact-overlay native rendering remain deferred; the current slice only serializes local HUD status/replay data for the existing app-mode surface.
+- [ ] Native drag-to-island capture and Finder reveal/open execution remain deferred; current DynaDrop/Shelf UI and statuses must not imply drag-and-drop, Finder reveal, or file open actions already work.
+- [ ] DynaDrop AirDrop/share-link/conversion/transcript/right-click actions remain deferred; the current shelf MVP only validates local paths and exposes reveal-ready metadata/error recovery.
+- [ ] Clipboard history/paste automation/file handoff remain deferred; current DynaClip behavior is a short-lived local copied HUD and bounded expanded preview only.
+- [ ] DynaClip Finder companion workflows, file shelf handoff, and quick handoff actions remain deferred; clipboard text is not persisted across restarts by default.
 
 Run `npm run check-readme` and `npm run test:check-readme-script` to verify this checklist keeps implemented behavior and deferred native macOS pieces in distinct sections.
 
