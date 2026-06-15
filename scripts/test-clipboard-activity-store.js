@@ -46,6 +46,23 @@ assert.equal(duplicate.status.metadata.copiedState, "copied");
 assert.equal(duplicate.state.active.activityId, created.state.active.activityId, "duplicate replay should keep the original copied activity instance");
 assert.equal(duplicate.state.active.expiresAt, created.state.active.expiresAt, "duplicate replay must not extend clipboard visibility");
 
+const replacement = store.createClipboardActivity({
+  plainText: "Clipboard replacement text",
+  observedAt: now + 200,
+  source: "memory-store-fixture",
+  type: "text/plain"
+}, { now: now + 200 });
+const replacementSignature = textSignature("Clipboard replacement text");
+const serializedReplacementState = JSON.stringify(replacement.state);
+assert.equal(replacement.status.activityType, "clipboard", "changed clipboard store updates should emit a fresh active activity");
+assert.equal(replacement.state.lastSignature, replacementSignature, "store should keep only the latest clipboard signature");
+assert.notEqual(replacement.state.active.activityId, created.state.active.activityId, "changed clipboard store updates should replace the previous transient activity");
+assert.equal(replacement.state.active.status.preview, "Clipboard replacement text", "store active activity should reflect only the latest copied preview");
+assert.equal(serializedReplacementState.includes(textSignature("Clipboard store text")), false, "store state must not retain older clipboard fingerprints as history");
+assert.equal(serializedReplacementState.includes("Clipboard store text"), false, "store state must not retain older clipboard previews after replacement");
+assert.equal(Array.isArray(replacement.state.history), false, "store should not expose clipboard history");
+assert.equal(Array.isArray(replacement.state.activities), false, "store should not expose accumulated clipboard activity lists");
+
 const cleared = store.clearClipboardActivityStore();
 assert.deepEqual(cleared, { lastSignature: "", active: null }, "clear should reset clipboard store memory");
 assert.deepEqual(store.readClipboardActivityStore(), cleared, "read after clear should show no retained clipboard activity");

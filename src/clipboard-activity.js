@@ -287,6 +287,23 @@ function inactiveClipboardStatus(nowMs, detail = "No recent plain-text clipboard
   };
 }
 
+function unavailableClipboardStatus(nowMs, detail = "Clipboard content is unavailable.") {
+  return {
+    agent: "Clipboard",
+    activityType: "futurePassive",
+    state: "warning",
+    task: "Clipboard unavailable",
+    updatedAt: new Date(nowMs).toISOString(),
+    detail,
+    metadata: {
+      classification: "unavailable",
+      clipboardState: "unavailable",
+      recentPlainTextChange: false
+    },
+    persisted: false
+  };
+}
+
 function clipboardActivityToNativeStatus(activity) {
   if (!activity || typeof activity !== "object") {
     throw new Error("clipboard activity is required");
@@ -327,7 +344,7 @@ function applyClipboardRead(state = createClipboardActivityState(), read = {}, o
   if (!isPlainTextRead(read)) {
     return {
       state: createClipboardActivityState({ ...previous, active: null }),
-      status: inactiveClipboardStatus(nowMs, "Clipboard read did not contain plain text.")
+      status: unavailableClipboardStatus(nowMs, read.readError || read.error || "Clipboard content could not be read as plain text.")
     };
   }
 
@@ -336,7 +353,7 @@ function applyClipboardRead(state = createClipboardActivityState(), read = {}, o
     const emptySignature = textSignature("");
     return {
       state: createClipboardActivityState({ lastSignature: emptySignature, active: null }),
-      status: inactiveClipboardStatus(nowMs, "No text clipboard content was found.")
+      status: unavailableClipboardStatus(nowMs, "No text clipboard content was found.")
     };
   }
 
@@ -406,5 +423,6 @@ module.exports = {
   isCodeLikeClipboardText,
   isValidHttpUrl,
   normalizeClipboardText,
-  textSignature
+  textSignature,
+  unavailableClipboardStatus
 };

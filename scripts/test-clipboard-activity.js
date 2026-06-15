@@ -114,6 +114,34 @@ assert.equal(unchanged.status.metadata.copiedState, "copied");
 assert.equal(unchanged.state.active.activityId, first.state.active.activityId, "duplicate reads before expiry should replay the same activity instance");
 assert.equal(unchanged.state.active.expiresAt, now + DEFAULT_RECENCY_MS, "duplicate reads before expiry must not extend clipboard visibility");
 
+const second = applyClipboardRead(first.state, {
+  plainText: "second copied text",
+  observedAt: now + 200,
+  source: "fixture-clipboard"
+}, { now: now + 200, recencyMs: DEFAULT_RECENCY_MS });
+const secondSignature = textSignature("second copied text");
+const serializedSecondState = JSON.stringify(second.state);
+assert.equal(second.status.activityType, "clipboard", "successive changed reads should emit a fresh clipboard activity");
+assert.equal(second.state.lastSignature, secondSignature, "latest changed read should become the only clipboard baseline");
+assert.equal(second.state.active.activityId, `clipboard-copy-${now + 200}-${secondSignature.slice(0, 12)}`);
+assert.notEqual(second.state.active.activityId, first.state.active.activityId, "latest changed read should replace the previous transient activity instance");
+assert.equal(second.state.active.status.preview, "second copied text", "latest transient clipboard activity should expose the latest preview");
+assert.equal(second.state.active.metadata.copyEvent.contentSignature, secondSignature, "latest copy event should replace the previous copy fingerprint");
+assert.equal(serializedSecondState.includes(firstSignature), false, "older clipboard fingerprints must not accumulate as history in state");
+assert.equal(serializedSecondState.includes("example.com/a"), false, "older clipboard previews must be replaced rather than retained as history");
+assert.equal(Array.isArray(second.state.history), false, "clipboard activity state should not expose a history collection");
+assert.equal(Array.isArray(second.state.activities), false, "clipboard activity state should retain only the latest active activity, not an activity list");
+
+const third = applyClipboardRead(second.state, {
+  plainText: "const latest = true;",
+  observedAt: now + 300,
+  source: "fixture-clipboard"
+}, { now: now + 300, recencyMs: DEFAULT_RECENCY_MS });
+const serializedThirdStatus = JSON.stringify(third.status);
+assert.equal(third.state.active.status.preview, "const latest = true;", "third changed read should replace the second transient activity");
+assert.equal(serializedThirdStatus.includes("second copied text"), false, "native status payload should not retain the previous clipboard preview after replacement");
+assert.equal(serializedThirdStatus.includes(secondSignature), false, "native status payload should not retain the previous clipboard fingerprint after replacement");
+
 const expiredDuplicate = applyClipboardRead(first.state, {
   plainText: "https://example.com/a",
   observedAt: now + DEFAULT_RECENCY_MS + 1,
@@ -141,17 +169,38 @@ const nonPlain = applyClipboardRead(first.state, {
   observedAt: now + 200,
   source: "fixture-clipboard"
 }, { now: now + 200 });
-assert.equal(nonPlain.status.state, "idle");
+assert.equal(nonPlain.status.state, "warning");
 assert.equal(nonPlain.status.activityType, "futurePassive");
 assert.match(nonPlain.status.detail, /plain text/);
+assert.equal(nonPlain.status.metadata.clipboardState, "unavailable");
+assert.equal(nonPlain.status.metadata.recentPlainTextChange, false);
+assert.match(nonPlain.status.detail, /could not be read as plain text/);
+assert.equal(validateStatusPayload({ statuses: [nonPlain.status] }).ok, true, "unavailable clipboard status should satisfy shared native status schema");
+
+const unreadable = applyClipboardRead(first.state, {
+  hasPlainText: false,
+  readError: "pbpaste exited before clipboard contents could be read.",
+  observedAt: now + 250,
+  source: "fixture-clipboard"
+}, { now: now + 250 });
+assert.equal(unreadable.status.state, "warning");
+assert.equal(unreadable.status.task, "Clipboard unavailable");
+assert.equal(unreadable.status.metadata.classification, "unavailable");
+assert.equal(unreadable.status.metadata.clipboardState, "unavailable");
+assert.equal(unreadable.status.detail, "pbpaste exited before clipboard contents could be read.");
+assert.equal(unreadable.state.active, null);
 
 const empty = applyClipboardRead(first.state, {
   plainText: "   \0  ",
   observedAt: now + 300,
   source: "fixture-clipboard"
 }, { now: now + 300 });
-assert.equal(empty.status.state, "idle");
+assert.equal(empty.status.state, "warning");
 assert.equal(empty.status.activityType, "futurePassive");
+assert.equal(empty.status.task, "Clipboard unavailable");
+assert.equal(empty.status.metadata.classification, "unavailable");
+assert.equal(empty.status.metadata.clipboardState, "unavailable");
+assert.equal(empty.status.metadata.recentPlainTextChange, false);
 assert.match(empty.status.detail, /No text clipboard content/);
 
 const pathClass = classifyClipboardText("/Users/st/file.txt");
