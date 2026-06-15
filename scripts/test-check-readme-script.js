@@ -282,6 +282,36 @@ assert.match(
   "check-readme should report the missing runnable checklist documentation test reference"
 );
 
+const expectedDeferredChecklistItems = [
+  [
+    "DynaKeys global shortcut/action launchers and direct compact-overlay native rendering",
+    /Missing deferred native DynaKeys action launchers checklist/
+  ],
+  [
+    "DynaDrop AirDrop/share-link/conversion/transcript/right-click actions",
+    /Missing deferred native DynaDrop action checklist/
+  ],
+  [
+    "DynaClip Finder companion workflows, file shelf handoff, and quick handoff actions",
+    /Missing deferred native DynaClip companion checklist/
+  ]
+];
+
+for (const [deferredItem, expectedError] of expectedDeferredChecklistItems) {
+  const missingDeferredChecklistItemResult = runChecker(readme.replace(deferredItem, ""));
+
+  assert.notEqual(
+    missingDeferredChecklistItemResult.status,
+    0,
+    `check-readme should fail when deferred checklist item is missing: ${deferredItem}.\nstdout:\n${missingDeferredChecklistItemResult.stdout}\nstderr:\n${missingDeferredChecklistItemResult.stderr}`
+  );
+  assert.match(
+    missingDeferredChecklistItemResult.stderr,
+    expectedError,
+    `check-readme should report the missing deferred checklist item: ${deferredItem}`
+  );
+}
+
 const unsafeInstallerResult = runChecker(
   `${readme}\n\n\`\`\`sh\ncurl -fsSL https://raw.githubusercontent.com/HSUNEH/dynamac-island/main/scripts/install-macbook.sh | bash\n\`\`\`\n`
 );

@@ -181,9 +181,12 @@ const implementedChecklistSnippets = [
 ];
 
 const deferredChecklistSnippets = [
-  ["deferred native DynaKeys checklist", "Native volume/brightness key capture and global observers"],
-  ["deferred native DynaDrop checklist", "Native drag-to-island capture and Finder reveal/open execution"],
-  ["deferred native DynaClip checklist", "Clipboard history/paste automation/file handoff"]
+  ["deferred native DynaKeys key capture checklist", "Native volume/brightness key capture and global observers"],
+  ["deferred native DynaKeys action launchers checklist", "DynaKeys global shortcut/action launchers and direct compact-overlay native rendering"],
+  ["deferred native DynaDrop capture/reveal checklist", "Native drag-to-island capture and Finder reveal/open execution"],
+  ["deferred native DynaDrop action checklist", "DynaDrop AirDrop/share-link/conversion/transcript/right-click actions"],
+  ["deferred native DynaClip workflow checklist", "Clipboard history/paste automation/file handoff"],
+  ["deferred native DynaClip companion checklist", "DynaClip Finder companion workflows, file shelf handoff, and quick handoff actions"]
 ];
 
 function containsCurlPipeToShellInstall(content) {
@@ -209,8 +212,11 @@ for (const [label, snippet] of deferredChecklistSnippets) {
 
 const implementedSectionForbiddenSnippets = [
   "Native volume/brightness key capture and global observers",
+  "DynaKeys global shortcut/action launchers and direct compact-overlay native rendering",
   "Native drag-to-island capture and Finder reveal/open execution",
+  "DynaDrop AirDrop/share-link/conversion/transcript/right-click actions",
   "Clipboard history/paste automation/file handoff",
+  "DynaClip Finder companion workflows, file shelf handoff, and quick handoff actions",
   "Deferred:"
 ];
 
