@@ -289,7 +289,9 @@ The models keep repeated changes inside a short burst as one activity, derive `i
 
 The active shelf activity serializes with stable activity fields (`activityId`, `activityType: "shelf"`, priority, timestamps, non-transient status, compact/expanded surfaces, source, metadata, `revealReadyPath`, `revealStatus`, and `persisted: false`) so the Activity Router can rank it below clipboard and above Timer. `buildShelfRevealStatus` returns deterministic `ready` status only for an existing validated local file and deterministic `unavailable` status for empty, missing, malformed, or non-file paths; unavailable states expose an empty `revealReadyPath` so stale paths are not implied. `buildShelfStatusPayload` emits a schema-valid `DynaShelf` status item whose detail explicitly says native drag capture and Finder reveal UI are deferred. `clearShelf` removes all file metadata and the active shelf activity.
 
-Deferred: native drag-to-island capture, Finder reveal/open execution, AirDrop/share-link/conversion/transcript/right-click actions, and UI that implies dragging already works. The MVP exposes only validated reveal-ready path/status semantics plus stable local error/recovery semantics for a safe future native integration. Ready and unavailable reveal states are covered by `npm run test:shelf-state`, included in `npm run check`.
+Deferred: native drag-to-island capture, Finder reveal/open execution, AirDrop/share-link/conversion/transcript/right-click actions, and UI that implies dragging already works. The MVP exposes only validated reveal-ready path/status semantics plus stable local error/recovery semantics for a safe future native integration. Ready and unavailable reveal states are covered by `npm run test:shelf-state`, and malformed/blank/missing invalid input model cases are covered by `npm run test:shelf-state-invalid-input`, both included in `npm run check`.
+
+For a deterministic user-runnable invalid-input fixture, run `npm run dynadrop:invalid-input-fixture`. It intentionally feeds a blank dropped file path through the shelf recovery API, prints a stable `dropped-file-path-required` error payload to stderr with `persisted: false`, and exits non-zero. `npm run test:dynadrop-invalid-input-fixture` independently asserts that command contract without requiring native drag capture or Finder reveal.
 
 ### Deferred DynamicLake-Inspired Features
 
@@ -441,6 +443,9 @@ npm run test:clipboard-activity
 npm run test:brightness-hud-status
 npm run test:hud-event-store
 npm run test:shelf-state
+npm run test:shelf-state-invalid-input
+npm run test:dynadrop-invalid-input-fixture
+npm run dynadrop:invalid-input-fixture
 npm run test:timer-status-store
 npm run test:timer-start-cli
 npm run test:timer-docs
@@ -465,6 +470,9 @@ Expected results:
 - `test:brightness-hud-status` passes when observed brightness changes produce deterministic transient DynaKeys HUD status payloads without persistence.
 - `test:hud-event-store` passes when local volume/brightness HUD inputs append to a deterministic filesystem JSON store with atomic writes, bounded event history, no network dependency, and no clipboard text persistence.
 - `test:shelf-state` passes when valid dropped file paths store only path/name/type/size metadata in non-persistent DynaDrop shelf state, produce schema-valid reveal-ready shelf status, reject missing paths or directories, and preserve stable recoverable error values until the next valid drop clears them.
+- `test:shelf-state-invalid-input` passes when malformed, blank, missing, directory, disallowed, non-finite timestamp, empty-list, and mixed-batch DynaDrop inputs reject deterministically without mutating existing shelf state.
+- `test:dynadrop-invalid-input-fixture` passes when the user-runnable `dynadrop:invalid-input-fixture` command exits non-zero and reports the stable `dropped-file-path-required` non-persistent error payload on stderr.
+- `dynadrop:invalid-input-fixture` intentionally exits non-zero; that is the expected observable invalid-input fixture behavior, not a passing check command.
 - `test:timer-status-store` passes when starting/writing/stopping/resetting a Timer produces native-loadable Timer status models, including reset state with full restored duration and fresh reset timestamps.
 - `test:timer-docs` passes when the Timer MVP Behavior section documents start, running overlay/status, completion, and local-first persistence/status expectations.
 - `test:native-timer-status-serialization` passes when the native AppKit smoke path decodes running, stopped, and reset Timer fixtures, selects the active Timer before background media, releases inactive stopped/reset timers to fallback/media presentation, and preserves `id`, `durationSeconds`, `remainingSeconds`, lifecycle `state`, `startedAt`, `updatedAt`, `displayText`, `error`, and `replacedPrevious` for the overlay contract.

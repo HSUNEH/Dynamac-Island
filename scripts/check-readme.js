@@ -96,6 +96,9 @@ const requiredSnippets = [
   ["invalid fixture command", "npm run check-status:invalid"],
   ["roadmap section", "## Roadmap"],
   ["DynaDrop model boundary", "DynaDrop/Shelf MVP as deterministic local shelf state, not native drag capture"],
+  ["DynaDrop invalid fixture command", "npm run dynadrop:invalid-input-fixture"],
+  ["DynaDrop invalid fixture non-zero", "intentionally feeds a blank dropped file path through the shelf recovery API"],
+  ["DynaDrop invalid fixture test", "npm run test:dynadrop-invalid-input-fixture"],
   ["DynaDrop deferred native drag capture", "Deferred: native drag-to-island capture"],
   ["DynaDrop no implied drag UI", "UI that implies dragging already works"],
   ["Activity Router drag boundary", "DynaDrop/Shelf does not claim native drag capture or Finder reveal UI"]
