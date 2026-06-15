@@ -24,6 +24,9 @@ assert.match(nativeSource, /status\.shelfActivity\?\.activityId/, "native router
 assert.match(nativeSource, /var activityRouter: ActivityRouterSnapshot\?/, "native island view should retain the current Activity Router snapshot");
 assert.match(nativeSource, /routedStatusForCompactSurface/, "native UI should resolve the routed compact surface before legacy Timer\/media fallback");
 assert.match(nativeSource, /drawRoutedGenericActivity/, "native UI should have a simple generic compact\/expanded activity surface for routed DynaKeys\/DynaClip\/DynaShelf activities");
+assert.match(nativeSource, /case "shelf", "drop": return "tray"/, "native generic activity renderer should map DynaDrop shelf routes to the tray glyph family");
+assert.match(nativeSource, /compactText: "\\\(glyph\) \\\(label\)"/, "native generic activity renderer should expose a compact app-mode text contract for Shelf MVP");
+assert.match(nativeSource, /expandedText: "\\\(label\)\\n\\\(status\.detail \?\? status\.task\)"/, "native generic activity renderer should expose an expanded app-mode detail contract for Shelf MVP");
 assert.match(nativeSource, /replaceStatusPayload\(_ payload: StatusPayload\)/, "app-mode status reloads should update statuses and router atomically from the same payload");
 assert.match(nativeSource, /expanded=.*islandView\?\.expanded == true/, "native smoke dumps should expose compact-vs-expanded transition state");
 assert.match(
@@ -874,6 +877,7 @@ assert.match(dynaDropShelfCompactOutput, /agent=DynaShelf/, "native router resol
 assert.match(dynaDropShelfCompactOutput, /task=Shelf · 2 files ready/, "native app-mode dump should expose the routed DynaDrop shelf payload label");
 assert.match(dynaDropShelfCompactOutput, /renderedCompactText=tray\.full Shelf · 2 files ready/, "compact app-mode rendering should show the DynaDrop tray glyph and shelf-ready label");
 assert.match(dynaDropShelfCompactOutput, /renderedExpandedText=Shelf · 2 files ready\\nLocal shelf metadata is reveal-ready; native drag capture and Finder reveal\/open execution are deferred\./, "compact smoke dump should expose the expanded DynaDrop preview contract without implying native drag or Finder reveal execution works");
+assert.doesNotMatch(dynaDropShelfCompactOutput, /renderedExpandedText=.*Drop files here|renderedExpandedText=.*Open in Finder|renderedExpandedText=.*Reveal in Finder/i, "expanded Shelf MVP app-mode rendering must keep native drag and Finder reveal/open actions deferred");
 assert.match(dynaDropShelfCompactOutput, /expanded=false/, "DynaDrop shelf smoke should cover compact app-mode behavior");
 assert.doesNotMatch(dynaDropShelfCompactOutput, /task=Shelf · 1 file ready/, "DynaDrop shelf routing must not select the first same-type status when compactSurface.activityId matches an embedded shelfActivity id");
 assert.doesNotMatch(dynaDropShelfCompactOutput, /presentation=timer/, "legacy Timer presentation must not override routed DynaDrop shelf");
@@ -886,6 +890,7 @@ assert.match(dynaDropShelfExpandedOutput, /expanded=false/, "DynaDrop shelf expa
 assert.match(dynaDropShelfExpandedOutput, /active=activityRouter[^\n]+presentation=shelf[^\n]+expanded=true/, "DynaDrop shelf routing should survive compact→expanded app-mode transition");
 assert.match(dynaDropShelfExpandedOutput, /renderedCompactText=tray\.full Shelf · 2 files ready/, "expanded smoke should retain the same routed DynaDrop compact text contract");
 assert.match(dynaDropShelfExpandedOutput, /renderedExpandedText=Shelf · 2 files ready\\nLocal shelf metadata is reveal-ready; native drag capture and Finder reveal\/open execution are deferred\./, "expanded app-mode rendering should show shelf metadata and honest deferred native behavior copy");
+assert.doesNotMatch(dynaDropShelfExpandedOutput, /renderedExpandedText=.*Drop files here|renderedExpandedText=.*Open in Finder|renderedExpandedText=.*Reveal in Finder/i, "expanded Shelf MVP app-mode rendering must not advertise deferred native drag or Finder reveal actions");
 assert.match(dynaDropShelfExpandedOutput, /task=Shelf · 2 files ready/, "expanded app-mode dump should retain the routed DynaDrop shelf payload");
 assert.doesNotMatch(dynaDropShelfExpandedOutput, /active=timer[^\n]+expanded=true/, "expanded transition should not fall back to Timer when router selected DynaDrop shelf");
 
