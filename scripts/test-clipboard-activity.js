@@ -5,6 +5,7 @@ const { validateStatusPayload } = require("../src/status-schema");
 const {
   DEFAULT_RECENCY_MS,
   applyClipboardRead,
+  buildClipboardCopiedHudActivity,
   buildClipboardStatusFromText,
   classifyClipboardText,
   createClipboardActivityState,
@@ -55,8 +56,21 @@ assert.deepEqual(first.state.active.metadata, {
 assert.deepEqual(first.status.metadata.copyEvent, firstCopyEvent, "copy event metadata should be exposed without raw clipboard text");
 assert.equal(Object.values(first.status.metadata.copyEvent).includes("https://example.com/a"), false, "copy event metadata must not persist raw clipboard text");
 assert.equal(first.state.active.persisted, false);
+assert.equal(first.state.active.status.copied, true);
 assert.equal(first.state.active.compactSurface.glyph, "link");
 assert.equal(first.state.active.compactSurface.label, "Link copied · 21 chars");
+assert.equal(first.state.active.compactSurface.hudKind, "copied");
+const copiedHudActivity = buildClipboardCopiedHudActivity(firstCopyEvent, {
+  classification: "link",
+  characterCount: 21,
+  label: "Link copied · 21 chars",
+  preview: "https://example.com/a",
+  recencyMs: DEFAULT_RECENCY_MS
+});
+assert.deepEqual(copiedHudActivity, first.state.active, "detected copy events should convert into the same compact copied HUD activity used by router/display tests");
+assert.equal(copiedHudActivity.compactSurface.activityId, undefined, "source compact HUD stays renderer-neutral until normalized by the router");
+assert.equal(JSON.stringify(copiedHudActivity).includes("contentSignature"), true, "copy event fingerprint is kept for determinism");
+assert.equal(JSON.stringify(copiedHudActivity).includes("plainText"), false, "copied HUD activity must not persist raw clipboard text fields");
 
 const validation = validateStatusPayload({ statuses: [first.status] });
 assert.equal(validation.ok, true, "active clipboard status should satisfy the shared native status schema");

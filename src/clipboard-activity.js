@@ -124,6 +124,76 @@ function buildClipboardCopyEvent(read, classified, signature, options = {}) {
   };
 }
 
+function clipboardGlyphForClassification(classification) {
+  if (classification === "link") return "link";
+  if (classification === "path") return "doc";
+  if (classification === "code") return "curlybraces";
+  return "doc.on.clipboard";
+}
+
+function labelForClipboardClassification(classification, characterCount) {
+  const cleanClassification = String(classification || "text").trim() || "text";
+  const type = cleanClassification.charAt(0).toUpperCase() + cleanClassification.slice(1);
+  const count = Number.isFinite(Number(characterCount)) ? Number(characterCount) : 0;
+  return `${type} copied · ${count} char${count === 1 ? "" : "s"}`;
+}
+
+function buildClipboardCopiedHudActivity(copyEvent, options = {}) {
+  if (!copyEvent || typeof copyEvent !== "object") {
+    throw new Error("clipboard copy event is required");
+  }
+  if (copyEvent.eventType !== "copy") {
+    throw new Error("clipboard HUD activity requires a copy event");
+  }
+  const observedAt = finiteTimestamp(copyEvent.observedAt ?? options.observedAt ?? options.now, Date.now());
+  const updatedAt = finiteTimestamp(copyEvent.detectedAt ?? options.detectedAt ?? options.now ?? observedAt, observedAt);
+  const recencyMs = Number.isFinite(Number(options.recencyMs)) ? Number(options.recencyMs) : DEFAULT_RECENCY_MS;
+  const classification = String(options.classification || copyEvent.classification || "text").trim() || "text";
+  const characterCount = Number.isFinite(Number(options.characterCount ?? copyEvent.characterCount)) ? Number(options.characterCount ?? copyEvent.characterCount) : 0;
+  const label = String(options.label || labelForClipboardClassification(classification, characterCount));
+  const preview = truncate(options.preview || "");
+  const source = String(options.source || copyEvent.source || DEFAULT_SOURCE).trim() || DEFAULT_SOURCE;
+
+  return {
+    activityId: String(copyEvent.eventId || clipboardCopyEventId(observedAt, copyEvent.contentSignature || "clipboard")),
+    activityType: "clipboard",
+    priority: 500,
+    createdAt: observedAt,
+    updatedAt,
+    expiresAt: observedAt + recencyMs,
+    isTransient: true,
+    status: {
+      label,
+      preview,
+      classification,
+      characterCount,
+      copied: true
+    },
+    compactSurface: {
+      glyph: clipboardGlyphForClassification(classification),
+      label,
+      preview,
+      hudKind: "copied"
+    },
+    expandedSurface: {
+      title: "Clipboard",
+      subtitle: label,
+      preview,
+      hudKind: "copied"
+    },
+    source,
+    metadata: {
+      classification,
+      characterCount,
+      recentPlainTextChange: true,
+      observedAt,
+      copyEvent: { ...copyEvent }
+    },
+    revealReadyPath: "",
+    persisted: false
+  };
+}
+
 function createClipboardActivityState(seed = {}) {
   return {
     lastSignature: typeof seed.lastSignature === "string" ? seed.lastSignature : "",
@@ -206,43 +276,14 @@ function applyClipboardRead(state = createClipboardActivityState(), read = {}, o
   }
 
   const classified = classifyClipboardText(text);
-  const source = String(read.source || DEFAULT_SOURCE).trim() || DEFAULT_SOURCE;
   const copyEvent = buildClipboardCopyEvent(read, classified, signature, { now: nowMs });
-  const activity = {
-    activityId: copyEvent.eventId,
-    activityType: "clipboard",
-    priority: 500,
-    createdAt: observedAt,
-    updatedAt: nowMs,
-    expiresAt: observedAt + recencyMs,
-    isTransient: true,
-    status: {
-      label: classified.label,
-      preview: classified.preview,
-      classification: classified.classification,
-      characterCount: classified.characterCount
-    },
-    compactSurface: {
-      glyph: classified.classification === "link" ? "link" : (classified.classification === "path" ? "doc" : "doc.on.clipboard"),
-      label: classified.label,
-      preview: classified.preview
-    },
-    expandedSurface: {
-      title: "Clipboard",
-      subtitle: classified.label,
-      preview: classified.preview
-    },
-    source,
-    metadata: {
-      classification: classified.classification,
-      characterCount: classified.characterCount,
-      recentPlainTextChange: true,
-      observedAt,
-      copyEvent
-    },
-    revealReadyPath: "",
-    persisted: false
-  };
+  const activity = buildClipboardCopiedHudActivity(copyEvent, {
+    classification: classified.classification,
+    characterCount: classified.characterCount,
+    label: classified.label,
+    preview: classified.preview,
+    recencyMs
+  });
 
   return {
     state: createClipboardActivityState({ lastSignature: signature, active: activity }),
@@ -265,6 +306,7 @@ module.exports = {
   DEFAULT_RECENCY_MS,
   applyClipboardRead,
   buildClipboardCopyEvent,
+  buildClipboardCopiedHudActivity,
   buildClipboardStatusFromText,
   classifyClipboardText,
   clipboardCopyEventId,

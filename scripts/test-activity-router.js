@@ -194,6 +194,64 @@ assert.deepEqual(
   "shared router should expose the active timer candidate before passive visible activities"
 );
 
+const higherPriorityTimerYieldCases = [
+  {
+    type: "volume",
+    status: candidateStatus("volume", 1800, {
+      agent: "Volume",
+      task: "Volume 72%",
+      expiresAt: "2026-06-15T09:00:02.000Z"
+    })
+  },
+  {
+    type: "brightness",
+    status: candidateStatus("brightness", 1700, {
+      agent: "Brightness",
+      task: "Brightness 68%",
+      expiresAt: "2026-06-15T09:00:02.000Z"
+    })
+  },
+  {
+    type: "clipboard",
+    status: buildClipboardStatusFromText("https://example.com/timer-yields-to-clipboard", {
+      now: now.getTime(),
+      observedAt: now.getTime(),
+      source: "fixture-clipboard"
+    }).status
+  },
+  {
+    type: "shelf",
+    status: candidateStatus("shelf", 1500, {
+      agent: "DynaShelf",
+      task: "Shelf · 1 file ready",
+      revealReadyPath: "/Users/st/Desktop/timer-yields-to-shelf.pdf",
+      metadata: { fileCount: 1 }
+    })
+  },
+  {
+    type: "drop",
+    status: candidateStatus("drop", 1400, {
+      agent: "DynaDrop",
+      task: "Drop · 2 files staged",
+      metadata: { fileCount: 2 }
+    })
+  }
+];
+
+for (const { type, status } of higherPriorityTimerYieldCases) {
+  const rankedTimerYieldCase = rankActivities([routedTimerStatus, status], { now });
+  assert.deepEqual(
+    rankedTimerYieldCase.map((activity) => activity.activityType),
+    [type, "timer"],
+    `timer should yield compact priority to higher-priority ${type} activity even when the timer is active`
+  );
+  assert.equal(
+    selectCompactActivity([routedTimerStatus, status], { now })?.activityType,
+    type,
+    `higher-priority ${type} activity should be selected over active timer`
+  );
+}
+
 const timerPassiveConflict = [
   candidateStatus("nowPlaying", 900, {
     agent: "Now Playing",
@@ -768,7 +826,11 @@ const rankedClipboardStatus = rankActivities([clipboardStatus], { now })[0];
 assert.equal(rankedClipboardStatus.activityId, "clipboard-copy-1781514000000-aaf4c61ddcc5");
 assert.equal(rankedClipboardStatus.source, "fixture-clipboard");
 assert.equal(rankedClipboardStatus.metadata.classification, "text");
+assert.equal(rankedClipboardStatus.status.clipboardActivity.status.copied, true);
+assert.equal(rankedClipboardStatus.status.clipboardActivity.compactSurface.hudKind, "copied");
 assert.equal(rankedClipboardStatus.compactSurface.activityType, "clipboard");
+assert.equal(rankedClipboardStatus.compactSurface.hudKind, "copied");
+assert.equal(rankedClipboardStatus.compactSurface.label, "Text copied · 5 chars");
 assert.equal(rankedClipboardStatus.persisted, false);
 
 const snapshot = buildActivityRouterSnapshot(statuses, { now });
