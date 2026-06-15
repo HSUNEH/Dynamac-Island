@@ -78,6 +78,51 @@ assert.match(
   "check-readme should report the missing DynaDrop native drag deferral"
 );
 
+const missingDynaDropShelfSectionResult = runChecker(
+  readme.replace("### DynaDrop/Shelf Core Model", "### Shelf Core Model")
+);
+
+assert.notEqual(
+  missingDynaDropShelfSectionResult.status,
+  0,
+  `check-readme should fail when the DynaDrop/Shelf section heading is missing.\nstdout:\n${missingDynaDropShelfSectionResult.stdout}\nstderr:\n${missingDynaDropShelfSectionResult.stderr}`
+);
+assert.match(
+  missingDynaDropShelfSectionResult.stderr,
+  /Missing DynaDrop\/Shelf section/,
+  "check-readme should report the missing DynaDrop/Shelf section"
+);
+
+const missingDynaDropShelfBehaviorResult = runChecker(
+  readme.replace("stores only reveal-safe metadata in state", "")
+);
+
+assert.notEqual(
+  missingDynaDropShelfBehaviorResult.status,
+  0,
+  `check-readme should fail when the implemented DynaDrop/Shelf behavior is missing.\nstdout:\n${missingDynaDropShelfBehaviorResult.stdout}\nstderr:\n${missingDynaDropShelfBehaviorResult.stderr}`
+);
+assert.match(
+  missingDynaDropShelfBehaviorResult.stderr,
+  /Missing DynaDrop reveal-safe metadata/,
+  "check-readme should report the missing implemented DynaDrop/Shelf behavior"
+);
+
+const missingDynaDropShelfTestsResult = runChecker(
+  readme.replace("`npm run test:shelf-state`", "`npm run test:shelf-model`")
+);
+
+assert.notEqual(
+  missingDynaDropShelfTestsResult.status,
+  0,
+  `check-readme should fail when the runnable DynaDrop/Shelf model test reference is missing.\nstdout:\n${missingDynaDropShelfTestsResult.stdout}\nstderr:\n${missingDynaDropShelfTestsResult.stderr}`
+);
+assert.match(
+  missingDynaDropShelfTestsResult.stderr,
+  /Missing DynaDrop shelf model tests/,
+  "check-readme should report the missing runnable DynaDrop/Shelf model test reference"
+);
+
 const missingActivityRouterSectionResult = runChecker(
   readme.replace("## Activity Router MVP", "## Router Notes")
 );
