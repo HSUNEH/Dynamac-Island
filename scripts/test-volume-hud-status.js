@@ -7,6 +7,7 @@ const {
   buildVolumeHudStatusPayload,
   createInitialVolumeHudCompactActivity,
   createVolumeHudState,
+  expireVolumeHudState,
   updateVisibleVolumeHudState,
   volumeHudToNativeStatus
 } = require("../src/volume-hud-status");
@@ -151,6 +152,14 @@ assert.equal(replacedVisibleVolume.activity.createdAt, 1718323204101, "replaceme
 assert.equal(replacedVisibleVolume.activity.status.previousLevel, null, "replacement should not leak the expired previous level");
 assert.equal(replacedVisibleVolume.activity.compactSurface.label, "18%", "replacement should expose the new visible volume level");
 
+const stillVisibleAtExpiryBoundary = expireVolumeHudState(louder, { now: 1718323201850 });
+assert.equal(stillVisibleAtExpiryBoundary.active.activityId, "volume-1718323200000", "volume HUD should remain visible through its exact expiry boundary");
+assert.equal(stillVisibleAtExpiryBoundary.active.status.level, 42, "visible volume level should remain available before clearing");
+
+const clearedAfterTransientLifetime = expireVolumeHudState(louder, { now: 1718323201851 });
+assert.deepEqual(clearedAfterTransientLifetime, { active: null }, "volume HUD should clear level state after its transient lifetime");
+assert.deepEqual(buildVolumeHudStatusPayload(clearedAfterTransientLifetime), { statuses: [] }, "cleared volume HUD should not emit a native status item");
+
 const status = volumeHudToNativeStatus(louder.active);
 assert.deepEqual(status, {
   agent: "Volume",
@@ -176,6 +185,11 @@ assert.throws(
   () => applyVolumeHudInputChange(initial, { level: 50, observedAt: "bad" }),
   /observedAt must be a finite timestamp/,
   "invalid observation timestamps should fail predictably"
+);
+assert.throws(
+  () => expireVolumeHudState(louder, { now: "bad" }),
+  /now must be a finite timestamp/,
+  "invalid expiry timestamps should fail predictably"
 );
 
 console.log("Volume HUD status model test passed.");

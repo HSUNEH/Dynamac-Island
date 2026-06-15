@@ -74,6 +74,12 @@ function reusablePreviousActivity(state, observedAt) {
   return Number(previous.expiresAt) >= observedAt ? previous : null;
 }
 
+function expireVolumeHudState(state = createVolumeHudState(), options = {}) {
+  const now = assertFiniteTimestamp(options.now ?? Date.now(), "now");
+  const active = reusablePreviousActivity(state, now);
+  return active ? createVolumeHudState(active) : createVolumeHudState();
+}
+
 function applyVolumeHudInputChange(state = createVolumeHudState(), input = {}, options = {}) {
   const observedAt = assertFiniteTimestamp(input.observedAt ?? options.now ?? Date.now(), "observedAt");
   const level = normalizeLevel(input.level);
@@ -157,6 +163,7 @@ module.exports = {
   buildVolumeHudStatusPayload,
   createInitialVolumeHudCompactActivity,
   createVolumeHudState,
+  expireVolumeHudState,
   updateVisibleVolumeHudState,
   volumeHudToNativeStatus
 };
