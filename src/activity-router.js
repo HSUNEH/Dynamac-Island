@@ -7,6 +7,7 @@ const ACTIVITY_PRIORITIES = Object.freeze({
   shelf: 400,
   drop: 400,
   timer: 300,
+  macContext: 250,
   nowPlaying: 200,
   battery: 100,
   futurePassive: 0
@@ -19,6 +20,7 @@ const AGENT_ACTIVITY_TYPES = Object.freeze({
   "DynaKeys Brightness": "brightness",
   "Clipboard": "clipboard",
   "DynaClip": "clipboard",
+  "Mac Context": "macContext",
   "Shelf": "shelf",
   "DynaShelf": "shelf",
   "DynaDrop": "drop",
@@ -70,7 +72,7 @@ function activityIdForStatus(status, index) {
 
 function embeddedActivityForStatus(status) {
   if (!status || typeof status !== "object") return null;
-  const candidates = [status.activity, status.volumeHud, status.brightnessHud, status.clipboardActivity, status.shelfActivity, status.dropActivity];
+  const candidates = [status.activity, status.volumeHud, status.brightnessHud, status.clipboardActivity, status.macContext, status.shelfActivity, status.dropActivity];
   return candidates.find((candidate) => candidate && typeof candidate === "object" && !Array.isArray(candidate)) || null;
 }
 
@@ -79,6 +81,7 @@ function isActivityExpired(activity, nowMs) {
 }
 
 function isCompactEligibleActivity(activity) {
+  if (activity.activityType === "clipboard") return activity.status?.state !== "idle";
   if (activity.activityType === "nowPlaying") return activity.status?.state === "running";
   if (activity.activityType === "battery") return activity.status?.state === "running";
   if (activity.activityType !== "timer") return true;
@@ -197,7 +200,7 @@ function buildActivityRouterSnapshot(statuses, options = {}) {
   const rankedActivities = rankActivities(statuses, options);
   const compactActivity = rankedActivities[0] || null;
   return {
-    order: ["volume", "brightness", "clipboard", "shelf", "drop", "timer", "nowPlaying", "battery", "futurePassive"],
+    order: ["volume", "brightness", "clipboard", "shelf", "drop", "timer", "macContext", "nowPlaying", "battery", "futurePassive"],
     rankedActivities,
     compactSurface: compactActivity ? compactActivity.compactSurface : null
   };

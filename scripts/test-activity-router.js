@@ -43,6 +43,10 @@ const brightnessConflictCandidates = [
     status: candidateStatus("clipboard", 900, { agent: "Clipboard" })
   },
   {
+    label: "mac context",
+    status: candidateStatus("macContext", 900, { agent: "Mac Context" })
+  },
+  {
     label: "shelf",
     status: candidateStatus("shelf", 900, {
       agent: "DynaShelf",
@@ -127,6 +131,15 @@ const statuses = [
     updatedAt: "2026-06-15T08:59:55.000Z"
   },
   {
+    agent: "Mac Context",
+    state: "running",
+    task: "Arc · Dynamac Island",
+    detail: "Full read-only active app/window context available.",
+    activityType: "macContext",
+    macContext: { activityType: "macContext", activityId: "mac-context-fixture" },
+    updatedAt: "2026-06-15T08:59:54.500Z"
+  },
+  {
     agent: "Brightness",
     state: "running",
     task: "Brightness 64%",
@@ -156,7 +169,8 @@ assert.equal(ACTIVITY_PRIORITIES.volume > ACTIVITY_PRIORITIES.clipboard, true);
 assert.equal(ACTIVITY_PRIORITIES.clipboard > ACTIVITY_PRIORITIES.shelf, true);
 assert.equal(ACTIVITY_PRIORITIES.shelf, ACTIVITY_PRIORITIES.drop);
 assert.equal(ACTIVITY_PRIORITIES.shelf > ACTIVITY_PRIORITIES.timer, true);
-assert.equal(ACTIVITY_PRIORITIES.timer > ACTIVITY_PRIORITIES.nowPlaying, true);
+assert.equal(ACTIVITY_PRIORITIES.timer > ACTIVITY_PRIORITIES.macContext, true);
+assert.equal(ACTIVITY_PRIORITIES.macContext > ACTIVITY_PRIORITIES.nowPlaying, true);
 assert.equal(ACTIVITY_PRIORITIES.nowPlaying > ACTIVITY_PRIORITIES.battery, true);
 assert.equal(ACTIVITY_PRIORITIES.battery > ACTIVITY_PRIORITIES.futurePassive, true);
 
@@ -473,6 +487,7 @@ assert.deepEqual(
 
 assert.equal(activityTypeForStatus({ agent: "DynaKeys Volume" }), "volume");
 assert.equal(activityTypeForStatus({ agent: "DynaClip" }), "clipboard");
+assert.equal(activityTypeForStatus({ agent: "Mac Context" }), "macContext");
 assert.equal(activityTypeForStatus({ agent: "DynaDrop" }), "drop");
 assert.equal(activityTypeForStatus({ agent: "Unknown Future Provider" }), "futurePassive");
 
@@ -772,6 +787,12 @@ assert.deepEqual(
   ["clipboard", "battery", "futurePassive"]
 );
 
+const idleClipboardDoesNotHideMacContext = rankActivities([
+  candidateStatus("macContext", 0, { agent: "Mac Context", task: "Arc · Dynamac", detail: "Context available" }),
+  { agent: "Clipboard", state: "idle", task: "Clipboard empty", detail: "No text clipboard.", updatedAt: now.toISOString() }
+], { now });
+assert.deepEqual(idleClipboardDoesNotHideMacContext.map((activity) => activity.activityType), ["macContext"]);
+
 const ranked = rankActivities(statuses, { now });
 assert.deepEqual(ranked.map((activity) => activity.activityType), [
   "volume",
@@ -779,14 +800,16 @@ assert.deepEqual(ranked.map((activity) => activity.activityType), [
   "shelf",
   "drop",
   "timer",
+  "macContext",
   "nowPlaying",
   "battery",
   "futurePassive"
 ]);
-assert.deepEqual(ranked.map((activity) => activity.priority), [600, 500, 400, 400, 300, 200, 100, 0]);
+assert.deepEqual(ranked.map((activity) => activity.priority), [600, 500, 400, 400, 300, 250, 200, 100, 0]);
 assert.equal(ranked[0].compactSurface.label, "Volume 42%");
 assert.equal(ranked[2].revealReadyPath, "/Users/st/Desktop/demo.pdf");
 assert.equal(ranked[3].compactSurface.priority, ACTIVITY_PRIORITIES.drop);
+assert.equal(ranked[5].activityId, "mac-context-fixture");
 assert.equal(ranked[4].persisted, false);
 assert.equal(selectCompactActivity(statuses, { now }).activityType, "volume");
 
@@ -876,7 +899,7 @@ assert.equal(rankedClipboardStatus.persisted, false);
 
 const snapshot = buildActivityRouterSnapshot(statuses, { now });
 assert.equal(snapshot.compactSurface.activityType, "volume");
-assert.deepEqual(snapshot.order, ["volume", "brightness", "clipboard", "shelf", "drop", "timer", "nowPlaying", "battery", "futurePassive"]);
+assert.deepEqual(snapshot.order, ["volume", "brightness", "clipboard", "shelf", "drop", "timer", "macContext", "nowPlaying", "battery", "futurePassive"]);
 
 const expiredHudRanksBelowClipboard = rankActivities([
   { agent: "Volume", task: "Volume 10%", expiresAt: "2026-06-15T08:59:59.000Z", updatedAt: "2026-06-15T08:59:59.000Z" },

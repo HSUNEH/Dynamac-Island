@@ -18,6 +18,7 @@ const {
   collectChangedSystemBrightnessInput,
   collectChangedSystemVolumeInput,
   collectClipboardStatus,
+  collectMacContextStatus,
   collectVolumeHudStatus,
   collectMediaCandidates,
   collectMediaStatus,
@@ -33,6 +34,17 @@ const { createClipboardActivityState } = require("../src/clipboard-activity");
 
 process.env.DYNAMAC_YOUTUBE_MEDIA_FILE = path.join(os.tmpdir(), `dynamac-test-youtube-media-${process.pid}.json`);
 const sourceText = fs.readFileSync(path.join(__dirname, "..", "src", "mac-activity-status.js"), "utf8");
+const fixtureMacContextStatus = collectMacContextStatus({
+  activeAppInfo: { name: "Arc", bundleIdentifier: "company.thebrowser.Browser", pid: 4242 },
+  activeWindowTitle: "Dynamac Island · macOS-MCP notes",
+  accessibilityPermission: true,
+  screenRecordingPermission: false,
+  uiTreeContext: {
+    available: true,
+    summary: "Front window for Arc: Dynamac Island · macOS-MCP notes",
+    nodes: [{ role: "application", title: "Arc" }, { role: "window", title: "Dynamac Island · macOS-MCP notes" }]
+  }
+});
 
 assert.deepEqual(parsePmsetBattery("Now drawing from 'Battery Power'\n -InternalBattery-0 (id=1234567)\t19%; discharging; 1:20 remaining present: true"), {
   agent: "Battery",
@@ -46,6 +58,24 @@ assert.equal(classifyClipboardText("https://example.com/a").task, "Link copied �
 assert.equal(classifyClipboardText("/Users/st/file.txt").task, "Path copied · 18 chars");
 assert.equal(classifyClipboardText("hello").task, "Text copied · 5 chars");
 assert.equal(formatDuration(65.9), "1:05");
+assert.equal(fixtureMacContextStatus.agent, "Mac Context");
+assert.equal(fixtureMacContextStatus.activityType, "macContext");
+assert.equal(fixtureMacContextStatus.activeApp, "Arc");
+assert.equal(fixtureMacContextStatus.activeWindow, "Dynamac Island · macOS-MCP notes");
+assert.equal(fixtureMacContextStatus.permissionStatus.accessibility.status, "granted");
+assert.equal(fixtureMacContextStatus.permissionStatus.screenRecording.status, "denied");
+assert.match(fixtureMacContextStatus.degradationState, /Screen Recording denied/);
+assert.equal(fixtureMacContextStatus.macContext.compactSurface.glyph, "macwindow");
+
+const degradedMacContextStatus = collectMacContextStatus({
+  activeAppInfo: { name: "Finder", bundleIdentifier: "com.apple.finder", pid: 101 },
+  activeWindowTitle: "",
+  accessibilityPermission: false,
+  screenRecordingPermission: false
+});
+assert.equal(degradedMacContextStatus.state, "warning");
+assert.match(degradedMacContextStatus.detail, /Accessibility not granted/);
+assert.equal(degradedMacContextStatus.uiTreeContext.available, false);
 
 assert.equal(collectChangedSystemVolumeInput({
   systemVolumeText: "25||false",
@@ -569,28 +599,31 @@ assert.equal(backgroundYoutubeFallbackDoesNotBeatSpotify.media.source, "spotify"
 
 const payload = buildMacActivityStatusPayload({
   now: new Date("2026-06-11T09:00:00.000Z"),
+  macContextStatus: fixtureMacContextStatus,
   mediaInfo: spotifyInfo,
   clipboardActivityState: createClipboardActivityState(),
   clipboardText: "https://example.com/b",
   pmsetOutput: "Now drawing from 'AC Power'\n -InternalBattery-0\t82%; charging; 0:35 remaining present: true"
 });
 
-assert.deepEqual(payload.statuses.map((status) => status.agent), ["Now Playing", "Clipboard", "Battery"]);
-assert.equal(payload.statuses[0].state, "running");
-assert.equal(payload.statuses[0].task, "Song Title");
-assert.equal(payload.statuses[0].detail, "Artist Name");
-assert.equal(payload.statuses[0].media.title, "Song Title");
-assert.equal(payload.statuses[0].media.artist, "Artist Name");
-assert.equal(payload.statuses[0].media.elapsedLabel, "0:42");
-assert.equal(payload.statuses[0].media.durationLabel, "4:00");
-assert.equal(payload.statuses[1].task, "Link copied · 21 chars");
-assert.equal(payload.statuses[2].task, "Charging 82%");
+assert.deepEqual(payload.statuses.map((status) => status.agent), ["Mac Context", "Now Playing", "Clipboard", "Battery"]);
+assert.equal(payload.statuses[0].activeApp, "Arc");
+assert.equal(payload.statuses[1].state, "running");
+assert.equal(payload.statuses[1].task, "Song Title");
+assert.equal(payload.statuses[1].detail, "Artist Name");
+assert.equal(payload.statuses[1].media.title, "Song Title");
+assert.equal(payload.statuses[1].media.artist, "Artist Name");
+assert.equal(payload.statuses[1].media.elapsedLabel, "0:42");
+assert.equal(payload.statuses[1].media.durationLabel, "4:00");
+assert.equal(payload.statuses[2].task, "Link copied · 21 chars");
+assert.equal(payload.statuses[3].task, "Charging 82%");
 assert.equal(payload.statuses.every((status) => status.updatedAt === "2026-06-11T09:00:00.000Z"), true);
 assert.equal(payload.activityRouter.compactSurface.activityType, "clipboard");
-assert.deepEqual(payload.activityRouter.rankedActivities.map((activity) => activity.activityType), ["clipboard", "nowPlaying", "battery"]);
+assert.deepEqual(payload.activityRouter.rankedActivities.map((activity) => activity.activityType), ["clipboard", "macContext", "nowPlaying", "battery"]);
 
 const payloadWithBrightnessHud = buildMacActivityStatusPayload({
   now: new Date("2026-06-11T09:00:01.000Z"),
+  macContextStatus: fixtureMacContextStatus,
   brightnessInput: {
     level: 73,
     displayName: "Studio Display",
@@ -602,15 +635,16 @@ const payloadWithBrightnessHud = buildMacActivityStatusPayload({
   clipboardText: "https://example.com/c",
   pmsetOutput: "Now drawing from 'AC Power'\n -InternalBattery-0\t82%; charging; 0:35 remaining present: true"
 });
-assert.deepEqual(payloadWithBrightnessHud.statuses.map((status) => status.agent), ["Brightness", "Now Playing", "Clipboard", "Battery"]);
+assert.deepEqual(payloadWithBrightnessHud.statuses.map((status) => status.agent), ["Brightness", "Mac Context", "Now Playing", "Clipboard", "Battery"]);
 assert.equal(payloadWithBrightnessHud.statuses[0].brightnessHud.activityType, "brightness");
 assert.equal(payloadWithBrightnessHud.statuses[0].brightnessHud.status.level, 73);
 assert.equal(payloadWithBrightnessHud.statuses[0].brightnessHud.metadata.displayName, "Studio Display");
 assert.equal(payloadWithBrightnessHud.activityRouter.compactSurface.activityType, "brightness");
-assert.deepEqual(payloadWithBrightnessHud.activityRouter.rankedActivities.map((activity) => activity.activityType), ["brightness", "clipboard", "nowPlaying", "battery"]);
+assert.deepEqual(payloadWithBrightnessHud.activityRouter.rankedActivities.map((activity) => activity.activityType), ["brightness", "clipboard", "macContext", "nowPlaying", "battery"]);
 
 const payloadWithOverlappingHuds = buildMacActivityStatusPayload({
   now: new Date("2026-06-11T09:00:01.000Z"),
+  macContextStatus: fixtureMacContextStatus,
   volumeInput: {
     level: 40,
     muted: false,
@@ -628,10 +662,10 @@ const payloadWithOverlappingHuds = buildMacActivityStatusPayload({
   clipboardText: "https://example.com/d",
   pmsetOutput: "Now drawing from 'AC Power'\n -InternalBattery-0\t82%; charging; 0:35 remaining present: true"
 });
-assert.deepEqual(payloadWithOverlappingHuds.statuses.map((status) => status.agent), ["Volume", "Brightness", "Now Playing", "Clipboard", "Battery"]);
+assert.deepEqual(payloadWithOverlappingHuds.statuses.map((status) => status.agent), ["Volume", "Brightness", "Mac Context", "Now Playing", "Clipboard", "Battery"]);
 assert.deepEqual(
   payloadWithOverlappingHuds.activityRouter.rankedActivities.map((activity) => activity.activityType),
-  ["brightness", "clipboard", "nowPlaying", "battery"],
+  ["brightness", "clipboard", "macContext", "nowPlaying", "battery"],
   "router should collapse simultaneous volume/brightness statuses to one compact HUD lane"
 );
 assert.equal(payloadWithOverlappingHuds.activityRouter.compactSurface.activityType, "brightness");
@@ -648,6 +682,7 @@ const firstHudObservedAt = Date.parse("2026-06-11T09:00:01.500Z");
 const secondHudObservedAt = Date.parse("2026-06-11T09:00:02.800Z");
 const capturedHudPayload = buildMacActivityStatusPayload({
   now: new Date("2026-06-11T09:00:02.000Z"),
+  macContextStatus: fixtureMacContextStatus,
   hudEventStorePath,
   volumeTransientMs: 10_000,
   volumeInput: {
@@ -674,6 +709,7 @@ assert.deepEqual(capturedHudStore.events[0].input, {
 
 const replayedAfterRestartPayload = buildMacActivityStatusPayload({
   now: new Date("2026-06-11T09:00:02.400Z"),
+  macContextStatus: fixtureMacContextStatus,
   hudEventStorePath,
   volumeTransientMs: 10_000,
   mediaInfo: null,
@@ -688,6 +724,7 @@ assert.equal(replayedAfterRestartPayload.activityRouter.compactSurface.activityT
 
 const continuedAfterRestartPayload = buildMacActivityStatusPayload({
   now: new Date("2026-06-11T09:00:03.000Z"),
+  macContextStatus: fixtureMacContextStatus,
   hudEventStorePath,
   volumeTransientMs: 10_000,
   volumeInput: {
@@ -714,6 +751,7 @@ assert.deepEqual(
 const result = writeMacActivityStatusSnapshot({
   outputPath,
   now: new Date("2026-06-11T09:00:00.000Z"),
+  macContextStatus: fixtureMacContextStatus,
   mediaInfo: null,
   clipboardText: "hello",
   pmsetOutput: "Now drawing from 'Battery Power'\n -InternalBattery-0\t77%; discharging; 5:00 remaining present: true"
@@ -721,7 +759,7 @@ const result = writeMacActivityStatusSnapshot({
 assert.equal(result.ok, true);
 assert.equal(fs.existsSync(outputPath), true);
 const written = JSON.parse(fs.readFileSync(outputPath, "utf8"));
-assert.equal(written.statuses.length, 3);
-assert.equal(written.statuses[0].media.playbackState, "idle");
+assert.equal(written.statuses.length, 4);
+assert.equal(written.statuses[1].media.playbackState, "idle");
 
 console.log("Mac activity status snapshot test passed.");

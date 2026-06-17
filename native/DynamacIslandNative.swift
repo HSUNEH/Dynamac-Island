@@ -40,6 +40,7 @@ struct StatusItem: Decodable {
     var volumeHud: RoutedActivityInfo?
     var brightnessHud: RoutedActivityInfo?
     var clipboardActivity: RoutedActivityInfo?
+    var macContext: RoutedActivityInfo?
     var shelfActivity: RoutedActivityInfo?
     var dropActivity: RoutedActivityInfo?
 }
@@ -520,6 +521,9 @@ final class IslandView: NSView {
         if let clipboardType = status.clipboardActivity?.activityType?.trimmingCharacters(in: .whitespacesAndNewlines), !clipboardType.isEmpty {
             return clipboardType
         }
+        if let macContextType = status.macContext?.activityType?.trimmingCharacters(in: .whitespacesAndNewlines), !macContextType.isEmpty {
+            return macContextType
+        }
         if let shelfType = status.shelfActivity?.activityType?.trimmingCharacters(in: .whitespacesAndNewlines), !shelfType.isEmpty {
             return shelfType
         }
@@ -533,6 +537,8 @@ final class IslandView: NSView {
             return "brightness"
         case "Clipboard", "DynaClip":
             return "clipboard"
+        case "Mac Context":
+            return "macContext"
         case "DynaShelf", "Shelf":
             return "shelf"
         case "DynaDrop", "Drop":
@@ -565,6 +571,9 @@ final class IslandView: NSView {
         }
         if let clipboardActivityId = status.clipboardActivity?.activityId, !clipboardActivityId.isEmpty {
             ids.insert(clipboardActivityId)
+        }
+        if let macContextActivityId = status.macContext?.activityId, !macContextActivityId.isEmpty {
+            ids.insert(macContextActivityId)
         }
         if let shelfActivityId = status.shelfActivity?.activityId, !shelfActivityId.isEmpty {
             ids.insert(shelfActivityId)
@@ -800,6 +809,7 @@ final class IslandView: NSView {
         case "volume": return "speaker"
         case "brightness": return "sun.max"
         case "clipboard": return "doc.on.clipboard"
+        case "macContext": return "macwindow"
         case "shelf", "drop": return "tray"
         case "battery": return "battery.100"
         default: return "circle"

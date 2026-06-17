@@ -49,6 +49,26 @@ function runCommand(command, args, options = {}) {
   }
 }
 
+function runCommandResult(command, args, options = {}) {
+  try {
+    const stdout = childProcess.execFileSync(command, args, {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: 1800,
+      killSignal: "SIGKILL",
+      ...options
+    });
+    return { ok: true, stdout: stdout.trim(), stderr: "", error: "" };
+  } catch (error) {
+    return {
+      ok: false,
+      stdout: String(error.stdout || "").trim(),
+      stderr: String(error.stderr || "").trim(),
+      error: error.message || String(error)
+    };
+  }
+}
+
 function truncate(value, maxLength) {
   const text = String(value || "").replace(/\s+/g, " ").trim();
   if (text.length <= maxLength) return text;
@@ -1047,6 +1067,163 @@ function collectMediaStatus(options = {}) {
   return mediaStatusFromInfo(selected, candidates);
 }
 
+function parseActiveApplicationText(output) {
+  const parts = String(output || "").split("||").map((part) => part.trim());
+  if (!parts[0]) return null;
+  return {
+    name: parts[0],
+    bundleIdentifier: parts[1] || "",
+    pid: Number.isFinite(Number(parts[2])) ? Number(parts[2]) : null
+  };
+}
+
+function collectActiveApplicationInfo(options = {}) {
+  if (options.activeAppInfo !== undefined) return options.activeAppInfo;
+  if (options.activeAppText !== undefined) return parseActiveApplicationText(options.activeAppText);
+
+  const swift = runCommand("swift", ["-e", [
+    "import AppKit",
+    "if let app = NSWorkspace.shared.frontmostApplication {",
+    "  print(\"\\(app.localizedName ?? \"\")||\\(app.bundleIdentifier ?? \"\")||\\(app.processIdentifier)\")",
+    "}"
+  ].join("\n")], { timeout: 1500 });
+  const swiftInfo = parseActiveApplicationText(swift);
+  if (swiftInfo) return swiftInfo;
+
+  const osascript = runCommand("osascript", [
+    "-e",
+    "tell application \"System Events\" to get name of first application process whose frontmost is true"
+  ], { timeout: 700 });
+  return osascript ? { name: osascript, bundleIdentifier: "", pid: null } : null;
+}
+
+function permissionStatusFromProbe(name, result, options = {}) {
+  if (options[`${name}Permission`] !== undefined) {
+    return { status: options[`${name}Permission`] ? "granted" : "denied", diagnostic: "fixture" };
+  }
+  if (!result.ok) {
+    return { status: "unknown", diagnostic: truncate(result.stderr || result.error || "Probe unavailable.", 180) };
+  }
+  const text = result.stdout.trim().toLowerCase();
+  if (text === "granted" || text === "true") return { status: "granted", diagnostic: "preflight-granted" };
+  if (text === "denied" || text === "false") return { status: "denied", diagnostic: "preflight-denied" };
+  return { status: "unknown", diagnostic: truncate(result.stdout || "Unexpected permission probe output.", 180) };
+}
+
+function collectMacPermissionStatus(options = {}) {
+  if (options.permissionStatus !== undefined) return options.permissionStatus;
+  const accessibilityProbe = options.accessibilityProbeResult || runCommandResult("swift", [
+    "-e",
+    "import ApplicationServices\nprint(AXIsProcessTrusted() ? \"granted\" : \"denied\")"
+  ], { timeout: 1500 });
+  const screenRecordingProbe = options.screenRecordingProbeResult || runCommandResult("swift", [
+    "-e",
+    "import CoreGraphics\nprint(CGPreflightScreenCaptureAccess() ? \"granted\" : \"denied\")"
+  ], { timeout: 1500 });
+  return {
+    accessibility: permissionStatusFromProbe("accessibility", accessibilityProbe, options),
+    screenRecording: permissionStatusFromProbe("screenRecording", screenRecordingProbe, options)
+  };
+}
+
+function collectActiveWindowTitle(options = {}) {
+  if (options.activeWindowTitle !== undefined) return options.activeWindowTitle;
+  const output = runCommand("osascript", [
+    "-e",
+    "tell application \"System Events\" to tell (first application process whose frontmost is true) to if exists front window then get name of front window else return \"\""
+  ], { timeout: 700 });
+  return output || "";
+}
+
+function buildUiTreeContext(activeApp, activeWindow, permissionStatus, options = {}) {
+  if (options.uiTreeContext !== undefined) return options.uiTreeContext;
+  const accessibility = permissionStatus?.accessibility?.status || "unknown";
+  if (accessibility !== "granted") {
+    return {
+      available: false,
+      summary: "Accessibility UI tree summary unavailable without user-granted Accessibility permission.",
+      nodes: []
+    };
+  }
+  return {
+    available: true,
+    summary: activeWindow ? `Front window for ${activeApp?.name || "active app"}: ${activeWindow}` : `Active app ${activeApp?.name || "unknown"} has no readable front window title.`,
+    nodes: [{ role: "application", title: activeApp?.name || "" }, { role: "window", title: activeWindow || "" }].filter((node) => node.title)
+  };
+}
+
+function macContextDegradationState(activeApp, activeWindow, permissionStatus, uiTreeContext) {
+  const reasons = [];
+  if (!activeApp?.name) reasons.push("active application unavailable");
+  if (!activeWindow) reasons.push("front window title unavailable");
+  if (permissionStatus?.accessibility?.status !== "granted") reasons.push("Accessibility not granted; window/UI tree is reduced");
+  if (permissionStatus?.screenRecording?.status === "denied") reasons.push("Screen Recording denied; screenshots stay disabled");
+  if (!uiTreeContext?.available) reasons.push("UI tree summary unavailable");
+  return reasons.length ? reasons.join("; ") : "Full read-only active app/window context available.";
+}
+
+function macContextActivityId(activeApp, activeWindow) {
+  const key = `${activeApp?.bundleIdentifier || activeApp?.name || "unknown"}||${activeWindow || ""}`;
+  return `mac-context-${crypto.createHash("sha1").update(key).digest("hex").slice(0, 10)}`;
+}
+
+function collectMacContextStatus(options = {}) {
+  if (options.macContextStatus !== undefined) return options.macContextStatus;
+  if (options.enableMacContext === false || process.env.DYNAMAC_DISABLE_MAC_CONTEXT_HUD === "1") return null;
+  const activeApp = collectActiveApplicationInfo(options);
+  const permissionStatus = collectMacPermissionStatus(options);
+  const activeWindow = collectActiveWindowTitle(options);
+  const uiTreeContext = buildUiTreeContext(activeApp, activeWindow, permissionStatus, options);
+  const degradationState = macContextDegradationState(activeApp, activeWindow, permissionStatus, uiTreeContext);
+  const hasContext = Boolean(activeApp?.name);
+  const state = hasContext && permissionStatus.accessibility.status === "granted" ? "running" : (hasContext ? "warning" : "error");
+  const appLabel = activeApp?.name || "Active app unavailable";
+  const windowLabel = activeWindow ? ` · ${truncate(activeWindow, 42)}` : " · window degraded";
+  return {
+    agent: "Mac Context",
+    activityType: "macContext",
+    activityId: macContextActivityId(activeApp, activeWindow),
+    state,
+    task: truncate(`${appLabel}${windowLabel}`, 80),
+    detail: degradationState,
+    source: "local-macos-context-writer",
+    statusSource: "scripts/write-mac-activity-status.js",
+    activeApp: activeApp?.name || "",
+    activeWindow: activeWindow || "",
+    uiTreeContext,
+    permissionStatus,
+    degradationState,
+    macContext: {
+      activityType: "macContext",
+      activityId: macContextActivityId(activeApp, activeWindow),
+      source: "local-macos-context-writer",
+      metadata: {
+        bundleIdentifier: activeApp?.bundleIdentifier || "",
+        pid: activeApp?.pid || null,
+        accessibility: permissionStatus.accessibility.status,
+        screenRecording: permissionStatus.screenRecording.status
+      },
+      compactSurface: {
+        activityType: "macContext",
+        glyph: "macwindow",
+        label: truncate(activeApp?.name || "Mac Context", 28)
+      },
+      expandedSurface: {
+        activityType: "macContext",
+        title: activeWindow ? `${activeApp?.name || "Mac Context"} · ${activeWindow}` : degradationState
+      },
+      persisted: false
+    },
+    metadata: {
+      bundleIdentifier: activeApp?.bundleIdentifier || "",
+      pid: activeApp?.pid || null,
+      permissionStatus,
+      degradationState,
+      statusSource: "scripts/write-mac-activity-status.js"
+    }
+  };
+}
+
 function buildMacActivityStatusPayload(options = {}) {
   const now = options.now || new Date();
   const hudEventStorePath = options.hudEventStorePath || process.env.DYNAMAC_HUD_EVENT_STORE || "";
@@ -1058,6 +1235,7 @@ function buildMacActivityStatusPayload(options = {}) {
   const statuses = [
     collectVolumeHudStatus({ ...options, hudEventStorePath, hudReplayState }),
     collectBrightnessHudStatus({ ...options, hudEventStorePath, hudReplayState }),
+    collectMacContextStatus(options),
     collectTimerStatus(options),
     collectMediaStatus(options),
     collectClipboardStatus(options),
@@ -1121,6 +1299,7 @@ function writeMacActivityStatusSnapshot(options = {}) {
 
 module.exports = {
   runCommand,
+  runCommandResult,
   selectFirstPlayingMediaCandidate,
   buildMacActivityStatusPayload,
   arcSpaceYouTubeTabsScript,
@@ -1135,6 +1314,10 @@ module.exports = {
   collectChangedSystemBrightnessInput,
   collectChangedSystemVolumeInput,
   collectClipboardStatus,
+  collectActiveApplicationInfo,
+  collectActiveWindowTitle,
+  collectMacContextStatus,
+  collectMacPermissionStatus,
   collectTimerStatus,
   collectVolumeHudStatus,
   collectMediaCandidates,
