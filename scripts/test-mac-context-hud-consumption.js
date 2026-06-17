@@ -1,8 +1,39 @@
 #!/usr/bin/env node
 
 const assert = require("node:assert");
+const fs = require("node:fs");
 const { buildActivityRouterSnapshot, normalizeActivity } = require("../src/activity-router");
 const { macContextProviderToActivity } = require("../src/mac-context-provider");
+
+function cloneJson(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function deepFreeze(value) {
+  if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;
+  for (const child of Object.values(value)) deepFreeze(child);
+  return Object.freeze(value);
+}
+
+function assertNoUnsupportedWrites(callback) {
+  const writeMethods = ["appendFileSync", "mkdirSync", "renameSync", "rmSync", "unlinkSync", "writeFileSync"];
+  const originals = new Map(writeMethods.map((method) => [method, fs[method]]));
+  const attemptedWrites = [];
+
+  for (const method of writeMethods) {
+    fs[method] = (...args) => {
+      attemptedWrites.push({ method, path: args[0] });
+      throw new Error(`HUD consumption attempted unsupported write behavior via fs.${method}`);
+    };
+  }
+
+  try {
+    return callback();
+  } finally {
+    for (const [method, original] of originals) fs[method] = original;
+    assert.deepEqual(attemptedWrites, [], "HUD consumption should be read-only and must not invoke fs write behavior");
+  }
+}
 
 const now = new Date("2026-06-17T01:23:45.000Z");
 const permissionStatus = {
@@ -39,8 +70,13 @@ const sourceStatus = macContextProviderToActivity({
 });
 
 sourceStatus.updatedAt = now.toISOString();
+const frozenSourceStatus = deepFreeze(sourceStatus);
+const sourceStatusBeforeConsumption = cloneJson(frozenSourceStatus);
 
-const directActivity = normalizeActivity(sourceStatus, 0, { now });
+const { directActivity, snapshot } = assertNoUnsupportedWrites(() => ({
+  directActivity: normalizeActivity(frozenSourceStatus, 0, { now }),
+  snapshot: buildActivityRouterSnapshot([frozenSourceStatus], { now })
+}));
 assert.equal(directActivity.activityType, "macContext", "Mac Context source status should normalize into the HUD macContext activity type");
 assert.deepEqual(directActivity.status.permissionStatus, permissionStatus, "HUD status should preserve permission status exactly from source output");
 assert.equal(directActivity.status.degradationState, degradationState, "HUD status should preserve degradationState exactly from source output");
@@ -52,10 +88,9 @@ assert.equal(directActivity.metadata.statusSource, statusSource, "HUD metadata s
 assert.equal(directActivity.compactSurface.label, "Arc", "compact Dynamic Island state should display the active app label from source output");
 assert.equal(directActivity.expandedSurface.title, degradationState, "expanded Dynamic Island state should display the unchanged degradation text when window context is degraded");
 
-const snapshot = buildActivityRouterSnapshot([sourceStatus], { now });
 const routedActivity = snapshot.rankedActivities[0];
 assert.equal(snapshot.compactSurface.activityType, "macContext", "Activity Router should expose Mac Context as the compact HUD activity");
-assert.equal(snapshot.compactSurface.activityId, sourceStatus.activityId, "Activity Router compact state should keep the source activity id binding");
+assert.equal(snapshot.compactSurface.activityId, frozenSourceStatus.activityId, "Activity Router compact state should keep the source activity id binding");
 assert.equal(snapshot.compactSurface.label, "Arc", "Activity Router compact HUD label should keep the active app unchanged");
 assert.deepEqual(routedActivity.status.permissionStatus, permissionStatus, "routed HUD activity should preserve permission status exactly");
 assert.equal(routedActivity.status.degradationState, degradationState, "routed HUD activity should preserve degradationState exactly");
@@ -63,5 +98,6 @@ assert.equal(routedActivity.status.statusSource, statusSource, "routed HUD activ
 assert.deepEqual(routedActivity.metadata.permissionStatus, permissionStatus, "routed HUD metadata should preserve permission status exactly");
 assert.equal(routedActivity.metadata.degradationState, degradationState, "routed HUD metadata should preserve degradationState exactly");
 assert.equal(routedActivity.expandedSurface.title, degradationState, "routed expanded HUD state should preserve exact degradation text");
+assert.deepEqual(cloneJson(frozenSourceStatus), sourceStatusBeforeConsumption, "HUD consumption should not mutate the Mac Context source status object");
 
 console.log("mac-context HUD consumption mapping tests passed");
