@@ -96,6 +96,15 @@ Launch the native AppKit notch overlay for physical MacBook notch testing:
 npm run native:start
 ```
 
+Inspect the experimental read-only Mac Context status source without launching the overlay:
+
+```sh
+npm run mac-context:status -- --pretty
+npm run mac-context:status -- --status-only --pretty
+```
+
+The command prints `dynamac.macContext.statusSource` JSON with `activeApp`, optional `activeWindow`, `uiTreeContext.available`, Accessibility/Screen Recording `permissionStatus`, and user-visible `degradationState`. A command can return `result.ok: true` with `result.status: "degraded"`; that means the local source worked and found missing permissions/tools. The native HUD consumes the same fields through the status writer and Activity Router, preferring the active app in compact mode and showing `degradationState` in expanded/degraded states. See `docs/macos-mcp-context-hud.md` for the full contract and display rules.
+
 Start a local single active Timer and write it into the watched status file:
 
 ```sh
