@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
 const assert = require("node:assert");
+const { buildActivityRouterSnapshot } = require("../src/activity-router");
+const { macContextProviderToActivity } = require("../src/mac-context-provider");
 const {
   buildMacContextStatusSource
 } = require("./mac-context-status");
@@ -8,8 +10,19 @@ const {
   EXPECTED_EXPERIMENTAL_READ_ONLY_FIELDS,
   MAIN_BASELINE,
   compareMacContextAgainstMain,
+  summarizeMacContextHudState,
   summarizeExperimentalMacContextStatus
 } = require("../src/mac-context-main-comparison");
+
+function cloneJson(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function deepFreeze(value) {
+  if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;
+  for (const child of Object.values(value)) deepFreeze(child);
+  return Object.freeze(value);
+}
 
 const payload = buildMacContextStatusSource({
   now: "2026-06-17T00:00:00.000Z",
@@ -62,6 +75,28 @@ assert.match(comparison.comparisonAgainstMain.permissionBurden, /without bypassi
 assert.match(comparison.comparisonAgainstMain.reliability, /deterministic local status-source/);
 assert.match(comparison.comparisonAgainstMain.ux, /HUD/);
 assert.match(comparison.comparisonAgainstMain.regressionRisk, /contained/);
+
+const hudStatus = macContextProviderToActivity(payload);
+hudStatus.updatedAt = payload.sampledAt;
+const hudState = buildActivityRouterSnapshot([hudStatus], { now: new Date(payload.sampledAt) });
+const frozenHudState = deepFreeze(hudState);
+const hudStateBeforeComparison = cloneJson(frozenHudState);
+const hudSummary = summarizeMacContextHudState(frozenHudState);
+assert.deepEqual(hudSummary, {
+  available: true,
+  compactActivityType: "macContext",
+  compactLabel: "Arc",
+  compactIsMacContext: true,
+  rankedActivityCount: 1,
+  macContextActivityCount: 1,
+  displaysMacContext: true
+}, "comparison module should summarize the routed HUD state without requiring a mutable input");
+
+const comparisonWithHudState = compareMacContextAgainstMain(payload, { hudState: frozenHudState });
+assert.deepEqual(cloneJson(frozenHudState), hudStateBeforeComparison, "running the capability comparison must not mutate the routed HUD state object");
+assert.equal(comparisonWithHudState.result.ok, true);
+assert.equal(comparisonWithHudState.result.hudDisplaysMacContext, true, "comparison should verify the HUD state still displays Mac Context");
+assert.deepEqual(comparisonWithHudState.hudDisplay, hudSummary, "comparison should expose a deterministic HUD display summary");
 
 const missingWindowComparison = compareMacContextAgainstMain({
   ...payload,

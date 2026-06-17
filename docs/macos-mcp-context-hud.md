@@ -144,7 +144,7 @@ Degradation semantics:
 - UX: users see either the active app/window context or a clear degradation reason in the Dynamic Island HUD instead of a silent missing feature.
 - Regression risk: contained to status serialization, activity routing, and native generic routed display mapping; no main merge is performed by this branch.
 
-`src/mac-context-main-comparison.js` is the runnable comparison module for this experimental branch. It uses a stable main baseline that has no Mac Context status source, summarizes the experimental `dynamac.macContext.statusSource` payload, and fails if the branch stops reporting the expected read-only fields: `activeApp`, `activeWindow`, `uiTreeContext`, `permissionStatus`, `degradationState`, and `statusSource`. Run it with `npm run test:mac-context-main-comparison`.
+`src/mac-context-main-comparison.js` is the runnable comparison module for this experimental branch. It uses a stable main baseline that has no Mac Context status source, summarizes the experimental `dynamac.macContext.statusSource` payload, and fails if the branch stops reporting the expected read-only fields: `activeApp`, `activeWindow`, `uiTreeContext`, `permissionStatus`, `degradationState`, and `statusSource`. The comparison test also passes a frozen routed HUD snapshot into the module and verifies that running the comparison reports the Mac Context HUD display without mutating HUD state. Run it with `npm run test:mac-context-main-comparison`.
 
 ## Verification
 

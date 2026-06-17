@@ -64,9 +64,26 @@ function summarizeExperimentalMacContextStatus(payload) {
   };
 }
 
+function summarizeMacContextHudState(hudState) {
+  const compactSurface = objectStatus(hudState?.compactSurface) ? hudState.compactSurface : null;
+  const rankedActivities = Array.isArray(hudState?.rankedActivities) ? hudState.rankedActivities : [];
+  const macContextActivities = rankedActivities.filter((activity) => activity?.activityType === "macContext");
+
+  return {
+    available: objectStatus(hudState),
+    compactActivityType: compactSurface?.activityType || "",
+    compactLabel: compactSurface?.label || "",
+    compactIsMacContext: compactSurface?.activityType === "macContext",
+    rankedActivityCount: rankedActivities.length,
+    macContextActivityCount: macContextActivities.length,
+    displaysMacContext: compactSurface?.activityType === "macContext" || macContextActivities.length > 0
+  };
+}
+
 function compareMacContextAgainstMain(payload, options = {}) {
   const mainBaseline = options.mainBaseline || MAIN_BASELINE;
   const experimental = summarizeExperimentalMacContextStatus(payload);
+  const hudDisplay = options.hudState === undefined ? null : summarizeMacContextHudState(options.hudState);
   const missingExpectedFields = EXPECTED_EXPERIMENTAL_READ_ONLY_FIELDS.filter((field) => !experimental.readOnlyFields.includes(field));
   const regressionRisks = [];
 
@@ -76,12 +93,14 @@ function compareMacContextAgainstMain(payload, options = {}) {
   if (!experimental.activeWindow.available) regressionRisks.push("active window context unavailable");
   if (!experimental.permissionStatus) regressionRisks.push("permission status unavailable");
   if (!experimental.degradationState) regressionRisks.push("degradation state unavailable");
+  if (hudDisplay && !hudDisplay.displaysMacContext) regressionRisks.push("HUD state does not display macContext activity");
 
   return {
     schemaVersion: 1,
     kind: "dynamac.macContext.comparisonAgainstMain",
     baseline: mainBaseline,
     experimental,
+    hudDisplay,
     expectedReadOnlyFields: [...EXPECTED_EXPERIMENTAL_READ_ONLY_FIELDS],
     result: {
       ok: regressionRisks.length === 0,
@@ -92,6 +111,7 @@ function compareMacContextAgainstMain(payload, options = {}) {
       activeWindowReported: experimental.activeWindow.available,
       permissionsReported: experimental.permissionStatus,
       degradationStateReported: Boolean(experimental.degradationState),
+      hudDisplaysMacContext: hudDisplay ? hudDisplay.displaysMacContext : null,
       regressionRisks
     },
     comparisonAgainstMain: {
@@ -108,5 +128,6 @@ module.exports = {
   EXPECTED_EXPERIMENTAL_READ_ONLY_FIELDS,
   MAIN_BASELINE,
   compareMacContextAgainstMain,
+  summarizeMacContextHudState,
   summarizeExperimentalMacContextStatus
 };
