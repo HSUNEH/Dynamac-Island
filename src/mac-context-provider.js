@@ -208,6 +208,31 @@ function macContextDegradationState(activeApp, activeWindow, permissionStatus, u
   return reasons.length ? reasons.join("; ") : "Full read-only active app/window context available.";
 }
 
+function macPermissionStatusDegradationReasons(permissionStatus) {
+  const reasons = [];
+  const accessibility = permissionStatus?.accessibility || { status: "unknown", diagnostic: "missing permission status" };
+  const screenRecording = permissionStatus?.screenRecording || { status: "unknown", diagnostic: "missing permission status" };
+
+  if (accessibility.status === "denied") {
+    reasons.push("Accessibility denied; active window title and UI tree context will stay reduced until permission is granted in System Settings.");
+  } else if (accessibility.status !== "granted") {
+    reasons.push(`Accessibility status unknown${permissionDiagnosticSuffix(accessibility)}; active window title and UI tree context will stay reduced until the local probe succeeds.`);
+  }
+
+  if (screenRecording.status === "denied") {
+    reasons.push("Screen Recording denied; screenshot and screen-derived context stay disabled.");
+  } else if (screenRecording.status !== "granted") {
+    reasons.push(`Screen Recording status unknown${permissionDiagnosticSuffix(screenRecording)}; screenshot and screen-derived context stay disabled until the local probe succeeds.`);
+  }
+
+  return reasons;
+}
+
+function macPermissionStatusDegradationState(permissionStatus) {
+  const reasons = macPermissionStatusDegradationReasons(permissionStatus);
+  return reasons.length ? reasons.join("; ") : "Permission preflight passed; active app/window retrieval has not been invoked by this status-only API.";
+}
+
 function macContextActivityId(activeApp, activeWindow) {
   const key = `${activeApp?.bundleIdentifier || activeApp?.name || "unknown"}||${activeWindow || ""}`;
   return `mac-context-${crypto.createHash("sha1").update(key).digest("hex").slice(0, 10)}`;
@@ -228,6 +253,23 @@ function collectMacContextProvider(options = {}) {
     degradationState,
     statusSource: "scripts/write-mac-activity-status.js",
     source: "local-macos-context-provider"
+  };
+}
+
+function collectMacContextStatusOnly(options = {}) {
+  const permissionStatus = collectMacPermissionStatus(options);
+  return {
+    activeApp: null,
+    activeWindow: "",
+    uiTreeContext: {
+      available: false,
+      summary: "Status-only preflight did not request active app, active window, or Accessibility UI tree context.",
+      nodes: []
+    },
+    permissionStatus,
+    degradationState: macPermissionStatusDegradationState(permissionStatus),
+    statusSource: "src/mac-context-provider.js#collectMacContextStatusOnly",
+    source: "local-macos-context-status-only"
   };
 }
 
@@ -296,6 +338,7 @@ module.exports = {
   collectActiveApplicationInfo,
   collectActiveWindowTitle,
   collectMacContextProvider,
+  collectMacContextStatusOnly,
   collectMacPermissionStatus,
   defaultPermissionProbes,
   invokePermissionProbe,
@@ -303,6 +346,8 @@ module.exports = {
   macContextDegradationReasons,
   macContextDegradationState,
   macContextProviderToActivity,
+  macPermissionStatusDegradationReasons,
+  macPermissionStatusDegradationState,
   normalizeActiveApplicationInfo,
   normalizePermissionProbeResult,
   parseActiveApplicationText,

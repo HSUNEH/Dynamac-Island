@@ -32,6 +32,8 @@ Key fields:
 
 The app name probe uses `NSWorkspace.shared.frontmostApplication` through local Swift when available because it does not need Accessibility. The permission-status detector uses injectable platform probes for Accessibility and Screen Recording, then normalizes them into `status`, `diagnostic`, and `available` fields so tests can exercise granted/denied/unavailable states without touching TCC. The window title and UI-tree-like summary are reduced unless Accessibility is granted. Screen Recording is only preflighted and reported; this MVP does not request it or take screenshots.
 
+For permission-only checks, `collectMacContextStatusOnly()` exposes the same normalized `permissionStatus` plus a status-only `degradationState` without reading active app/window fixtures or invoking active app/window retrieval. Its `source` is `local-macos-context-status-only`, `activeApp` is `null`, `activeWindow` is empty, and `uiTreeContext.available` is `false` by design so callers can preflight TCC/tool availability before sampling active context.
+
 Disable the experimental status item with:
 
 ```sh
@@ -74,6 +76,8 @@ Expected degradation examples:
 Relevant commands:
 
 ```sh
+npm run test:mac-context-provider
+npm run test:mac-context-status-only
 npm run test:mac-activity-status
 npm run test:activity-router
 npm run test:native-overlay-contract
