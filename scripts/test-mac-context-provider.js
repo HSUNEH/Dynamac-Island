@@ -2,10 +2,13 @@
 
 const assert = require("node:assert");
 const {
+  collectMacPermissionStatus,
   collectMacContextProvider,
+  invokePermissionProbe,
   macContextProviderToActivity,
   normalizeActiveApplicationInfo,
   normalizePermissionProbeResult,
+  permissionStatusWithAvailability,
   parseActiveApplicationText
 } = require("../src/mac-context-provider");
 
@@ -34,6 +37,34 @@ assert.deepEqual(normalizePermissionProbeResult("accessibility", { ok: false, st
   status: "unknown",
   diagnostic: "swift missing"
 }, "failed permission probe should degrade without throwing");
+assert.deepEqual(permissionStatusWithAvailability({ status: "granted", diagnostic: "fixture" }), {
+  status: "granted",
+  diagnostic: "fixture",
+  available: true
+}, "permission status should expose explicit availability for HUD contracts");
+assert.deepEqual(invokePermissionProbe("accessibility", () => false), {
+  ok: true,
+  stdout: "denied",
+  stderr: "",
+  error: ""
+}, "boolean injectable permission probes should normalize to command-like results");
+assert.deepEqual(invokePermissionProbe("screenRecording", () => { throw new Error("TCC probe unavailable"); }), {
+  ok: false,
+  stdout: "",
+  stderr: "",
+  error: "TCC probe unavailable"
+}, "throwing injectable permission probes should become unknown/degraded results instead of crashing");
+
+const injectedPermissionStatus = collectMacPermissionStatus({
+  permissionProbes: {
+    accessibility: () => ({ ok: true, stdout: "granted" }),
+    screenRecording: () => "denied"
+  }
+});
+assert.deepEqual(injectedPermissionStatus, {
+  accessibility: { status: "granted", diagnostic: "preflight-granted", available: true },
+  screenRecording: { status: "denied", diagnostic: "preflight-denied", available: false }
+}, "permission detector should report Accessibility and Screen Recording availability from injected probes");
 
 const fullContext = collectMacContextProvider({
   activeAppInfo: { name: "Arc", bundleIdentifier: "company.thebrowser.Browser", pid: 4242 },

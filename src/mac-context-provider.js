@@ -95,19 +95,56 @@ function normalizePermissionProbeResult(name, result, options = {}) {
   return { status: "unknown", diagnostic: truncate(result.stdout || "Unexpected permission probe output.", 180) };
 }
 
-function collectMacPermissionStatus(options = {}) {
-  if (options.permissionStatus !== undefined) return options.permissionStatus;
-  const accessibilityProbe = options.accessibilityProbeResult || runCommandResult("swift", [
-    "-e",
-    "import ApplicationServices\nprint(AXIsProcessTrusted() ? \"granted\" : \"denied\")"
-  ], { timeout: 1500 });
-  const screenRecordingProbe = options.screenRecordingProbeResult || runCommandResult("swift", [
-    "-e",
-    "import CoreGraphics\nprint(CGPreflightScreenCaptureAccess() ? \"granted\" : \"denied\")"
-  ], { timeout: 1500 });
+function permissionStatusWithAvailability(status) {
+  const normalized = status && typeof status === "object" ? status : { status: "unknown", diagnostic: "missing permission status" };
   return {
-    accessibility: normalizePermissionProbeResult("accessibility", accessibilityProbe, options),
-    screenRecording: normalizePermissionProbeResult("screenRecording", screenRecordingProbe, options)
+    ...normalized,
+    available: normalized.status === "granted"
+  };
+}
+
+function invokePermissionProbe(name, probe) {
+  try {
+    const value = probe();
+    if (typeof value === "boolean") return { ok: true, stdout: value ? "granted" : "denied", stderr: "", error: "" };
+    if (typeof value === "string") return { ok: true, stdout: value, stderr: "", error: "" };
+    if (value && typeof value === "object") return value;
+    return { ok: false, stdout: "", stderr: "", error: `${name} permission probe returned no result` };
+  } catch (error) {
+    return { ok: false, stdout: "", stderr: "", error: error.message || String(error) };
+  }
+}
+
+function defaultPermissionProbes() {
+  return {
+    accessibility: () => runCommandResult("swift", [
+      "-e",
+      "import ApplicationServices\nprint(AXIsProcessTrusted() ? \"granted\" : \"denied\")"
+    ], { timeout: 1500 }),
+    screenRecording: () => runCommandResult("swift", [
+      "-e",
+      "import CoreGraphics\nprint(CGPreflightScreenCaptureAccess() ? \"granted\" : \"denied\")"
+    ], { timeout: 1500 })
+  };
+}
+
+function collectMacPermissionStatus(options = {}) {
+  if (options.permissionStatus !== undefined) {
+    return {
+      accessibility: permissionStatusWithAvailability(options.permissionStatus.accessibility),
+      screenRecording: permissionStatusWithAvailability(options.permissionStatus.screenRecording)
+    };
+  }
+
+  const probes = {
+    ...defaultPermissionProbes(),
+    ...(options.permissionProbes || {})
+  };
+  const accessibilityProbe = options.accessibilityProbeResult || invokePermissionProbe("accessibility", probes.accessibility);
+  const screenRecordingProbe = options.screenRecordingProbeResult || invokePermissionProbe("screenRecording", probes.screenRecording);
+  return {
+    accessibility: permissionStatusWithAvailability(normalizePermissionProbeResult("accessibility", accessibilityProbe, options)),
+    screenRecording: permissionStatusWithAvailability(normalizePermissionProbeResult("screenRecording", screenRecordingProbe, options))
   };
 }
 
@@ -236,12 +273,15 @@ module.exports = {
   collectActiveWindowTitle,
   collectMacContextProvider,
   collectMacPermissionStatus,
+  defaultPermissionProbes,
+  invokePermissionProbe,
   macContextActivityId,
   macContextDegradationState,
   macContextProviderToActivity,
   normalizeActiveApplicationInfo,
   normalizePermissionProbeResult,
   parseActiveApplicationText,
+  permissionStatusWithAvailability,
   runCommand,
   runCommandResult
 };
