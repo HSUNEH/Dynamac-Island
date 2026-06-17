@@ -37,6 +37,7 @@ Standalone command schema:
 - `schemaVersion: 1`
 - `kind: "dynamac.macContext.statusSource"`
 - `sampledAt`: ISO timestamp, injectable with `--now` for tests
+- `result`: structured generation result. `result.ok` means the local command completed and `result.status: "success"`/`result.success: true` means active app/window context, permission preflight, and UI-tree summary were all available; otherwise it remains a valid degraded payload with booleans explaining the missing capability.
 - `statusSource: "scripts/mac-context-status.js"`
 - `source`: `local-macos-context-provider` or `local-macos-context-status-only`
 - `activeApp`, `activeWindow`, `uiTreeContext`, `permissionStatus`, `degradationState`

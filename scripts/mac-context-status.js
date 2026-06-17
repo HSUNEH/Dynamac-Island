@@ -52,6 +52,25 @@ function readFixture(fixturePath) {
   return JSON.parse(fs.readFileSync(absolutePath, "utf8"));
 }
 
+function buildGenerationResult(context, options = {}) {
+  const hasActiveContext = Boolean(context?.activeApp?.name && context?.activeWindow);
+  const permissionsAvailable = Boolean(
+    context?.permissionStatus?.accessibility?.available &&
+    context?.permissionStatus?.screenRecording?.available
+  );
+  const uiTreeAvailable = context?.uiTreeContext?.available === true;
+  const success = !options.statusOnly && hasActiveContext && permissionsAvailable && uiTreeAvailable;
+  return {
+    ok: true,
+    status: success ? "success" : "degraded",
+    success,
+    message: context?.degradationState || (success ? "Full read-only active app/window context available." : "Mac Context status generated with reduced capability."),
+    activeContextAvailable: hasActiveContext,
+    permissionsAvailable,
+    uiTreeAvailable
+  };
+}
+
 function buildMacContextStatusSource(options = {}) {
   const now = options.now ? new Date(options.now) : new Date();
   if (Number.isNaN(now.getTime())) throw new Error(`Invalid --now value: ${options.now}`);
@@ -62,11 +81,13 @@ function buildMacContextStatusSource(options = {}) {
   const context = options.statusOnly
     ? collectMacContextStatusOnly(providerOptions)
     : collectMacContextProvider(providerOptions);
+  const result = buildGenerationResult(context, { statusOnly: options.statusOnly });
 
   return {
     schemaVersion: 1,
     kind: "dynamac.macContext.statusSource",
     sampledAt: now.toISOString(),
+    result,
     statusSource: STATUS_SOURCE,
     source: context.source,
     activeApp: context.activeApp,
@@ -102,6 +123,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  buildGenerationResult,
   buildMacContextStatusSource,
   parseArgs,
   readFixture,

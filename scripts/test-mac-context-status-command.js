@@ -6,6 +6,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const {
+  buildGenerationResult,
   buildMacContextStatusSource,
   parseArgs,
   STATUS_SOURCE
@@ -29,6 +30,25 @@ assert.deepEqual(parseArgs(["--fixture=fixture.json", "--status-only", "--now=20
 });
 assert.throws(() => parseArgs(["--unknown"]), /Unknown argument/);
 
+assert.deepEqual(buildGenerationResult({
+  activeApp: { name: "Arc", bundleIdentifier: "company.thebrowser.Browser", pid: 4242 },
+  activeWindow: "Dynamac Island · macOS-MCP notes",
+  permissionStatus: {
+    accessibility: { status: "granted", diagnostic: "fixture", available: true },
+    screenRecording: { status: "granted", diagnostic: "fixture", available: true }
+  },
+  uiTreeContext: { available: true, summary: "fixture", nodes: [] },
+  degradationState: "Full read-only active app/window context available."
+}), {
+  ok: true,
+  status: "success",
+  success: true,
+  message: "Full read-only active app/window context available.",
+  activeContextAvailable: true,
+  permissionsAvailable: true,
+  uiTreeAvailable: true
+}, "status generation should expose structured success when app/window data and permissions are available");
+
 const payload = buildMacContextStatusSource({
   now: "2026-06-17T00:00:00.000Z",
   activeAppInfo: { name: "Arc", bundleIdentifier: "company.thebrowser.Browser", pid: 4242 },
@@ -47,6 +67,12 @@ const payload = buildMacContextStatusSource({
 assert.equal(payload.schemaVersion, 1);
 assert.equal(payload.kind, "dynamac.macContext.statusSource");
 assert.equal(payload.sampledAt, "2026-06-17T00:00:00.000Z");
+assert.equal(payload.result.ok, true);
+assert.equal(payload.result.status, "degraded");
+assert.equal(payload.result.success, false);
+assert.equal(payload.result.activeContextAvailable, true);
+assert.equal(payload.result.permissionsAvailable, false);
+assert.equal(payload.result.uiTreeAvailable, true);
 assert.equal(payload.statusSource, STATUS_SOURCE);
 assert.equal(payload.source, "local-macos-context-provider");
 assert.deepEqual(payload.activeApp, { name: "Arc", bundleIdentifier: "company.thebrowser.Browser", pid: 4242 });
@@ -59,6 +85,7 @@ assert.deepEqual(Object.keys(payload), [
   "schemaVersion",
   "kind",
   "sampledAt",
+  "result",
   "statusSource",
   "source",
   "activeApp",
@@ -77,6 +104,10 @@ const statusOnlyPayload = buildMacContextStatusSource({
   }
 });
 assert.equal(statusOnlyPayload.source, "local-macos-context-status-only");
+assert.equal(statusOnlyPayload.result.ok, true);
+assert.equal(statusOnlyPayload.result.status, "degraded");
+assert.equal(statusOnlyPayload.result.success, false);
+assert.equal(statusOnlyPayload.result.activeContextAvailable, false);
 assert.equal(statusOnlyPayload.activeApp, null);
 assert.equal(statusOnlyPayload.activeWindow, "");
 assert.equal(statusOnlyPayload.uiTreeContext.available, false);
@@ -105,6 +136,10 @@ const commandPayload = JSON.parse(stdout);
 assert.equal(commandPayload.statusSource, STATUS_SOURCE);
 assert.equal(commandPayload.activeApp.name, "Finder");
 assert.equal(commandPayload.activeWindow, "Downloads");
+assert.equal(commandPayload.result.status, "success");
+assert.equal(commandPayload.result.success, true);
+assert.equal(commandPayload.result.activeContextAvailable, true);
+assert.equal(commandPayload.result.permissionsAvailable, true);
 assert.equal(commandPayload.permissionStatus.accessibility.status, "granted");
 assert.equal(commandPayload.degradationState, "Full read-only active app/window context available.");
 fs.unlinkSync(fixturePath);
