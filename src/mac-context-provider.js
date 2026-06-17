@@ -420,7 +420,8 @@ function macContextProviderToActivity(providerContext) {
   const uiTreeContext = providerContext?.uiTreeContext || { available: false, summary: "UI tree summary unavailable.", nodes: [] };
   const degradationState = providerContext?.degradationState || macContextDegradationState(activeApp, activeWindow, permissionStatus, uiTreeContext);
   const hasContext = Boolean(activeApp?.name);
-  const state = hasContext && permissionStatus.accessibility.status === "granted" ? "running" : (hasContext ? "warning" : "error");
+  const hasFullActiveContext = Boolean(activeApp?.name && activeWindow);
+  const state = hasFullActiveContext && permissionStatus.accessibility.status === "granted" ? "running" : (hasContext ? "warning" : "error");
   const appLabel = activeApp?.name || "Active app unavailable";
   const windowLabel = activeWindow ? ` · ${truncate(activeWindow, 42)}` : " · window degraded";
   const activityId = macContextActivityId(activeApp, activeWindow);

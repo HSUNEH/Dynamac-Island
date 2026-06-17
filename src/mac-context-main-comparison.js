@@ -262,6 +262,60 @@ function compareStaleMacContextHudReliability(payload, options = {}) {
   };
 }
 
+function comparePartialMacContextHudReliability(payload, options = {}) {
+  const experimental = summarizeExperimentalMacContextStatus(payload);
+  const hudDisplay = summarizeMacContextHudState(options.hudState);
+  const compactSurface = objectStatus(options.hudState?.compactSurface) ? options.hudState.compactSurface : {};
+  const macContextActivity = firstMacContextHudActivity(options.hudState);
+  const degradation = objectStatus(payload?.result?.degradation) ? payload.result.degradation : {};
+  const degradationState = experimental.degradationState || macContextActivity?.status?.degradationState || macContextActivity?.status?.detail || "";
+  const activityState = macContextActivity?.status?.state || "";
+  const activityTask = macContextActivity?.status?.task || "";
+  const compactLabel = compactSurface.label || hudDisplay.compactLabel || "";
+  const partialActiveContext = experimental.activeApp.available && !experimental.activeWindow.available;
+  const missingFieldsSafelyDegraded = payload?.result?.status === "degraded" && Boolean(degradationState) && degradation.activeContextUnavailable === true;
+  const regressionRisks = [];
+
+  if (!experimental.macContextStatusSource) regressionRisks.push("missing macContext status-source kind");
+  if (!partialActiveContext) regressionRisks.push("partial Mac Context fixture must preserve active app while degrading missing active window");
+  if (!missingFieldsSafelyDegraded) regressionRisks.push("partial Mac Context missing fields must produce degraded status and degradation text");
+  if (!hudDisplay.compactIsMacContext || !hudDisplay.displaysMacContext) regressionRisks.push("partial Mac Context must still route into the HUD compact surface");
+  if (!macContextActivity) regressionRisks.push("partial Mac Context must remain present in ranked HUD activities");
+  if (macContextActivity && !["warning", "error"].includes(activityState)) regressionRisks.push("partial Mac Context HUD activity must use warning or error state");
+  if (!activityTask || !/window degraded/i.test(activityTask)) regressionRisks.push("partial Mac Context HUD activity must include safe missing-window task text");
+  if (!compactLabel) regressionRisks.push("partial Mac Context HUD compact surface must include a non-empty app label");
+  if (!/Front window title unavailable|window/i.test(degradationState)) regressionRisks.push("partial Mac Context HUD must carry user-visible missing-window degradation text");
+
+  return {
+    schemaVersion: 1,
+    kind: "dynamac.macContext.partialReliabilityComparison",
+    experimental,
+    hudDisplay,
+    partialContext: {
+      partialActiveContext,
+      activeAppName: experimental.activeApp.name,
+      activeWindowAvailable: experimental.activeWindow.available,
+      unavailableSources: Array.isArray(degradation.unavailableSources) ? [...degradation.unavailableSources] : [],
+      degradationState,
+      activityState,
+      activityTask,
+      compactLabel
+    },
+    result: {
+      ok: regressionRisks.length === 0,
+      consumesPartialMacContext: partialActiveContext && Boolean(macContextActivity),
+      safelyDegradesMissingFields: missingFieldsSafelyDegraded && ["warning", "error"].includes(activityState),
+      validPartialHudOutput: hudDisplay.compactIsMacContext && hudDisplay.displaysMacContext && Boolean(compactLabel) && Boolean(degradationState),
+      regressionRisks
+    },
+    comparisonAgainstMain: {
+      reliability: regressionRisks.length
+        ? `partial Mac Context degraded-HUD reliability failed: ${regressionRisks.join("; ")}`
+        : "partial Mac Context is consumed without crashing and remains visible as safely degraded HUD output"
+    }
+  };
+}
+
 function compareMacContextAgainstMain(payload, options = {}) {
   const mainBaseline = options.mainBaseline || MAIN_BASELINE;
   const experimental = summarizeExperimentalMacContextStatus(payload);
@@ -312,6 +366,7 @@ module.exports = {
   MAIN_BASELINE,
   buildStaleMacContextHudStatus,
   compareMacContextAgainstMain,
+  comparePartialMacContextHudReliability,
   compareStaleMacContextHudReliability,
   compareUnavailableMacContextHudReliability,
   macContextStaleness,

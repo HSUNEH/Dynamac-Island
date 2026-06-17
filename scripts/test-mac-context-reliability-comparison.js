@@ -9,6 +9,7 @@ const { macContextProviderToActivity } = require("../src/mac-context-provider");
 const { buildMacContextStatusSource } = require("./mac-context-status");
 const {
   buildStaleMacContextHudStatus,
+  comparePartialMacContextHudReliability,
   compareStaleMacContextHudReliability,
   compareUnavailableMacContextHudReliability,
   macContextStaleness
@@ -17,6 +18,7 @@ const {
 const repoRoot = path.resolve(__dirname, "..");
 const nativePath = path.join(repoRoot, ".build", "dynamac-native");
 const generatedStatusPath = path.join(repoRoot, ".build", "mac-context-unavailable-status.json");
+const generatedPartialStatusPath = path.join(repoRoot, ".build", "mac-context-partial-status.json");
 const generatedStaleStatusPath = path.join(repoRoot, ".build", "mac-context-stale-status.json");
 
 const payload = buildMacContextStatusSource({
@@ -101,6 +103,87 @@ assert.match(nativeResult.stdout, /renderedExpandedText=Mac Context · Window un
 assert.match(nativeResult.stdout, /AX denied · Screen unknown/, "expanded native HUD text should retain permission status");
 assert.match(nativeResult.stdout, /Active application unavailable; showing Mac Context degraded state\./, "expanded native HUD text should retain degradation reason");
 
+const partialPayload = buildMacContextStatusSource({
+  now: "2026-06-17T00:03:00.000Z",
+  activeAppInfo: { name: "Arc", bundleIdentifier: "company.thebrowser.Browser", pid: 4242 },
+  activeWindowResult: {
+    ok: true,
+    stdout: "",
+    stderr: "",
+    error: ""
+  },
+  permissionStatus: {
+    accessibility: { status: "granted", diagnostic: "fixture-accessibility-granted", available: true },
+    screenRecording: { status: "granted", diagnostic: "fixture-screen-recording-granted", available: true }
+  },
+  uiTreeContext: {
+    available: false,
+    summary: "Fixture UI tree unavailable while active app remains readable.",
+    nodes: []
+  }
+});
+
+const partialHudStatus = macContextProviderToActivity(partialPayload);
+partialHudStatus.updatedAt = partialPayload.sampledAt;
+const partialHudState = buildActivityRouterSnapshot([partialHudStatus], { now: new Date(partialPayload.sampledAt) });
+let partialReliabilityComparison;
+assert.doesNotThrow(() => {
+  partialReliabilityComparison = comparePartialMacContextHudReliability(partialPayload, { hudState: partialHudState });
+}, "reliability comparison should handle partial Mac Context payloads without crashing");
+assert.equal(partialReliabilityComparison.schemaVersion, 1);
+assert.equal(partialReliabilityComparison.kind, "dynamac.macContext.partialReliabilityComparison");
+assert.equal(partialReliabilityComparison.result.ok, true, partialReliabilityComparison.result.regressionRisks.join("; "));
+assert.equal(partialReliabilityComparison.result.consumesPartialMacContext, true);
+assert.equal(partialReliabilityComparison.result.safelyDegradesMissingFields, true);
+assert.equal(partialReliabilityComparison.result.validPartialHudOutput, true);
+assert.equal(partialReliabilityComparison.partialContext.partialActiveContext, true);
+assert.equal(partialReliabilityComparison.partialContext.activeAppName, "Arc");
+assert.equal(partialReliabilityComparison.partialContext.activeWindowAvailable, false);
+assert.deepEqual(partialReliabilityComparison.partialContext.unavailableSources, ["activeWindow", "uiTreeContext"]);
+assert.equal(partialReliabilityComparison.hudDisplay.compactIsMacContext, true);
+assert.equal(partialReliabilityComparison.hudDisplay.displaysMacContext, true);
+assert.equal(partialReliabilityComparison.partialContext.activityState, "warning");
+assert.equal(partialReliabilityComparison.partialContext.activityTask, "Arc · window degraded");
+assert.equal(partialReliabilityComparison.partialContext.compactLabel, "Arc");
+assert.match(partialReliabilityComparison.partialContext.degradationState, /Front window title unavailable/);
+assert.match(partialReliabilityComparison.partialContext.degradationState, /UI tree summary unavailable/);
+assert.match(partialReliabilityComparison.comparisonAgainstMain.reliability, /without crashing/);
+
+fs.writeFileSync(generatedPartialStatusPath, JSON.stringify({
+  statuses: [partialHudStatus],
+  activityRouter: {
+    compactSurface: partialHudState.compactSurface
+  }
+}, null, 2));
+
+const partialNativeResult = childProcess.spawnSync(nativePath, {
+  cwd: repoRoot,
+  env: {
+    ...process.env,
+    DYNAMAC_NATIVE_SMOKE_TEST: "1",
+    DYNAMAC_NATIVE_STATUS_DUMP: "1",
+    DYNAMAC_STATUS_FILE: generatedPartialStatusPath
+  },
+  encoding: "utf8",
+  timeout: 5000
+});
+
+assert.equal(partialNativeResult.status, 0, partialNativeResult.stderr || partialNativeResult.stdout);
+assert.match(partialNativeResult.stdout, /DYNAMAC_NATIVE_READY/, "native partial smoke path should report readiness");
+assert.match(partialNativeResult.stdout, /DYNAMAC_STATUS_DUMP active=activityRouter/, "partial Mac Context should still produce a routed HUD dump");
+assert.match(partialNativeResult.stdout, /presentation=macContext/, "partial Mac Context should still own the degraded HUD presentation");
+assert.match(partialNativeResult.stdout, /routerCompactType=macContext/, "router compact type should remain macContext while partially degraded");
+assert.match(partialNativeResult.stdout, /statusState=warning/, "partial Mac Context should be visible as a warning HUD activity");
+assert.match(partialNativeResult.stdout, /task=Arc · window degraded/, "native HUD dump should preserve partial missing-window task text");
+assert.match(partialNativeResult.stdout, /activeApp=Arc/, "native partial HUD dump should preserve active app context");
+assert.match(partialNativeResult.stdout, /activeWindow=/, "native partial HUD dump should expose the missing activeWindow field without crashing");
+assert.match(partialNativeResult.stdout, /permissionAccessibility=granted/, "native partial HUD dump should preserve Accessibility status");
+assert.match(partialNativeResult.stdout, /permissionScreenRecording=granted/, "native partial HUD dump should preserve Screen Recording status");
+assert.match(partialNativeResult.stdout, /renderedCompactText=⚠ Arc/, "compact native HUD text should visibly flag partial Mac Context");
+assert.match(partialNativeResult.stdout, /renderedExpandedText=Arc · Window unavailable/, "expanded native HUD text should safely degrade missing window title while preserving active app");
+assert.match(partialNativeResult.stdout, /AX granted · Screen granted/, "expanded native HUD text should retain permission status for partial context");
+assert.match(partialNativeResult.stdout, /Front window title unavailable/, "expanded native HUD text should retain missing-window degradation reason");
+
 const stalePayload = buildMacContextStatusSource({
   now: "2026-06-17T00:00:00.000Z",
   activeAppInfo: { name: "Arc", bundleIdentifier: "company.thebrowser.Browser", pid: 4242 },
@@ -178,4 +261,4 @@ assert.match(staleNativeResult.stdout, /renderedCompactText=⚠ Arc/, "compact n
 assert.match(staleNativeResult.stdout, /renderedExpandedText=Arc · Dynamac Island · stale context note/, "expanded native HUD text should preserve stale active context");
 assert.match(staleNativeResult.stdout, /Mac Context snapshot stale \(120s old; sample age exceeds threshold\)/, "expanded native HUD text should retain stale degradation reason");
 
-console.log("mac-context-reliability-comparison unavailable and stale degraded HUD tests passed");
+console.log("mac-context-reliability-comparison unavailable, partial, and stale degraded HUD tests passed");
