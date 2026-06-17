@@ -1,3 +1,7 @@
+const { macContextProviderToActivity } = require("./mac-context-provider");
+
+const DEFAULT_MAC_CONTEXT_STALE_AFTER_MS = 30_000;
+
 const MAIN_BASELINE = Object.freeze({
   branch: "main",
   macContextStatusSource: false,
@@ -23,6 +27,47 @@ function hasOwnObject(value, key) {
 
 function objectStatus(value) {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function truncate(value, maxLength) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, Math.max(0, maxLength - 1))}…`;
+}
+
+function timestampMs(value, fallback = Number.NaN) {
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Date.parse(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return fallback;
+}
+
+function macContextStaleness(payload, options = {}) {
+  const sampledAtMs = timestampMs(payload?.sampledAt);
+  const nowMs = timestampMs(options.now, Date.now());
+  const staleAfterMs = Number.isFinite(options.staleAfterMs) ? Math.max(0, options.staleAfterMs) : DEFAULT_MAC_CONTEXT_STALE_AFTER_MS;
+  const ageMs = Number.isFinite(sampledAtMs) && Number.isFinite(nowMs) ? Math.max(0, nowMs - sampledAtMs) : Number.NaN;
+  return {
+    sampledAt: typeof payload?.sampledAt === "string" ? payload.sampledAt : "",
+    now: Number.isFinite(nowMs) ? new Date(nowMs).toISOString() : "",
+    ageMs,
+    staleAfterMs,
+    stale: !Number.isFinite(sampledAtMs) || !Number.isFinite(nowMs) || ageMs > staleAfterMs,
+    reason: !Number.isFinite(sampledAtMs)
+      ? "sampledAt missing or invalid"
+      : (!Number.isFinite(nowMs) ? "comparison clock missing or invalid" : (ageMs > staleAfterMs ? "sample age exceeds threshold" : "fresh"))
+  };
+}
+
+function staleMacContextDegradationText(payload, staleness) {
+  const existing = typeof payload?.degradationState === "string" && payload.degradationState.trim()
+    ? payload.degradationState.trim()
+    : "Mac Context snapshot has no degradation detail.";
+  const ageSeconds = Number.isFinite(staleness.ageMs) ? Math.round(staleness.ageMs / 1000) : "unknown";
+  return `Mac Context snapshot stale (${ageSeconds}s old; ${staleness.reason}); HUD is showing stale/degraded read-only context until the local writer refreshes. ${existing}`;
 }
 
 function summarizeExperimentalMacContextStatus(payload) {
@@ -62,6 +107,38 @@ function summarizeExperimentalMacContextStatus(payload) {
     degradationState: typeof payload?.degradationState === "string" ? payload.degradationState : "",
     statusSource: payload?.statusSource || ""
   };
+}
+
+function buildStaleMacContextHudStatus(payload, options = {}) {
+  const staleness = macContextStaleness(payload, options);
+  const status = macContextProviderToActivity(payload);
+  if (!staleness.stale) return status;
+
+  const staleDegradationState = staleMacContextDegradationText(payload, staleness);
+  const staleTask = truncate(`Stale context · ${payload?.activeApp?.name || "Mac Context"}${payload?.activeWindow ? ` · ${payload.activeWindow}` : ""}`, 80);
+  status.state = status.state === "error" ? "error" : "warning";
+  status.task = staleTask;
+  status.detail = staleDegradationState;
+  status.degradationState = staleDegradationState;
+  status.updatedAt = staleness.sampledAt || payload?.sampledAt || status.updatedAt;
+  status.metadata = {
+    ...(status.metadata || {}),
+    degradationState: staleDegradationState,
+    staleness
+  };
+  status.macContext = {
+    ...(status.macContext || {}),
+    metadata: {
+      ...(status.macContext?.metadata || {}),
+      stale: true,
+      staleAgeMs: staleness.ageMs
+    },
+    expandedSurface: {
+      ...(status.macContext?.expandedSurface || {}),
+      title: staleDegradationState
+    }
+  };
+  return status;
 }
 
 function summarizeMacContextHudState(hudState) {
@@ -135,6 +212,56 @@ function compareUnavailableMacContextHudReliability(payload, options = {}) {
   };
 }
 
+function compareStaleMacContextHudReliability(payload, options = {}) {
+  const experimental = summarizeExperimentalMacContextStatus(payload);
+  const staleness = macContextStaleness(payload, options);
+  const hudDisplay = summarizeMacContextHudState(options.hudState);
+  const compactSurface = objectStatus(options.hudState?.compactSurface) ? options.hudState.compactSurface : {};
+  const macContextActivity = firstMacContextHudActivity(options.hudState);
+  const degradationState = macContextActivity?.status?.degradationState || macContextActivity?.status?.detail || "";
+  const activityState = macContextActivity?.status?.state || "";
+  const compactLabel = compactSurface.label || hudDisplay.compactLabel || "";
+  const regressionRisks = [];
+
+  if (!experimental.macContextStatusSource) regressionRisks.push("missing macContext status-source kind");
+  if (!staleness.stale) regressionRisks.push("Mac Context fixture was not detected as stale");
+  if (!hudDisplay.compactIsMacContext || !hudDisplay.displaysMacContext) regressionRisks.push("stale Mac Context must still route into the HUD compact surface");
+  if (!macContextActivity) regressionRisks.push("stale Mac Context must remain present in ranked HUD activities");
+  if (macContextActivity && !["warning", "error"].includes(activityState)) regressionRisks.push("stale Mac Context HUD activity must use warning or error state");
+  if (!compactLabel) regressionRisks.push("stale Mac Context HUD compact surface must include a non-empty label");
+  if (!/stale/i.test(degradationState)) regressionRisks.push("stale Mac Context HUD must carry user-visible stale/degraded text");
+
+  return {
+    schemaVersion: 1,
+    kind: "dynamac.macContext.staleReliabilityComparison",
+    experimental,
+    hudDisplay,
+    staleContext: {
+      detected: staleness.stale,
+      sampledAt: staleness.sampledAt,
+      now: staleness.now,
+      ageMs: staleness.ageMs,
+      staleAfterMs: staleness.staleAfterMs,
+      reason: staleness.reason,
+      degradationState,
+      activityState,
+      activityTask: macContextActivity?.status?.task || "",
+      compactLabel
+    },
+    result: {
+      ok: regressionRisks.length === 0,
+      handlesStaleMacContext: staleness.stale && ["warning", "error"].includes(activityState),
+      validStaleDegradedHudOutput: hudDisplay.compactIsMacContext && hudDisplay.displaysMacContext && Boolean(compactLabel) && /stale/i.test(degradationState),
+      regressionRisks
+    },
+    comparisonAgainstMain: {
+      reliability: regressionRisks.length
+        ? `stale Mac Context degraded-HUD reliability failed: ${regressionRisks.join("; ")}`
+        : "stale Mac Context is detected without crashing and remains visible as degraded HUD output"
+    }
+  };
+}
+
 function compareMacContextAgainstMain(payload, options = {}) {
   const mainBaseline = options.mainBaseline || MAIN_BASELINE;
   const experimental = summarizeExperimentalMacContextStatus(payload);
@@ -180,10 +307,14 @@ function compareMacContextAgainstMain(payload, options = {}) {
 }
 
 module.exports = {
+  DEFAULT_MAC_CONTEXT_STALE_AFTER_MS,
   EXPECTED_EXPERIMENTAL_READ_ONLY_FIELDS,
   MAIN_BASELINE,
+  buildStaleMacContextHudStatus,
   compareMacContextAgainstMain,
+  compareStaleMacContextHudReliability,
   compareUnavailableMacContextHudReliability,
+  macContextStaleness,
   summarizeMacContextHudState,
   summarizeExperimentalMacContextStatus
 };
