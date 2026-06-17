@@ -157,6 +157,88 @@ function summarizeMacContextHudState(hudState) {
   };
 }
 
+function activityTypeForRegressionStatus(status) {
+  if (!status || typeof status !== "object") return "futurePassive";
+  if (typeof status.activityType === "string" && status.activityType.trim() !== "") return status.activityType.trim();
+  if (status.volumeHud) return "volume";
+  if (status.brightnessHud) return "brightness";
+  if (status.clipboardActivity) return "clipboard";
+  if (status.shelfActivity) return "shelf";
+  if (status.dropActivity) return "drop";
+  if (status.macContext) return "macContext";
+  if (status.agent === "Timer") return "timer";
+  if (status.agent === "Now Playing") return "nowPlaying";
+  if (status.agent === "Battery") return "battery";
+  return "futurePassive";
+}
+
+function normalizeAbsentMacContextHudRegressionSnapshot(payload) {
+  const statuses = Array.isArray(payload?.statuses) ? payload.statuses : [];
+  const router = objectStatus(payload?.activityRouter) ? payload.activityRouter : {};
+  const compactSurface = objectStatus(router.compactSurface) ? router.compactSurface : null;
+  const rankedActivities = Array.isArray(router.rankedActivities) ? router.rankedActivities : [];
+
+  return {
+    statusAgents: statuses.map((status) => status?.agent || ""),
+    statusActivityTypes: statuses.map((status) => activityTypeForRegressionStatus(status)),
+    hasMacContextStatus: statuses.some((status) => status?.activityType === "macContext" || status?.agent === "Mac Context" || objectStatus(status?.macContext)),
+    compactSurface: compactSurface ? {
+      activityId: compactSurface.activityId || "",
+      activityType: compactSurface.activityType || "",
+      priority: compactSurface.priority,
+      label: compactSurface.label || "",
+      glyph: compactSurface.glyph || ""
+    } : null,
+    rankedActivities: rankedActivities.map((activity) => ({
+      activityId: activity?.activityId || "",
+      activityType: activity?.activityType || "",
+      priority: activity?.priority,
+      compactLabel: activity?.compactSurface?.label || "",
+      expandedTitle: activity?.expandedSurface?.title || "",
+      source: activity?.source || "",
+      persisted: activity?.persisted === true
+    }))
+  };
+}
+
+function compareAbsentMacContextHudRegression(mainPayload, experimentalPayload) {
+  const mainHud = normalizeAbsentMacContextHudRegressionSnapshot(mainPayload);
+  const experimentalHud = normalizeAbsentMacContextHudRegressionSnapshot(experimentalPayload);
+  const hudSnapshotsMatch = JSON.stringify(experimentalHud) === JSON.stringify(mainHud);
+  const regressionRisks = [];
+
+  if (mainHud.hasMacContextStatus) regressionRisks.push("main-like absent-context baseline unexpectedly contains Mac Context status");
+  if (experimentalHud.hasMacContextStatus) regressionRisks.push("experimental absent-context payload unexpectedly contains Mac Context status");
+  if (!hudSnapshotsMatch) regressionRisks.push("existing HUD routing changed when experimental Mac Context data is absent");
+
+  return {
+    schemaVersion: 1,
+    kind: "dynamac.macContext.absentHudRegressionComparison",
+    baseline: {
+      branch: "main",
+      macContextStatusSource: false,
+      hudSnapshot: mainHud
+    },
+    experimental: {
+      branch: "feature/macos-mcp-context-hud",
+      macContextStatusSource: false,
+      hudSnapshot: experimentalHud
+    },
+    result: {
+      ok: regressionRisks.length === 0,
+      macContextAbsentInBaseline: !mainHud.hasMacContextStatus,
+      macContextAbsentInExperimental: !experimentalHud.hasMacContextStatus,
+      hudUnchangedWhenMacContextAbsent: hudSnapshotsMatch,
+      regressionRisks
+    },
+    comparisonAgainstMain: {
+      regressionRisk: regressionRisks.length
+        ? `absent Mac Context HUD regression detected: ${regressionRisks.join("; ")}`
+        : "existing Dynamic Island HUD behavior is unchanged when experimental Mac Context data is absent"
+    }
+  };
+}
+
 function firstMacContextHudActivity(hudState) {
   const rankedActivities = Array.isArray(hudState?.rankedActivities) ? hudState.rankedActivities : [];
   return rankedActivities.find((activity) => activity?.activityType === "macContext") || null;
@@ -432,6 +514,7 @@ module.exports = {
   EXPECTED_EXPERIMENTAL_READ_ONLY_FIELDS,
   MAIN_BASELINE,
   buildStaleMacContextHudStatus,
+  compareAbsentMacContextHudRegression,
   compareMacContextAgainstMain,
   compareNormalMacContextHudUx,
   comparePartialMacContextHudReliability,
