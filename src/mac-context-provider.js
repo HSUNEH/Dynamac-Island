@@ -251,7 +251,7 @@ function collectMacContextProvider(options = {}) {
     uiTreeContext,
     permissionStatus,
     degradationState,
-    statusSource: "scripts/write-mac-activity-status.js",
+    statusSource: options.statusSource || "scripts/write-mac-activity-status.js",
     source: "local-macos-context-provider"
   };
 }
@@ -268,7 +268,7 @@ function collectMacContextStatusOnly(options = {}) {
     },
     permissionStatus,
     degradationState: macPermissionStatusDegradationState(permissionStatus),
-    statusSource: "src/mac-context-provider.js#collectMacContextStatusOnly",
+    statusSource: options.statusSource || "src/mac-context-provider.js#collectMacContextStatusOnly",
     source: "local-macos-context-status-only"
   };
 }

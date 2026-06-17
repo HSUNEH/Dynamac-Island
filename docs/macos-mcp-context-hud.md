@@ -18,6 +18,8 @@ Reference observed: `cyanheads/macos-mcp-server` documents local macOS tools suc
 
 `npm run status:write` and `npm run native:start` now include a `Mac Context` status item from `scripts/write-mac-activity-status.js` via `src/mac-activity-status.js`.
 
+For a standalone local API/command contract, `npm run mac-context:status -- --pretty` prints one deterministic JSON payload from `scripts/mac-context-status.js`. It exposes the same read-only active app/window context plus normalized permission/degradation status without starting Electron, a native overlay, an MCP server, or any remote network service. Contract tests use `--fixture` and `--now` so callers can validate exact schema behavior without touching macOS TCC.
+
 Key fields:
 
 - `agent: "Mac Context"`
@@ -29,6 +31,15 @@ Key fields:
 - `permissionStatus.screenRecording`: `granted`, `denied`, or `unknown`
 - `degradationState`: human-readable reason for reduced capability
 - `statusSource: "scripts/write-mac-activity-status.js"`
+
+Standalone command schema:
+
+- `schemaVersion: 1`
+- `kind: "dynamac.macContext.statusSource"`
+- `sampledAt`: ISO timestamp, injectable with `--now` for tests
+- `statusSource: "scripts/mac-context-status.js"`
+- `source`: `local-macos-context-provider` or `local-macos-context-status-only`
+- `activeApp`, `activeWindow`, `uiTreeContext`, `permissionStatus`, `degradationState`
 
 The app name probe uses `NSWorkspace.shared.frontmostApplication` through local Swift when available because it does not need Accessibility. The permission-status detector uses injectable platform probes for Accessibility and Screen Recording, then normalizes them into `status`, `diagnostic`, and `available` fields so tests can exercise granted/denied/unavailable states without touching TCC. The window title and UI-tree-like summary are reduced unless Accessibility is granted. Screen Recording is only preflighted and reported; this MVP does not request it or take screenshots.
 
@@ -78,6 +89,7 @@ Relevant commands:
 ```sh
 npm run test:mac-context-provider
 npm run test:mac-context-status-only
+npm run test:mac-context-status-command
 npm run test:mac-activity-status
 npm run test:activity-router
 npm run test:native-overlay-contract
