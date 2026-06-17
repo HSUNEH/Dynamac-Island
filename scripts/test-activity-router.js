@@ -11,6 +11,7 @@ const {
 const { applyBrightnessHudInputChange, brightnessHudToNativeStatus, createBrightnessHudState } = require("../src/brightness-hud-status");
 const { applyVolumeHudInputChange, createVolumeHudState, volumeHudToNativeStatus } = require("../src/volume-hud-status");
 const { buildClipboardStatusFromText } = require("../src/clipboard-activity");
+const { macContextProviderToActivity } = require("../src/mac-context-provider");
 const { collectTimerActivityStatus } = require("../src/timer-activity-source");
 const { parseTimerDuration } = require("../src/timer-duration");
 const { createTimerState, startTimer } = require("../src/timer-state");
@@ -960,6 +961,38 @@ assert.deepEqual(
   "same-priority router ties should prefer the most recently updated activity"
 );
 assert.equal(selectCompactActivity(samePriorityShelfDropCandidates, { now })?.activityId, "newer-drop");
+
+const macContextSourceOutput = macContextProviderToActivity({
+  activeApp: { name: "Arc", bundleIdentifier: "company.thebrowser.Browser", pid: 4242 },
+  activeWindow: "Dynamac Island · macOS-MCP notes",
+  permissionStatus: {
+    accessibility: { status: "granted", diagnostic: "AX trusted for read-only window title lookup." },
+    screenRecording: { status: "denied", diagnostic: "Screen Recording denied; UI tree screenshots unavailable." }
+  },
+  uiTreeContext: {
+    available: true,
+    summary: "Front window for Arc: Dynamac Island · macOS-MCP notes",
+    nodes: [{ role: "application", title: "Arc" }, { role: "window", title: "Dynamac Island · macOS-MCP notes" }]
+  },
+  degradationState: "Screen Recording denied; UI tree screenshots unavailable.",
+  statusSource: "scripts/mac-context-status.js --fixture arc-window.json"
+});
+const macContextHudSnapshot = buildActivityRouterSnapshot([macContextSourceOutput], { now });
+const macContextHudState = macContextHudSnapshot.rankedActivities[0];
+assert.equal(macContextHudState.activityType, "macContext", "Mac Context source output should be consumed as a HUD activity");
+assert.equal(macContextHudSnapshot.compactSurface.activityType, "macContext", "single Mac Context activity should drive the compact Dynamic Island surface");
+assert.equal(macContextHudState.status.activeApp, macContextSourceOutput.activeApp, "active app must map unchanged into the HUD state payload");
+assert.equal(macContextHudState.status.activeWindow, macContextSourceOutput.activeWindow, "active window must map unchanged into the HUD state payload");
+assert.equal(macContextHudState.status.statusSource, macContextSourceOutput.statusSource, "status source must map unchanged into the HUD state payload");
+assert.deepEqual(macContextHudState.status.permissionStatus, macContextSourceOutput.permissionStatus, "permission status must map unchanged into the HUD state payload");
+assert.equal(macContextHudState.status.degradationState, macContextSourceOutput.degradationState, "degradation status must map unchanged into the HUD state payload");
+assert.deepEqual(macContextHudState.status.uiTreeContext, macContextSourceOutput.uiTreeContext, "UI tree summary must map unchanged into the HUD state payload");
+assert.equal(macContextHudState.source, macContextSourceOutput.source, "HUD activity source should preserve the local macOS context writer source");
+assert.equal(macContextHudState.compactSurface.glyph, macContextSourceOutput.macContext.compactSurface.glyph, "compact HUD glyph should come from source output unchanged");
+assert.equal(macContextHudState.compactSurface.label, macContextSourceOutput.macContext.compactSurface.label, "compact HUD label should come from active app source output unchanged");
+assert.equal(macContextHudState.expandedSurface.title, macContextSourceOutput.macContext.expandedSurface.title, "expanded HUD title should come from active app/window source output unchanged");
+assert.deepEqual(macContextHudState.metadata.permissionStatus, macContextSourceOutput.permissionStatus, "HUD metadata should preserve source permission details");
+assert.equal(macContextHudState.metadata.statusSource, macContextSourceOutput.statusSource, "HUD metadata should preserve source status command details");
 
 
 const tieBrokenByUpdatedAtThenCreatedAtThenId = rankActivities([
