@@ -1,0 +1,42 @@
+{
+  "statuses": [
+    {
+      "agent": "Mac Context",
+      "activityId": "mac-context-success-fixture",
+      "activityType": "macContext",
+      "state": "running",
+      "task": "Arc · Dynamac Island · macOS-MCP notes",
+      "detail": "Full read-only active app/window context available.",
+      "updatedAt": "2026-06-17T00:00:00.000Z",
+      "activeApp": "Arc",
+      "activeWindow": "Dynamac Island · macOS-MCP notes",
+      "degradationState": "Full read-only active app/window context available.",
+      "statusSource": "scripts/write-mac-activity-status.js",
+      "permissionStatus": {
+        "accessibility": {
+          "status": "granted",
+          "diagnostic": "fixture",
+          "available": true
+        },
+        "screenRecording": {
+          "status": "granted",
+          "diagnostic": "fixture",
+          "available": true
+        }
+      },
+      "macContext": {
+        "activityId": "mac-context-success-fixture",
+        "activityType": "macContext"
+      }
+    }
+  ],
+  "activityRouter": {
+    "compactSurface": {
+      "activityId": "mac-context-success-fixture",
+      "activityType": "macContext",
+      "priority": 250,
+      "glyph": "macwindow",
+      "label": "Arc"
+    }
+  }
+}
