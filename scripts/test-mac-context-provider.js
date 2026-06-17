@@ -2,12 +2,14 @@
 
 const assert = require("node:assert");
 const {
+  collectActiveWindowContext,
   collectMacPermissionStatus,
   collectMacContextProvider,
   invokePermissionProbe,
   macContextDegradationReasons,
   macContextProviderToActivity,
   normalizeActiveApplicationInfo,
+  normalizeAcquisitionResult,
   normalizePermissionProbeResult,
   permissionStatusWithAvailability,
   parseActiveApplicationText
@@ -55,6 +57,44 @@ assert.deepEqual(invokePermissionProbe("screenRecording", () => { throw new Erro
   stderr: "",
   error: "TCC probe unavailable"
 }, "throwing injectable permission probes should become unknown/degraded results instead of crashing");
+
+const permissionDeniedAcquisition = normalizeAcquisitionResult("activeWindow", {
+  ok: false,
+  stdout: "",
+  stderr: "System Events got an error: osascript is not authorized to send Apple events to System Events.",
+  error: "Command failed"
+}, {
+  requiredPermission: "accessibility",
+  emptyDiagnostic: "Front window title is empty or unavailable."
+});
+assert.deepEqual(permissionDeniedAcquisition, {
+  status: "degraded",
+  available: false,
+  degraded: true,
+  value: "",
+  reason: "permissionDenied",
+  requiredPermission: "accessibility",
+  diagnostic: "System Events got an error: osascript is not authorized to send Apple events to System Events."
+}, "permission-denied acquisition responses should become an explicit degraded status object");
+assert.deepEqual(collectActiveWindowContext({
+  activeWindowResult: {
+    ok: false,
+    stdout: "",
+    stderr: "Operation not permitted: Accessibility permission is required",
+    error: ""
+  }
+}), {
+  title: "",
+  status: {
+    status: "degraded",
+    available: false,
+    degraded: true,
+    value: "",
+    reason: "permissionDenied",
+    requiredPermission: "accessibility",
+    diagnostic: "Operation not permitted: Accessibility permission is required"
+  }
+}, "active window acquisition should surface permission-denied degradation instead of only an empty title");
 
 const injectedPermissionStatus = collectMacPermissionStatus({
   permissionProbes: {
@@ -107,6 +147,22 @@ assert.equal(degradedActivity.state, "warning");
 assert.equal(degradedActivity.activeApp, "Finder");
 assert.equal(degradedActivity.activeWindow, "");
 assert.equal(degradedActivity.metadata.permissionStatus.accessibility.status, "denied");
+
+const acquisitionDeniedContext = collectMacContextProvider({
+  activeAppInfo: { name: "Finder", bundleIdentifier: "com.apple.finder", pid: 101 },
+  activeWindowResult: {
+    ok: false,
+    stdout: "",
+    stderr: "System Events got an error: osascript is not authorized to send Apple events to System Events.",
+    error: "Command failed"
+  },
+  accessibilityPermission: false,
+  screenRecordingPermission: true
+});
+assert.equal(acquisitionDeniedContext.activeWindow, "");
+assert.deepEqual(acquisitionDeniedContext.acquisitionStatus.activeWindow, permissionDeniedAcquisition);
+assert.match(acquisitionDeniedContext.degradationState, /Active window acquisition permission denied/);
+assert.match(acquisitionDeniedContext.degradationState, /not authorized to send Apple events/);
 
 const unavailableContext = collectMacContextProvider({
   activeAppInfo: null,

@@ -161,6 +161,7 @@ function buildMacContextStatusSource(options = {}) {
     activeApp: context.activeApp,
     activeWindow: context.activeWindow,
     uiTreeContext: context.uiTreeContext,
+    acquisitionStatus: context.acquisitionStatus,
     permissionStatus: context.permissionStatus,
     degradationState: context.degradationState
   };

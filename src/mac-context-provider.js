@@ -95,6 +95,58 @@ function normalizePermissionProbeResult(name, result, options = {}) {
   return { status: "unknown", diagnostic: truncate(result.stdout || "Unexpected permission probe output.", 180) };
 }
 
+function macAcquisitionPermissionDenied(text) {
+  const normalized = String(text || "").toLowerCase();
+  return [
+    "not authorized",
+    "not authorised",
+    "not permitted",
+    "operation not permitted",
+    "permission denied",
+    "accessibility",
+    "tcc"
+  ].some((needle) => normalized.includes(needle));
+}
+
+function normalizeAcquisitionResult(name, result, options = {}) {
+  const requiredPermission = options.requiredPermission || "";
+  const emptyDiagnostic = options.emptyDiagnostic || `${name} returned no value.`;
+  if (typeof result === "string") {
+    const value = result.trim();
+    return value
+      ? { status: "available", available: true, degraded: false, value, diagnostic: "" }
+      : { status: "unavailable", available: false, degraded: true, value: "", reason: "empty", requiredPermission, diagnostic: emptyDiagnostic };
+  }
+
+  const stdout = String(result?.stdout || "").trim();
+  const diagnostic = truncate(result?.stderr || result?.error || stdout || emptyDiagnostic, 180);
+  if (result?.ok && stdout) {
+    return { status: "available", available: true, degraded: false, value: stdout, diagnostic: "" };
+  }
+
+  if (macAcquisitionPermissionDenied(`${result?.stderr || ""} ${result?.error || ""}`)) {
+    return {
+      status: "degraded",
+      available: false,
+      degraded: true,
+      value: "",
+      reason: "permissionDenied",
+      requiredPermission,
+      diagnostic
+    };
+  }
+
+  return {
+    status: "unavailable",
+    available: false,
+    degraded: true,
+    value: "",
+    reason: result?.ok ? "empty" : "commandUnavailable",
+    requiredPermission,
+    diagnostic
+  };
+}
+
 function permissionStatusWithAvailability(status) {
   const normalized = status && typeof status === "object" ? status : { status: "unknown", diagnostic: "missing permission status" };
   return {
@@ -148,13 +200,26 @@ function collectMacPermissionStatus(options = {}) {
   };
 }
 
-function collectActiveWindowTitle(options = {}) {
+function collectActiveWindowResult(options = {}) {
   if (options.activeWindowTitle !== undefined) return String(options.activeWindowTitle || "").trim();
-  const output = runCommand("osascript", [
+  if (options.activeWindowResult !== undefined) return options.activeWindowResult;
+  return runCommandResult("osascript", [
     "-e",
     "tell application \"System Events\" to tell (first application process whose frontmost is true) to if exists front window then get name of front window else return \"\""
   ], { timeout: 700 });
-  return output || "";
+}
+
+function collectActiveWindowContext(options = {}) {
+  const result = collectActiveWindowResult(options);
+  const status = normalizeAcquisitionResult("activeWindow", result, {
+    requiredPermission: "accessibility",
+    emptyDiagnostic: "Front window title is empty or unavailable."
+  });
+  return { title: status.value || "", status };
+}
+
+function collectActiveWindowTitle(options = {}) {
+  return collectActiveWindowContext(options).title;
 }
 
 function buildUiTreeContext(activeApp, activeWindow, permissionStatus, options = {}) {
@@ -203,6 +268,15 @@ function macContextDegradationReasons(activeApp, activeWindow, permissionStatus,
   return reasons;
 }
 
+function macContextAcquisitionDegradationReasons(acquisitionStatus = {}) {
+  const reasons = [];
+  const activeWindow = acquisitionStatus.activeWindow;
+  if (activeWindow?.reason === "permissionDenied") {
+    reasons.push(`Active window acquisition permission denied${permissionDiagnosticSuffix(activeWindow)}; HUD is using active app plus degraded window context only.`);
+  }
+  return reasons;
+}
+
 function macContextDegradationState(activeApp, activeWindow, permissionStatus, uiTreeContext) {
   const reasons = macContextDegradationReasons(activeApp, activeWindow, permissionStatus, uiTreeContext);
   return reasons.length ? reasons.join("; ") : "Full read-only active app/window context available.";
@@ -241,15 +315,23 @@ function macContextActivityId(activeApp, activeWindow) {
 function collectMacContextProvider(options = {}) {
   const activeApp = collectActiveApplicationInfo(options);
   const permissionStatus = collectMacPermissionStatus(options);
-  const activeWindow = collectActiveWindowTitle(options);
+  const activeWindowContext = collectActiveWindowContext(options);
+  const activeWindow = activeWindowContext.title;
   const uiTreeContext = buildUiTreeContext(activeApp, activeWindow, permissionStatus, options);
-  const degradationReasons = macContextDegradationReasons(activeApp, activeWindow, permissionStatus, uiTreeContext);
+  const acquisitionStatus = {
+    activeWindow: activeWindowContext.status
+  };
+  const degradationReasons = [
+    ...macContextDegradationReasons(activeApp, activeWindow, permissionStatus, uiTreeContext),
+    ...macContextAcquisitionDegradationReasons(acquisitionStatus)
+  ];
   const degradationState = degradationReasons.length ? degradationReasons.join("; ") : "Full read-only active app/window context available.";
 
   return {
     activeApp,
     activeWindow,
     uiTreeContext,
+    acquisitionStatus,
     permissionStatus,
     degradationReasons,
     degradationState,
@@ -268,6 +350,17 @@ function collectMacContextStatusOnly(options = {}) {
       available: false,
       summary: "Status-only preflight did not request active app, active window, or Accessibility UI tree context.",
       nodes: []
+    },
+    acquisitionStatus: {
+      activeWindow: {
+        status: "notRequested",
+        available: false,
+        degraded: true,
+        value: "",
+        reason: "statusOnly",
+        requiredPermission: "accessibility",
+        diagnostic: "Status-only preflight did not request active window acquisition."
+      }
     },
     permissionStatus,
     degradationReasons,
@@ -340,12 +433,15 @@ function macContextProviderToActivity(providerContext) {
 module.exports = {
   buildUiTreeContext,
   collectActiveApplicationInfo,
+  collectActiveWindowContext,
+  collectActiveWindowResult,
   collectActiveWindowTitle,
   collectMacContextProvider,
   collectMacContextStatusOnly,
   collectMacPermissionStatus,
   defaultPermissionProbes,
   invokePermissionProbe,
+  macContextAcquisitionDegradationReasons,
   macContextActivityId,
   macContextDegradationReasons,
   macContextDegradationState,
@@ -353,6 +449,7 @@ module.exports = {
   macPermissionStatusDegradationReasons,
   macPermissionStatusDegradationState,
   normalizeActiveApplicationInfo,
+  normalizeAcquisitionResult,
   normalizePermissionProbeResult,
   parseActiveApplicationText,
   permissionStatusWithAvailability,

@@ -216,6 +216,7 @@ assert.deepEqual(Object.keys(payload), [
   "activeApp",
   "activeWindow",
   "uiTreeContext",
+  "acquisitionStatus",
   "permissionStatus",
   "degradationState"
 ], "local command schema should remain stable and deterministic");
