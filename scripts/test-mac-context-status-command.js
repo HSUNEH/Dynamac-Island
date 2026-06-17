@@ -280,4 +280,14 @@ assertCommandFails(["--fixture="], /Missing value for --fixture/);
 assertCommandFails(["--now=not-a-date"], /Invalid --now value: not-a-date/);
 assertCommandFails(["--fixture", path.join(os.tmpdir(), `missing-dynamac-context-${process.pid}.json`)], /ENOENT/);
 
+const malformedFixturePath = path.join(os.tmpdir(), `malformed-dynamac-context-${process.pid}.json`);
+fs.writeFileSync(malformedFixturePath, "{");
+assertCommandFails(["--fixture", malformedFixturePath], /Expected property name|Unexpected end of JSON input|JSON/);
+fs.unlinkSync(malformedFixturePath);
+
+const nonObjectFixturePath = path.join(os.tmpdir(), `non-object-dynamac-context-${process.pid}.json`);
+fs.writeFileSync(nonObjectFixturePath, JSON.stringify(["not", "an", "object"]));
+assertCommandFails(["--fixture", nonObjectFixturePath], /Fixture JSON must be an object/);
+fs.unlinkSync(nonObjectFixturePath);
+
 console.log("mac-context-status command tests passed");

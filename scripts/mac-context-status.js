@@ -56,7 +56,11 @@ function parseArgs(argv) {
 function readFixture(fixturePath) {
   if (!fixturePath) return {};
   const absolutePath = path.resolve(fixturePath);
-  return JSON.parse(fs.readFileSync(absolutePath, "utf8"));
+  const fixture = JSON.parse(fs.readFileSync(absolutePath, "utf8"));
+  if (!fixture || typeof fixture !== "object" || Array.isArray(fixture)) {
+    throw new Error(`Fixture JSON must be an object: ${fixturePath}`);
+  }
+  return fixture;
 }
 
 function requiredPermissionDegradations(permissionStatus = {}) {
