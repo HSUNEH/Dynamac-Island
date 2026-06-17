@@ -30,6 +30,94 @@ function normalizePermissionDeniedHudVisibleCopy(payload, hudState) {
   };
 }
 
+function normalizeDegradedContextHudMapping(payload, hudState) {
+  const experimental = summarizeExperimentalMacContextStatus(payload);
+  const hudDisplay = summarizeMacContextHudState(hudState);
+  const fallbackStatus = macContextProviderToActivity(payload);
+  const macContextActivity = firstMacContextHudActivity(hudState) || fallbackStatus;
+  const hudVisibleCopy = normalizePermissionDeniedHudVisibleCopy(payload, hudState);
+  const providerStatus = payload?.result?.status || "";
+  const hudActivityState = macContextActivity?.status?.state || fallbackStatus.state || "";
+  const degradationState = experimental.degradationState || macContextActivity?.status?.degradationState || hudVisibleCopy.detail || "";
+  const degradationReasons = Array.isArray(payload?.result?.degradation?.reasons)
+    ? [...payload.result.degradation.reasons]
+    : (degradationState ? degradationState.split("; ").filter(Boolean) : []);
+  const unavailableSources = Array.isArray(payload?.result?.degradation?.unavailableSources)
+    ? [...payload.result.degradation.unavailableSources]
+    : [];
+  const activeAppName = experimental.activeApp.name || fallbackStatus.activeApp || "Mac Context";
+  const stateSeverity = hudActivityState === "error" || !experimental.activeApp.available ? "error" : "warning";
+  const warningPrefix = "⚠";
+
+  return {
+    providerStatus,
+    hudActivityState,
+    compactActivityType: hudDisplay.compactActivityType,
+    presentation: providerStatus === "degraded" && hudDisplay.compactIsMacContext ? "degradedContext" : "notDisplayed",
+    compactTone: stateSeverity === "error" ? "degraded-error" : "degraded-warning",
+    stateSeverity,
+    permissionMode: `${experimental.permissions.accessibility}/${experimental.permissions.screenRecording}`,
+    activeAppAvailable: experimental.activeApp.available,
+    activeWindowAvailable: experimental.activeWindow.available,
+    activeAppName,
+    unavailableSources,
+    acquisitionReason: payload?.acquisitionStatus?.activeWindow?.reason || "",
+    degradationState,
+    degradationReasons,
+    copy: {
+      compactGlyph: hudVisibleCopy.compactGlyph,
+      compactLabel: hudVisibleCopy.compactLabel || activeAppName,
+      compactPrefix: warningPrefix,
+      task: hudVisibleCopy.task,
+      detail: hudVisibleCopy.detail || degradationState,
+      expandedTitle: hudVisibleCopy.expandedTitle || degradationState,
+      nativeCompactText: `${warningPrefix} ${hudVisibleCopy.compactLabel || activeAppName}`.trim()
+    }
+  };
+}
+
+function compareDegradedMacContextHudUx(payload, options = {}) {
+  const experimental = summarizeExperimentalMacContextStatus(payload);
+  const hudDisplay = summarizeMacContextHudState(options.hudState);
+  const mapping = normalizeDegradedContextHudMapping(payload, options.hudState);
+  const regressionRisks = [];
+
+  if (!experimental.macContextStatusSource) regressionRisks.push("missing macContext status-source kind");
+  if (mapping.providerStatus !== "degraded") regressionRisks.push("degraded UX mapping requires a degraded provider status");
+  if (!hudDisplay.compactIsMacContext || !hudDisplay.displaysMacContext) regressionRisks.push("degraded context must be visible in the HUD compact surface");
+  if (!firstMacContextHudActivity(options.hudState)) regressionRisks.push("degraded context must remain present in ranked HUD activities");
+  if (!mapping.copy.compactLabel) regressionRisks.push("degraded context compact copy must keep a non-empty readable label");
+  if (!mapping.copy.compactGlyph) regressionRisks.push("degraded context compact copy must keep a visible glyph");
+  if (!mapping.copy.nativeCompactText.startsWith("⚠ ")) regressionRisks.push("degraded context native compact copy must be visibly warning-prefixed");
+  if (!["warning", "error"].includes(mapping.hudActivityState)) regressionRisks.push("degraded context must map to warning/error HUD state");
+  if (!/degraded|unavailable|denied|unknown|stale|permission/i.test(mapping.copy.task)) regressionRisks.push("degraded context task copy must indicate reduced capability");
+  if (!mapping.degradationState || !/degraded|unavailable|denied|unknown|stale|permission/i.test(mapping.degradationState)) regressionRisks.push("degraded context detail must expose user-visible degradation text");
+  if (!mapping.copy.expandedTitle || !/degraded|unavailable|denied|unknown|stale|permission/i.test(mapping.copy.expandedTitle)) regressionRisks.push("degraded context expanded copy must preserve degradation text");
+
+  return {
+    schemaVersion: 1,
+    kind: "dynamac.macContext.degradedHudUxComparison",
+    experimental,
+    hudDisplay,
+    hudVisibleCopy: mapping.copy,
+    stateMapping: mapping,
+    result: {
+      ok: regressionRisks.length === 0,
+      degradedContextVisible: mapping.providerStatus === "degraded" && hudDisplay.compactIsMacContext && hudDisplay.displaysMacContext,
+      hudVisibleCopyMatchesDegradedState: Boolean(mapping.copy.compactLabel)
+        && ["warning", "error"].includes(mapping.hudActivityState)
+        && Boolean(mapping.degradationState)
+        && mapping.copy.nativeCompactText.startsWith("⚠ "),
+      regressionRisks
+    },
+    comparisonAgainstMain: {
+      ux: regressionRisks.length
+        ? `degraded Mac Context HUD UX mapping failed: ${regressionRisks.join("; ")}`
+        : "degraded Mac Context maps warning/error state to HUD-visible app/context copy plus degradation guidance"
+    }
+  };
+}
+
 function comparePermissionDeniedMacContextHudUx(payload, options = {}) {
   const experimental = summarizeExperimentalMacContextStatus(payload);
   const hudDisplay = summarizeMacContextHudState(options.hudState);
@@ -93,6 +181,8 @@ function comparePermissionDeniedMacContextHudUx(payload, options = {}) {
 }
 
 module.exports = {
+  compareDegradedMacContextHudUx,
   comparePermissionDeniedMacContextHudUx,
+  normalizeDegradedContextHudMapping,
   normalizePermissionDeniedHudVisibleCopy
 };
