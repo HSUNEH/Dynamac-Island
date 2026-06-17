@@ -162,6 +162,73 @@ function firstMacContextHudActivity(hudState) {
   return rankedActivities.find((activity) => activity?.activityType === "macContext") || null;
 }
 
+function normalizeMacContextHudVisibleCopy(payload, hudState) {
+  const status = macContextProviderToActivity(payload);
+  const macContextActivity = firstMacContextHudActivity(hudState) || status;
+  const compactSurface = objectStatus(hudState?.compactSurface)
+    ? hudState.compactSurface
+    : (macContextActivity.macContext?.compactSurface || {});
+  const expandedSurface = macContextActivity.macContext?.expandedSurface || {};
+
+  return {
+    compactLabel: compactSurface.label || status.macContext.compactSurface.label || "",
+    compactGlyph: compactSurface.glyph || status.macContext.compactSurface.glyph || "",
+    task: macContextActivity.status?.task || macContextActivity.task || status.task || "",
+    detail: macContextActivity.status?.detail || macContextActivity.detail || status.detail || "",
+    expandedTitle: expandedSurface.title || status.macContext.expandedSurface.title || ""
+  };
+}
+
+function compareNormalMacContextHudUx(payload, options = {}) {
+  const experimental = summarizeExperimentalMacContextStatus(payload);
+  const hudDisplay = summarizeMacContextHudState(options.hudState);
+  const macContextActivity = firstMacContextHudActivity(options.hudState);
+  const status = macContextProviderToActivity(payload);
+  const hudVisibleCopy = normalizeMacContextHudVisibleCopy(payload, options.hudState);
+  const activityState = macContextActivity?.status?.state || status.state || "";
+  const normalActiveContext = experimental.activeApp.available
+    && experimental.activeWindow.available
+    && payload?.result?.status === "success"
+    && activityState === "running";
+  const regressionRisks = [];
+
+  if (!experimental.macContextStatusSource) regressionRisks.push("missing macContext status-source kind");
+  if (!normalActiveContext) regressionRisks.push("normal active context must report success with running HUD state");
+  if (!hudDisplay.compactIsMacContext || !hudDisplay.displaysMacContext) regressionRisks.push("normal active context must route into the HUD compact surface");
+  if (!hudVisibleCopy.compactLabel || hudVisibleCopy.compactLabel !== experimental.activeApp.name) regressionRisks.push("normal active context compact copy must show active app name");
+  if (!hudVisibleCopy.task.includes(experimental.activeApp.name) || !hudVisibleCopy.task.includes(experimental.activeWindow.title)) regressionRisks.push("normal active context task copy must include active app and window");
+  if (!hudVisibleCopy.expandedTitle.includes(experimental.activeApp.name) || !hudVisibleCopy.expandedTitle.includes(experimental.activeWindow.title)) regressionRisks.push("normal active context expanded copy must include active app and window");
+  if (!/Full read-only active app\/window context available\./.test(hudVisibleCopy.detail)) regressionRisks.push("normal active context detail copy must confirm read-only context availability");
+
+  return {
+    schemaVersion: 1,
+    kind: "dynamac.macContext.normalHudUxComparison",
+    experimental,
+    hudDisplay,
+    hudVisibleCopy,
+    stateMapping: {
+      providerStatus: payload?.result?.status || "",
+      hudActivityState: activityState,
+      compactActivityType: hudDisplay.compactActivityType,
+      presentation: hudDisplay.compactIsMacContext ? "normalActiveContext" : "notDisplayed",
+      permissionMode: `${experimental.permissions.accessibility}/${experimental.permissions.screenRecording}`
+    },
+    result: {
+      ok: regressionRisks.length === 0,
+      normalActiveContext,
+      hudVisibleCopyMatchesActiveContext: hudVisibleCopy.compactLabel === experimental.activeApp.name
+        && hudVisibleCopy.task.includes(experimental.activeWindow.title)
+        && hudVisibleCopy.expandedTitle.includes(experimental.activeWindow.title),
+      regressionRisks
+    },
+    comparisonAgainstMain: {
+      ux: regressionRisks.length
+        ? `normal Mac Context HUD UX mapping failed: ${regressionRisks.join("; ")}`
+        : "normal active Mac Context maps success/running state to HUD-visible app/window copy"
+    }
+  };
+}
+
 function compareUnavailableMacContextHudReliability(payload, options = {}) {
   const experimental = summarizeExperimentalMacContextStatus(payload);
   const hudDisplay = summarizeMacContextHudState(options.hudState);
@@ -366,6 +433,7 @@ module.exports = {
   MAIN_BASELINE,
   buildStaleMacContextHudStatus,
   compareMacContextAgainstMain,
+  compareNormalMacContextHudUx,
   comparePartialMacContextHudReliability,
   compareStaleMacContextHudReliability,
   compareUnavailableMacContextHudReliability,
