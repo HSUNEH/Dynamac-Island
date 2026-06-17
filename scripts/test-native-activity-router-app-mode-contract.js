@@ -894,6 +894,85 @@ assert.doesNotMatch(dynaDropShelfExpandedOutput, /renderedExpandedText=.*Drop fi
 assert.match(dynaDropShelfExpandedOutput, /task=Shelf · 2 files ready/, "expanded app-mode dump should retain the routed DynaDrop shelf payload");
 assert.doesNotMatch(dynaDropShelfExpandedOutput, /active=timer[^\n]+expanded=true/, "expanded transition should not fall back to Timer when router selected DynaDrop shelf");
 
+
+
+const batteryOverlapPayload = {
+  statuses: [
+    {
+      agent: "Now Playing",
+      activityId: "now-playing-battery-overlap",
+      activityType: "nowPlaying",
+      state: "running",
+      task: "Song Title",
+      detail: "Artist Name",
+      updatedAt: "2026-06-15T00:00:09.000Z",
+      media: { source: "spotify", title: "Song Title", artist: "Artist Name", album: "Album", artworkUrl: "", durationSeconds: 180, positionSeconds: 30, playbackState: "playing", elapsedLabel: "0:30", durationLabel: "3:00", pageUrl: "" }
+    },
+    {
+      agent: "Battery",
+      activityId: "battery-20-native-overlap",
+      activityType: "battery",
+      state: "running",
+      task: "Charging 20%",
+      detail: "Battery is charging from AC Power at 20%.",
+      updatedAt: "2026-06-15T00:00:09.000Z",
+      batteryHud: {
+        activityId: "battery-20-native-overlap",
+        activityType: "battery",
+        priority: 100,
+        createdAt: 1781481609000,
+        updatedAt: 1781481609000,
+        expiresAt: 1781481616000,
+        isTransient: true,
+        status: { percent: 20, charging: true, milestonePercent: 20, displayText: "20%", displayMode: "compactSecondary", rawBatteryTextVisible: false },
+        compactSurface: { glyph: "battery.25", label: "20%", progress: 0.2, hudKind: "batteryMilestone", displayMode: "compactSecondary" },
+        expandedSurface: null,
+        source: "fixture-battery",
+        metadata: { inputKind: "battery", rawBatteryTextVisible: false },
+        revealReadyPath: "",
+        persisted: false
+      },
+      metadata: { rawBatteryTextVisible: false, batteryDisplayMode: "compactSecondary" },
+      persisted: false
+    }
+  ],
+  activityRouter: {
+    rankedActivities: [],
+    compactSurface: { activityId: "now-playing-battery-overlap", activityType: "nowPlaying", priority: 200, label: "Song Title", glyph: "music.note" },
+    compactSecondarySurfaces: [{ activityId: "battery-20-native-overlap", activityType: "battery", priority: 100, label: "20%", glyph: "battery.25", displayMode: "compactSecondary", expiresAt: 1781481616000 }],
+    clickTargetActivity: "nowPlaying",
+    expandedTargetActivity: "nowPlaying"
+  }
+};
+writePayload(batteryOverlapPayload);
+const batteryOverlapCompactOutput = runNative();
+assert.match(batteryOverlapCompactOutput, /presentation=media/, "media remains native primary during Battery overlap");
+assert.match(batteryOverlapCompactOutput, /clickTargetActivity=nowPlaying/, "Battery overlap should keep Now Playing as click target");
+assert.match(batteryOverlapCompactOutput, /expandedTargetActivity=nowPlaying/, "Battery overlap should keep Now Playing as expanded target");
+assert.match(batteryOverlapCompactOutput, /secondaryCompactTypes=battery/, "native dump should expose Battery as secondary compact surface");
+assert.match(batteryOverlapCompactOutput, /renderedSecondaryCompactText=.*20%/, "native secondary Battery text should show percentage");
+const batteryOverlapExpandedOutput = runNative({ DYNAMAC_START_EXPANDED: "1", DYNAMAC_NATIVE_STATUS_DUMP_AFTER_MS: "180" });
+assert.match(batteryOverlapExpandedOutput, /active=activityRouter[^\n]+presentation=media[^\n]+expanded=true/, "expanded Battery overlap remains Now Playing/media");
+assert.doesNotMatch(batteryOverlapExpandedOutput, /presentation=battery[^\n]+expanded=true/, "Battery must not become expanded surface while media is active");
+
+const standaloneBatteryPayload = {
+  statuses: [batteryOverlapPayload.statuses[1]],
+  activityRouter: {
+    rankedActivities: [],
+    compactSurface: { activityId: "battery-20-native-overlap", activityType: "battery", priority: 100, label: "20%", glyph: "battery.25" },
+    compactSecondarySurfaces: [],
+    clickTargetActivity: "none",
+    expandedTargetActivity: "none"
+  }
+};
+writePayload(standaloneBatteryPayload);
+const standaloneBatteryCompactOutput = runNative();
+assert.match(standaloneBatteryCompactOutput, /presentation=battery/, "standalone Battery can be compact primary");
+assert.match(standaloneBatteryCompactOutput, /clickTargetActivity=none/, "standalone Battery click target is none");
+assert.match(standaloneBatteryCompactOutput, /expandedTargetActivity=none/, "standalone Battery expanded target is none");
+const standaloneBatteryExpandedOutput = runNative({ DYNAMAC_START_EXPANDED: "1", DYNAMAC_NATIVE_STATUS_DUMP_AFTER_MS: "180" });
+assert.doesNotMatch(standaloneBatteryExpandedOutput, /expanded=true/, "standalone Battery milestone must not expand into a Battery surface");
+
 fs.rmSync(tempDir, { recursive: true, force: true });
 
 console.log("Native Activity Router app-mode transition contract test passed.");

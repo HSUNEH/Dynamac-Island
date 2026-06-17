@@ -14,6 +14,7 @@ const {
   buildMacActivityStatusPayload,
   classifyClipboardText,
   collectBatteryStatus,
+  createBatteryHudState,
   collectBrightnessHudStatus,
   collectChangedSystemBrightnessInput,
   collectChangedSystemVolumeInput,
@@ -34,14 +35,17 @@ const { createClipboardActivityState } = require("../src/clipboard-activity");
 process.env.DYNAMAC_YOUTUBE_MEDIA_FILE = path.join(os.tmpdir(), `dynamac-test-youtube-media-${process.pid}.json`);
 const sourceText = fs.readFileSync(path.join(__dirname, "..", "src", "mac-activity-status.js"), "utf8");
 
-assert.deepEqual(parsePmsetBattery("Now drawing from 'Battery Power'\n -InternalBattery-0 (id=1234567)\t19%; discharging; 1:20 remaining present: true"), {
-  agent: "Battery",
-  state: "warning",
-  task: "Battery 19%",
-  detail: "Now drawing from 'Battery Power' -InternalBattery-0 (id=1234567) 19%; discharging; 1:20 remaining present: true"
-});
+const parsedLowBattery = parsePmsetBattery("Now drawing from 'Battery Power'\n -InternalBattery-0 (id=1234567)\t19%; discharging; 1:20 remaining present: true");
+assert.equal(parsedLowBattery.agent, "Battery");
+assert.equal(parsedLowBattery.state, "warning");
+assert.equal(parsedLowBattery.task, "Battery 19%");
+assert.equal(parsedLowBattery.detail, "Battery is discharging from Battery Power at 19%.");
+assert.doesNotMatch(parsedLowBattery.detail, /InternalBattery|present: true|pmset/i, "Battery detail should be sanitized for user-facing UI");
+assert.equal(parsedLowBattery.metadata.rawBatteryTextVisible, false);
 
-assert.equal(parsePmsetBattery("Now drawing from 'AC Power'\n -InternalBattery-0\t82%; charging; 0:35 remaining present: true").task, "Charging 82%");
+const parsedChargingBattery = parsePmsetBattery("Now drawing from 'AC Power'\n -InternalBattery-0\t82%; charging; 0:35 remaining present: true");
+assert.equal(parsedChargingBattery.task, "Charging 82%");
+assert.equal(parsedChargingBattery.detail, "Battery is charging from AC Power at 82%.");
 assert.equal(classifyClipboardText("https://example.com/a").task, "Link copied · 21 chars");
 assert.equal(classifyClipboardText("/Users/st/file.txt").task, "Path copied · 18 chars");
 assert.equal(classifyClipboardText("hello").task, "Text copied · 5 chars");
@@ -640,6 +644,57 @@ assert.equal(
   1,
   "activityRouter should not emit overlapping DynaKeys HUD events even when both statuses exist"
 );
+
+
+const milestoneBatteryPayload = buildMacActivityStatusPayload({
+  now: new Date("2026-06-11T09:00:03.000Z"),
+  mediaInfo: spotifyInfo,
+  clipboardActivityState: createClipboardActivityState(),
+  clipboardText: "",
+  batteryHudState: createBatteryHudState(),
+  pmsetOutput: "Now drawing from 'AC Power'\n -InternalBattery-0\t20%; charging; 0:35 remaining present: true"
+});
+const milestoneBatteryStatus = milestoneBatteryPayload.statuses.find((status) => status.agent === "Battery");
+assert.equal(milestoneBatteryStatus.batteryHud.status.milestonePercent, 20);
+assert.equal(milestoneBatteryStatus.batteryHud.compactSurface.label, "20%");
+assert.equal(milestoneBatteryStatus.batteryHud.expiresAt - Date.parse("2026-06-11T09:00:03.000Z"), 7000);
+assert.equal(milestoneBatteryPayload.activityRouter.compactSurface.activityType, "nowPlaying", "Now Playing remains primary over Battery milestone");
+assert.deepEqual(milestoneBatteryPayload.activityRouter.compactSecondarySurfaces.map((surface) => surface.activityType), ["battery"]);
+assert.equal(milestoneBatteryPayload.activityRouter.clickTargetActivity, "nowPlaying");
+assert.equal(milestoneBatteryPayload.activityRouter.expandedTargetActivity, "nowPlaying");
+assert.doesNotMatch(milestoneBatteryStatus.detail, /InternalBattery|present: true|pmset/i, "composed Battery status remains sanitized");
+
+const nonMilestoneBatteryPayload = buildMacActivityStatusPayload({
+  now: new Date("2026-06-11T09:00:04.000Z"),
+  mediaInfo: null,
+  clipboardActivityState: createClipboardActivityState(),
+  clipboardText: "",
+  batteryHudState: createBatteryHudState(),
+  pmsetOutput: "Now drawing from 'AC Power'\n -InternalBattery-0\t21%; charging; 0:35 remaining present: true"
+});
+const nonMilestoneBatteryStatus = nonMilestoneBatteryPayload.statuses.find((status) => status.agent === "Battery");
+assert.equal(nonMilestoneBatteryStatus.batteryHud, undefined, "non-milestone charging Battery stays passive");
+assert.equal(nonMilestoneBatteryStatus.detail, "Battery is charging from AC Power at 21%.");
+
+const fullBatteryState = createBatteryHudState();
+const fullBatteryFirst = buildMacActivityStatusPayload({
+  now: new Date("2026-06-11T09:00:05.000Z"),
+  mediaInfo: null,
+  clipboardActivityState: createClipboardActivityState(),
+  clipboardText: "",
+  batteryHudState: fullBatteryState,
+  pmsetOutput: "Now drawing from 'AC Power'\n -InternalBattery-0\t100%; charged; 0:00 remaining present: true"
+});
+assert.ok(fullBatteryFirst.statuses.find((status) => status.agent === "Battery").batteryHud, "100% emits once");
+const fullBatterySecond = buildMacActivityStatusPayload({
+  now: new Date("2026-06-11T09:00:13.000Z"),
+  mediaInfo: null,
+  clipboardActivityState: createClipboardActivityState(),
+  clipboardText: "",
+  batteryHudState: fullBatteryState,
+  pmsetOutput: "Now drawing from 'AC Power'\n -InternalBattery-0\t100%; charged; 0:00 remaining present: true"
+});
+assert.equal(fullBatterySecond.statuses.find((status) => status.agent === "Battery").batteryHud, undefined, "100% does not repeat while still full");
 
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "dynamac-mac-activity-"));
 const outputPath = path.join(tempDir, "status.json");

@@ -17,6 +17,9 @@ struct StatusPayload: Decodable {
 
 struct ActivityRouterSnapshot: Decodable {
     var compactSurface: CompactActivitySurface?
+    var compactSecondarySurfaces: [CompactActivitySurface]?
+    var clickTargetActivity: String?
+    var expandedTargetActivity: String?
 }
 
 struct CompactActivitySurface: Decodable {
@@ -42,6 +45,7 @@ struct StatusItem: Decodable {
     var clipboardActivity: RoutedActivityInfo?
     var shelfActivity: RoutedActivityInfo?
     var dropActivity: RoutedActivityInfo?
+    var batteryHud: RoutedActivityInfo?
 }
 
 struct RoutedActivityInfo: Decodable {
@@ -275,6 +279,7 @@ final class IslandView: NSView {
             onOpenMediaSource?(media)
             return
         }
+        if !expanded && activityRouter?.clickTargetActivity == "none" { return }
         onToggle?()
     }
 
@@ -308,6 +313,7 @@ final class IslandView: NSView {
         }
 
         drawContentWithOpacity()
+        if !expanded { drawCompactSecondarySurfaces() }
     }
 
     private func drawContentWithOpacity() {
@@ -507,6 +513,26 @@ final class IslandView: NSView {
         return value
     }
 
+    fileprivate func clickTargetActivityForSmoke() -> String {
+        activityRouter?.clickTargetActivity?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
+    fileprivate func expandedTargetActivityForSmoke() -> String {
+        activityRouter?.expandedTargetActivity?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
+    fileprivate func secondaryCompactTypesForSmoke() -> String {
+        (activityRouter?.compactSecondarySurfaces ?? []).compactMap { $0.activityType }.joined(separator: ",")
+    }
+
+    fileprivate func secondaryCompactRenderedTextForSmoke() -> String {
+        (activityRouter?.compactSecondarySurfaces ?? []).map { surface in
+            let glyph = surface.glyph ?? glyphForRoutedActivity(surface.activityType ?? "")
+            let label = surface.label ?? ""
+            return "\(glyph) \(label)".trimmingCharacters(in: .whitespacesAndNewlines)
+        }.joined(separator: ",")
+    }
+
     private func inferredActivityType(for status: StatusItem) -> String {
         if let explicit = status.activityType?.trimmingCharacters(in: .whitespacesAndNewlines), !explicit.isEmpty {
             return explicit
@@ -571,6 +597,9 @@ final class IslandView: NSView {
         }
         if let dropActivityId = status.dropActivity?.activityId, !dropActivityId.isEmpty {
             ids.insert(dropActivityId)
+        }
+        if let batteryHudId = status.batteryHud?.activityId, !batteryHudId.isEmpty {
+            ids.insert(batteryHudId)
         }
         return ids
     }
@@ -778,6 +807,25 @@ final class IslandView: NSView {
             compactText: "\(glyph) \(label)",
             expandedText: "\(label)\n\(status.detail ?? status.task)"
         )
+    }
+
+    private func drawCompactSecondarySurfaces() {
+        guard let surfaces = activityRouter?.compactSecondarySurfaces, !surfaces.isEmpty else { return }
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .semibold),
+            .foregroundColor: NSColor.white.withAlphaComponent(0.90)
+        ]
+        for (index, surface) in surfaces.enumerated() {
+            guard surface.activityType == "battery" else { continue }
+            let text = "▰ \(surface.label ?? "")" as NSString
+            let rect: NSRect
+            if compactLayout.usesHardwareNotchCutout {
+                rect = compactLayout.rightWingRect(in: bounds).insetBy(dx: 2, dy: CGFloat(3 + index * 10))
+            } else {
+                rect = NSRect(x: bounds.maxX - 54, y: 5 + CGFloat(index * 12), width: 48, height: 12)
+            }
+            text.draw(in: rect, withAttributes: attrs)
+        }
     }
 
     private func drawRoutedGenericActivity(_ status: StatusItem, activityType: String) {
@@ -1773,6 +1821,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         contentFadeTimer?.invalidate()
         autoCollapseTimer?.invalidate()
 
+        if shouldExpand && islandView.expandedTargetActivityForSmoke() == "none" { return }
+
         // Switch the controller AND the view layout state synchronously in BOTH directions.
         // Previously the view only flipped to compact in the collapse animation's completion
         // handler, so mashing the toggle let overlapping animations fire their handlers out of
@@ -2186,6 +2236,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 "routerCompactType=\(routedType)",
                 "routerCompactActivityId=\(compactSurface.activityId ?? "")",
                 "expanded=\(islandView?.expanded == true ? "true" : "false")",
+                "clickTargetActivity=\(islandView?.clickTargetActivityForSmoke() ?? "")",
+                "expandedTargetActivity=\(islandView?.expandedTargetActivityForSmoke() ?? "")",
+                "secondaryCompactTypes=\(islandView?.secondaryCompactTypesForSmoke() ?? "")",
+                "renderedSecondaryCompactText=\(nativeSmokeDumpValue(islandView?.secondaryCompactRenderedTextForSmoke() ?? ""))",
                 "agent=\(status.agent)",
                 "statusState=\(status.state)",
                 "task=\(status.task)",

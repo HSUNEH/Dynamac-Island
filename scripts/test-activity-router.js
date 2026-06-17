@@ -946,3 +946,62 @@ const tieBrokenByUpdatedAtThenCreatedAtThenId = rankActivities([
 assert.equal(tieBrokenByUpdatedAtThenCreatedAtThenId[0].activityId, "new-volume");
 
 console.log("Activity router priority test passed.");
+
+const mediaBatteryOverlapNow = new Date("2026-06-15T09:01:00.000Z");
+const batteryMilestoneStatus = {
+  agent: "Battery",
+  activityType: "battery",
+  activityId: "battery-20-router-fixture",
+  state: "running",
+  task: "Charging 20%",
+  detail: "Battery is charging from AC Power at 20%.",
+  updatedAt: mediaBatteryOverlapNow.toISOString(),
+  batteryHud: {
+    activityId: "battery-20-router-fixture",
+    activityType: "battery",
+    priority: ACTIVITY_PRIORITIES.battery,
+    createdAt: mediaBatteryOverlapNow.getTime(),
+    updatedAt: mediaBatteryOverlapNow.getTime(),
+    expiresAt: mediaBatteryOverlapNow.getTime() + 7000,
+    isTransient: true,
+    status: { percent: 20, charging: true, milestonePercent: 20, displayText: "20%", displayMode: "compactPrimary", rawBatteryTextVisible: false },
+    compactSurface: { glyph: "battery.25", label: "20%", progress: 0.2, hudKind: "batteryMilestone", displayMode: "compactPrimary" },
+    expandedSurface: null,
+    source: "fixture-battery",
+    metadata: { inputKind: "battery", rawBatteryTextVisible: false },
+    revealReadyPath: "",
+    persisted: false
+  }
+};
+const mediaBatteryOverlapSnapshot = buildActivityRouterSnapshot([
+  candidateStatus("nowPlaying", 100, { agent: "Now Playing", task: "Playing song", updatedAt: mediaBatteryOverlapNow.toISOString() }),
+  batteryMilestoneStatus
+], { now: mediaBatteryOverlapNow });
+assert.equal(mediaBatteryOverlapSnapshot.compactSurface.activityType, "nowPlaying", "Now Playing remains primary over Battery milestone while media is active");
+assert.deepEqual(mediaBatteryOverlapSnapshot.compactSecondarySurfaces.map((surface) => surface.activityType), ["battery"]);
+assert.equal(mediaBatteryOverlapSnapshot.compactSecondarySurfaces[0].label, "20%");
+assert.equal(mediaBatteryOverlapSnapshot.compactSecondarySurfaces[0].displayMode, "compactSecondary");
+assert.equal(mediaBatteryOverlapSnapshot.clickTargetActivity, "nowPlaying");
+assert.equal(mediaBatteryOverlapSnapshot.expandedTargetActivity, "nowPlaying");
+
+const standaloneBatterySnapshot = buildActivityRouterSnapshot([batteryMilestoneStatus], { now: mediaBatteryOverlapNow });
+assert.equal(standaloneBatterySnapshot.compactSurface.activityType, "battery");
+assert.equal(standaloneBatterySnapshot.clickTargetActivity, "none", "standalone Battery HUD is compact-only and not a click target");
+assert.equal(standaloneBatterySnapshot.expandedTargetActivity, "none", "standalone Battery HUD must not expand into a Battery surface");
+
+const warningBatteryFallback = buildActivityRouterSnapshot([{
+  agent: "Battery",
+  activityType: "battery",
+  state: "warning",
+  task: "Battery 19%",
+  detail: "Battery is discharging from Battery Power at 19%.",
+  updatedAt: mediaBatteryOverlapNow.toISOString()
+}], { now: mediaBatteryOverlapNow });
+assert.equal(warningBatteryFallback.compactSurface.activityType, "battery", "sanitized low Battery warning remains an eligible fallback");
+
+const nonBatteryPrecedenceSnapshot = buildActivityRouterSnapshot([
+  candidateStatus("clipboard", 200, { agent: "Clipboard", task: "Copied text" }),
+  candidateStatus("nowPlaying", 100, { agent: "Now Playing", task: "Playing song" }),
+  batteryMilestoneStatus
+], { now: mediaBatteryOverlapNow });
+assert.equal(nonBatteryPrecedenceSnapshot.compactSurface.activityType, "clipboard", "Battery-overlap work must not regress existing non-battery precedence over media");

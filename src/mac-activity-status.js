@@ -4,6 +4,13 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { buildActivityRouterSnapshot } = require("./activity-router");
 const {
+  applyBatteryObservation,
+  batteryHudToNativeStatus,
+  batteryObservationToNativeStatus,
+  createBatteryHudState,
+  parseBatteryObservationFromPmset
+} = require("./battery-hud-status");
+const {
   applyClipboardRead,
   classifyClipboardText: classifyClipboardActivityText,
   createClipboardActivityState
@@ -30,6 +37,7 @@ let defaultVolumeHudState = createVolumeHudState();
 let defaultBrightnessHudState = createBrightnessHudState();
 let defaultVolumeSystemObservation = null;
 let defaultBrightnessSystemObservation = null;
+let defaultBatteryHudState = createBatteryHudState();
 
 function runCommand(command, args, options = {}) {
   try {
@@ -65,32 +73,37 @@ function formatDuration(seconds) {
 }
 
 function parsePmsetBattery(output) {
-  const percentMatch = output.match(/(\d+)%/);
-  const stateMatch = output.match(/;\s*([^;]+);/);
-  if (!percentMatch) return null;
-
-  const percent = Number(percentMatch[1]);
-  const rawState = stateMatch ? stateMatch[1].trim().toLowerCase() : "unknown";
-  const charging = rawState === "charging" || rawState === "charged" || rawState.includes("finishing charge") || output.toLowerCase().includes("'ac power'");
-  const state = percent <= 20 && !charging ? "warning" : "running";
-  const label = charging ? "Charging" : "Battery";
-
-  return {
-    agent: "Battery",
-    state,
-    task: `${label} ${percent}%`,
-    detail: output.split("\n").map((line) => line.replace(/\s+/g, " ").trim()).filter(Boolean).join(" ")
-  };
+  const observation = parseBatteryObservationFromPmset(output);
+  return observation ? batteryObservationToNativeStatus(observation) : null;
 }
 
 function collectBatteryStatus(options = {}) {
   const output = options.pmsetOutput ?? runCommand("pmset", ["-g", "batt"]);
-  return parsePmsetBattery(output) || {
-    agent: "Battery",
-    state: "idle",
-    task: "Battery unavailable",
-    detail: "Battery state is unavailable on this Mac or display session."
-  };
+  const observation = options.batteryObservation ?? parseBatteryObservationFromPmset(output);
+  if (!observation) {
+    return {
+      agent: "Battery",
+      activityType: "battery",
+      state: "idle",
+      task: "Battery unavailable",
+      detail: "Battery state is unavailable on this Mac or display session.",
+      metadata: { rawBatteryTextVisible: false, batteryDisplayMode: "unavailable" },
+      persisted: false
+    };
+  }
+  const state = options.batteryHudState || defaultBatteryHudState;
+  const result = applyBatteryObservation(state, observation, {
+    now: options.now,
+    transientMs: options.batteryTransientMs,
+    displayMode: options.batteryDisplayMode,
+    source: options.batterySource || "pmset-battery"
+  });
+  if (options.batteryHudState) {
+    Object.assign(options.batteryHudState, result.state);
+  } else {
+    defaultBatteryHudState = result.state;
+  }
+  return result.active ? batteryHudToNativeStatus(result.active, observation) : batteryObservationToNativeStatus(observation);
 }
 
 function parseSystemVolumeSettings(output) {
@@ -1131,6 +1144,7 @@ module.exports = {
   SAFARI_YOUTUBE_BROWSERS,
   classifyClipboardText,
   collectBatteryStatus,
+  createBatteryHudState,
   collectBrightnessHudStatus,
   collectChangedSystemBrightnessInput,
   collectChangedSystemVolumeInput,
@@ -1140,6 +1154,7 @@ module.exports = {
   collectMediaCandidates,
   collectMediaStatus,
   formatDuration,
+  parseBatteryObservationFromPmset,
   parseDelimitedMedia,
   parseMediaRemoteNowPlaying,
   parsePmsetBattery,
