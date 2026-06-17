@@ -239,6 +239,46 @@ function compareAbsentMacContextHudRegression(mainPayload, experimentalPayload) 
   };
 }
 
+function compareDisabledMacContextHudRegression(mainPayload, experimentalPayload, options = {}) {
+  const disabledBy = options.disabledBy || "enableMacContext:false";
+  const mainHud = normalizeAbsentMacContextHudRegressionSnapshot(mainPayload);
+  const experimentalHud = normalizeAbsentMacContextHudRegressionSnapshot(experimentalPayload);
+  const hudSnapshotsMatch = JSON.stringify(experimentalHud) === JSON.stringify(mainHud);
+  const regressionRisks = [];
+
+  if (mainHud.hasMacContextStatus) regressionRisks.push("main-like disabled-context baseline unexpectedly contains Mac Context status");
+  if (experimentalHud.hasMacContextStatus) regressionRisks.push("experimental disabled-context payload unexpectedly contains Mac Context status");
+  if (!hudSnapshotsMatch) regressionRisks.push("existing HUD routing changed when experimental Mac Context integration is disabled");
+
+  return {
+    schemaVersion: 1,
+    kind: "dynamac.macContext.disabledHudRegressionComparison",
+    disabledBy,
+    baseline: {
+      branch: "main",
+      macContextStatusSource: false,
+      hudSnapshot: mainHud
+    },
+    experimental: {
+      branch: "feature/macos-mcp-context-hud",
+      macContextStatusSource: false,
+      hudSnapshot: experimentalHud
+    },
+    result: {
+      ok: regressionRisks.length === 0,
+      macContextAbsentInBaseline: !mainHud.hasMacContextStatus,
+      macContextAbsentInExperimental: !experimentalHud.hasMacContextStatus,
+      hudUnchangedWhenMacContextDisabled: hudSnapshotsMatch,
+      regressionRisks
+    },
+    comparisonAgainstMain: {
+      regressionRisk: regressionRisks.length
+        ? `disabled Mac Context HUD regression detected: ${regressionRisks.join("; ")}`
+        : "existing Dynamic Island HUD behavior is unchanged when experimental Mac Context integration is explicitly disabled"
+    }
+  };
+}
+
 function firstMacContextHudActivity(hudState) {
   const rankedActivities = Array.isArray(hudState?.rankedActivities) ? hudState.rankedActivities : [];
   return rankedActivities.find((activity) => activity?.activityType === "macContext") || null;
@@ -515,6 +555,7 @@ module.exports = {
   MAIN_BASELINE,
   buildStaleMacContextHudStatus,
   compareAbsentMacContextHudRegression,
+  compareDisabledMacContextHudRegression,
   compareMacContextAgainstMain,
   compareNormalMacContextHudUx,
   comparePartialMacContextHudReliability,
