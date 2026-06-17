@@ -5,6 +5,7 @@ const {
   collectMacPermissionStatus,
   collectMacContextProvider,
   invokePermissionProbe,
+  macContextDegradationReasons,
   macContextProviderToActivity,
   normalizeActiveApplicationInfo,
   normalizePermissionProbeResult,
@@ -79,6 +80,7 @@ assert.equal(fullContext.permissionStatus.accessibility.status, "granted");
 assert.equal(fullContext.permissionStatus.screenRecording.status, "granted");
 assert.equal(fullContext.uiTreeContext.available, true);
 assert.match(fullContext.degradationState, /Full read-only active app\/window context available/);
+assert.deepEqual(macContextDegradationReasons(fullContext.activeApp, fullContext.activeWindow, fullContext.permissionStatus, fullContext.uiTreeContext), [], "full context should have no degradation reasons");
 
 const fullActivity = macContextProviderToActivity(fullContext);
 assert.equal(fullActivity.agent, "Mac Context");
@@ -95,9 +97,10 @@ const degradedContext = collectMacContextProvider({
   screenRecordingPermission: false
 });
 assert.equal(degradedContext.uiTreeContext.available, false, "UI tree should not be claimed without Accessibility permission");
-assert.match(degradedContext.degradationState, /front window title unavailable/);
-assert.match(degradedContext.degradationState, /Accessibility not granted/);
+assert.match(degradedContext.degradationState, /Front window title unavailable/);
+assert.match(degradedContext.degradationState, /Accessibility denied; front window title and UI tree are reduced/);
 assert.match(degradedContext.degradationState, /Screen Recording denied/);
+assert.match(degradedContext.degradationState, /UI tree summary unavailable/);
 
 const degradedActivity = macContextProviderToActivity(degradedContext);
 assert.equal(degradedActivity.state, "warning");
@@ -113,7 +116,24 @@ const unavailableContext = collectMacContextProvider({
 });
 const unavailableActivity = macContextProviderToActivity(unavailableContext);
 assert.equal(unavailableActivity.state, "error", "missing active app should be a visible error/degradation state");
-assert.match(unavailableActivity.detail, /active application unavailable/);
+assert.match(unavailableActivity.detail, /Active application unavailable/);
+assert.match(unavailableActivity.detail, /Accessibility status unknown \(swift not installed\)/);
+assert.match(unavailableActivity.detail, /Screen Recording status unknown \(swift not installed\)/);
 assert.equal(unavailableActivity.activeApp, "");
+
+const unknownReasons = macContextDegradationReasons(
+  { name: "Preview", bundleIdentifier: "com.apple.Preview", pid: 202 },
+  "Contract.pdf",
+  {
+    accessibility: { status: "unknown", diagnostic: "AX probe timed out", available: false },
+    screenRecording: { status: "unknown", diagnostic: "CG preflight unavailable", available: false }
+  },
+  { available: false, summary: "reduced", nodes: [] }
+);
+assert.deepEqual(unknownReasons, [
+  "Accessibility status unknown (AX probe timed out); front window title and UI tree are reduced until the local probe succeeds.",
+  "Screen Recording status unknown (CG preflight unavailable); screenshot and screen-derived context stay disabled until the local probe succeeds.",
+  "UI tree summary unavailable; HUD is using the safest app/window-level context only."
+], "unknown permissions should derive explicit user-facing degraded reasons");
 
 console.log("mac-context-provider tests passed");

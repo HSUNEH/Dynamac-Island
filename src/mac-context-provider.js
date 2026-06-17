@@ -174,13 +174,37 @@ function buildUiTreeContext(activeApp, activeWindow, permissionStatus, options =
   };
 }
 
-function macContextDegradationState(activeApp, activeWindow, permissionStatus, uiTreeContext) {
+function permissionDiagnosticSuffix(status) {
+  const diagnostic = truncate(status?.diagnostic || "", 120);
+  return diagnostic ? ` (${diagnostic})` : "";
+}
+
+function macContextDegradationReasons(activeApp, activeWindow, permissionStatus, uiTreeContext) {
   const reasons = [];
-  if (!activeApp?.name) reasons.push("active application unavailable");
-  if (!activeWindow) reasons.push("front window title unavailable");
-  if (permissionStatus?.accessibility?.status !== "granted") reasons.push("Accessibility not granted; window/UI tree is reduced");
-  if (permissionStatus?.screenRecording?.status === "denied") reasons.push("Screen Recording denied; screenshots stay disabled");
-  if (!uiTreeContext?.available) reasons.push("UI tree summary unavailable");
+  const accessibility = permissionStatus?.accessibility || { status: "unknown", diagnostic: "missing permission status" };
+  const screenRecording = permissionStatus?.screenRecording || { status: "unknown", diagnostic: "missing permission status" };
+
+  if (!activeApp?.name) reasons.push("Active application unavailable; showing Mac Context degraded state.");
+  if (!activeWindow) reasons.push("Front window title unavailable; Accessibility or System Events may be unavailable.");
+
+  if (accessibility.status === "denied") {
+    reasons.push("Accessibility denied; front window title and UI tree are reduced until permission is granted in System Settings.");
+  } else if (accessibility.status !== "granted") {
+    reasons.push(`Accessibility status unknown${permissionDiagnosticSuffix(accessibility)}; front window title and UI tree are reduced until the local probe succeeds.`);
+  }
+
+  if (screenRecording.status === "denied") {
+    reasons.push("Screen Recording denied; screenshot and screen-derived context stay disabled.");
+  } else if (screenRecording.status !== "granted") {
+    reasons.push(`Screen Recording status unknown${permissionDiagnosticSuffix(screenRecording)}; screenshot and screen-derived context stay disabled until the local probe succeeds.`);
+  }
+
+  if (!uiTreeContext?.available) reasons.push("UI tree summary unavailable; HUD is using the safest app/window-level context only.");
+  return reasons;
+}
+
+function macContextDegradationState(activeApp, activeWindow, permissionStatus, uiTreeContext) {
+  const reasons = macContextDegradationReasons(activeApp, activeWindow, permissionStatus, uiTreeContext);
   return reasons.length ? reasons.join("; ") : "Full read-only active app/window context available.";
 }
 
@@ -276,6 +300,7 @@ module.exports = {
   defaultPermissionProbes,
   invokePermissionProbe,
   macContextActivityId,
+  macContextDegradationReasons,
   macContextDegradationState,
   macContextProviderToActivity,
   normalizeActiveApplicationInfo,

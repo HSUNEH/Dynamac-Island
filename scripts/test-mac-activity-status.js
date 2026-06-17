@@ -74,7 +74,7 @@ const degradedMacContextStatus = collectMacContextStatus({
   screenRecordingPermission: false
 });
 assert.equal(degradedMacContextStatus.state, "warning");
-assert.match(degradedMacContextStatus.detail, /Accessibility not granted/);
+assert.match(degradedMacContextStatus.detail, /Accessibility denied; front window title and UI tree are reduced/);
 assert.equal(degradedMacContextStatus.uiTreeContext.available, false);
 
 assert.equal(collectChangedSystemVolumeInput({

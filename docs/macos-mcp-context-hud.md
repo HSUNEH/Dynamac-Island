@@ -56,9 +56,10 @@ This MVP intentionally does not:
 
 Expected degradation examples:
 
-- Accessibility denied: active app may still be shown, window title/UI tree is degraded.
+- Accessibility denied: active app may still be shown, and the HUD says front window title/UI tree are reduced until Accessibility is granted in System Settings.
+- Accessibility unknown: diagnostics such as a Swift probe timeout are surfaced in `degradationState` instead of silently hiding the reason.
 - Swift unavailable: permission probes become `unknown`, but the writer keeps producing a valid status payload when other probes work.
-- Screen Recording denied: status reports it, screenshots remain disabled because this slice does not need screenshots.
+- Screen Recording denied or unknown: status reports the explicit Screen Recording reason, and screenshots/screen-derived context remain disabled because this slice does not need screenshots.
 
 ## Comparison against main
 
