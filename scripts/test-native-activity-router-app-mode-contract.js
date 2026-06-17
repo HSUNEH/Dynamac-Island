@@ -976,7 +976,7 @@ assert.match(macContextCompactOutput, /activeApp=Arc/, "native HUD dump should e
 assert.match(macContextCompactOutput, /activeWindow=Dynamac Island · macOS-MCP notes/, "native HUD dump should expose the read-only active window context");
 assert.match(macContextCompactOutput, /permissionAccessibility=granted/, "native HUD dump should expose Accessibility permission status");
 assert.match(macContextCompactOutput, /permissionScreenRecording=denied/, "native HUD dump should expose Screen Recording degradation status");
-assert.match(macContextCompactOutput, /renderedCompactText=▣ Arc/, "compact Mac Context HUD should visibly show the active app");
+assert.match(macContextCompactOutput, /renderedCompactText=⚠ Arc/, "compact Mac Context HUD should visibly show warning permission/degradation status with the active app");
 assert.match(macContextCompactOutput, /renderedExpandedText=Arc · Dynamac Island · macOS-MCP notes\\nDynamac Island · macOS-MCP notes\\nAX granted · Screen denied\\nScreen Recording denied; screenshot and screen-derived context stay disabled\./, "expanded Mac Context HUD should visibly show app, window, permission, and degradation status");
 assert.doesNotMatch(macContextCompactOutput, /presentation=media/, "background media must not override routed Mac Context context/degradation display");
 

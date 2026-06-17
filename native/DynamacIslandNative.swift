@@ -822,9 +822,10 @@ final class IslandView: NSView {
         let accessibility = trimmedOrFallback(status.permissionStatus?.accessibility?.status, fallback: "unknown")
         let screenRecording = trimmedOrFallback(status.permissionStatus?.screenRecording?.status, fallback: "unknown")
         let subtitle = status.activeWindow?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? window : degradation
+        let compactPrefix = status.state == "running" ? "▣" : "⚠"
 
         return MacContextRenderedNotchOutput(
-            compactText: "▣ \(app)",
+            compactText: "\(compactPrefix) \(app)",
             expandedTitle: "\(app) · \(window)",
             expandedSubtitle: subtitle,
             permissionLine: "AX \(accessibility) · Screen \(screenRecording)",
@@ -857,8 +858,9 @@ final class IslandView: NSView {
         ]
 
         if compactLayout.usesHardwareNotchCutout {
-            NSString(string: "▣").draw(in: compactLayout.leftWingRect(in: bounds).insetBy(dx: 7, dy: 7), withAttributes: attrs)
-            NSString(string: rendered.compactText.replacingOccurrences(of: "▣ ", with: "")).draw(in: compactLayout.rightWingRect(in: bounds).insetBy(dx: 4, dy: 7), withAttributes: attrs)
+            let parts = rendered.compactText.split(separator: " ", maxSplits: 1).map(String.init)
+            NSString(string: parts.first ?? "▣").draw(in: compactLayout.leftWingRect(in: bounds).insetBy(dx: 7, dy: 7), withAttributes: attrs)
+            NSString(string: parts.count > 1 ? parts[1] : "").draw(in: compactLayout.rightWingRect(in: bounds).insetBy(dx: 4, dy: 7), withAttributes: attrs)
         } else {
             NSString(string: rendered.compactText).draw(in: bounds.insetBy(dx: 10, dy: 8), withAttributes: attrs)
         }
