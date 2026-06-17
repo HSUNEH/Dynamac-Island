@@ -894,6 +894,101 @@ assert.doesNotMatch(dynaDropShelfExpandedOutput, /renderedExpandedText=.*Drop fi
 assert.match(dynaDropShelfExpandedOutput, /task=Shelf · 2 files ready/, "expanded app-mode dump should retain the routed DynaDrop shelf payload");
 assert.doesNotMatch(dynaDropShelfExpandedOutput, /active=timer[^\n]+expanded=true/, "expanded transition should not fall back to Timer when router selected DynaDrop shelf");
 
+const macContextPayload = {
+  statuses: [
+    {
+      agent: "Mac Context",
+      activityId: "mac-context-native-router-winner",
+      activityType: "macContext",
+      state: "warning",
+      task: "Arc · Dynamac Island",
+      detail: "Screen Recording denied; screenshot and screen-derived context stay disabled.",
+      updatedAt: "2026-06-15T00:00:09.000Z",
+      activeApp: "Arc",
+      activeWindow: "Dynamac Island · macOS-MCP notes",
+      degradationState: "Screen Recording denied; screenshot and screen-derived context stay disabled.",
+      statusSource: "scripts/write-mac-activity-status.js",
+      permissionStatus: {
+        accessibility: { status: "granted", diagnostic: "fixture", available: true },
+        screenRecording: { status: "denied", diagnostic: "fixture", available: false }
+      },
+      macContext: {
+        activityId: "mac-context-native-router-winner",
+        activityType: "macContext",
+        compactSurface: {
+          glyph: "macwindow",
+          label: "Arc"
+        },
+        expandedSurface: {
+          title: "Arc · Dynamac Island · macOS-MCP notes"
+        }
+      }
+    },
+    {
+      agent: "Now Playing",
+      activityType: "nowPlaying",
+      state: "running",
+      task: "Background Song",
+      detail: "Now Playing should stay below Mac Context in this router fixture.",
+      updatedAt: "2026-06-15T00:00:10.000Z",
+      media: {
+        source: "spotify",
+        title: "Background Song",
+        artist: "Artist",
+        playbackState: "playing"
+      }
+    }
+  ],
+  activityRouter: {
+    rankedActivities: [
+      {
+        activityId: "mac-context-native-router-winner",
+        activityType: "macContext",
+        priority: 250,
+        createdAt: 1781481609000,
+        updatedAt: 1781481609000
+      },
+      {
+        activityId: "background-now-playing",
+        activityType: "nowPlaying",
+        priority: 200,
+        createdAt: 1781481610000,
+        updatedAt: 1781481610000
+      }
+    ],
+    compactSurface: {
+      activityId: "mac-context-native-router-winner",
+      activityType: "macContext",
+      priority: 250,
+      label: "Arc",
+      glyph: "macwindow"
+    }
+  }
+};
+writePayload(macContextPayload);
+const macContextCompactOutput = runNative();
+assert.match(macContextCompactOutput, /active=activityRouter/, "native Mac Context smoke should use Activity Router in app mode");
+assert.match(macContextCompactOutput, /presentation=macContext/, "Mac Context should surface as the compact app-mode presentation");
+assert.match(macContextCompactOutput, /routerCompactType=macContext/, "native dump should preserve the Mac Context compact activity type");
+assert.match(macContextCompactOutput, /routerCompactActivityId=mac-context-native-router-winner/, "native dump should preserve the exact Mac Context compact activity id");
+assert.match(macContextCompactOutput, /agent=Mac Context/, "native router resolution should bind the Mac Context status item");
+assert.match(macContextCompactOutput, /activeApp=Arc/, "native HUD dump should expose the read-only active app context");
+assert.match(macContextCompactOutput, /activeWindow=Dynamac Island · macOS-MCP notes/, "native HUD dump should expose the read-only active window context");
+assert.match(macContextCompactOutput, /permissionAccessibility=granted/, "native HUD dump should expose Accessibility permission status");
+assert.match(macContextCompactOutput, /permissionScreenRecording=denied/, "native HUD dump should expose Screen Recording degradation status");
+assert.match(macContextCompactOutput, /renderedCompactText=▣ Arc/, "compact Mac Context HUD should visibly show the active app");
+assert.match(macContextCompactOutput, /renderedExpandedText=Arc · Dynamac Island · macOS-MCP notes\\nDynamac Island · macOS-MCP notes\\nAX granted · Screen denied\\nScreen Recording denied; screenshot and screen-derived context stay disabled\./, "expanded Mac Context HUD should visibly show app, window, permission, and degradation status");
+assert.doesNotMatch(macContextCompactOutput, /presentation=media/, "background media must not override routed Mac Context context/degradation display");
+
+const macContextExpandedOutput = runNative({
+  DYNAMAC_START_EXPANDED: "1",
+  DYNAMAC_NATIVE_STATUS_DUMP_AFTER_MS: "180"
+});
+assert.match(macContextExpandedOutput, /expanded=false/, "Mac Context expanded smoke should include the initial compact state");
+assert.match(macContextExpandedOutput, /active=activityRouter[^\n]+presentation=macContext[^\n]+expanded=true/, "Mac Context routing should survive compact→expanded app-mode transition");
+assert.match(macContextExpandedOutput, /renderedExpandedText=Arc · Dynamac Island · macOS-MCP notes\\nDynamac Island · macOS-MCP notes\\nAX granted · Screen denied\\nScreen Recording denied; screenshot and screen-derived context stay disabled\./, "expanded Mac Context app-mode rendering should retain visible permission/degradation copy");
+assert.doesNotMatch(macContextExpandedOutput, /active=media[^\n]+expanded=true/, "expanded transition should not fall back to Now Playing when router selected Mac Context");
+
 fs.rmSync(tempDir, { recursive: true, force: true });
 
 console.log("Native Activity Router app-mode transition contract test passed.");

@@ -75,6 +75,11 @@ assert.match(source, /artworkImage/, "native overlay should render album art or 
 assert.match(source, /struct TimerInfo: Decodable/, "native overlay should decode local Timer MVP status payloads");
 assert.match(source, /var timer: TimerInfo\?/, "native status items should carry optional timer details beside media details");
 assert.match(source, /var macContext: RoutedActivityInfo\?/, "native status items should carry routed Mac Context activity details");
+assert.match(source, /var activeApp: String\?/, "native Mac Context status items should decode the active app for HUD display");
+assert.match(source, /var activeWindow: String\?/, "native Mac Context status items should decode the active window for HUD display");
+assert.match(source, /var permissionStatus: MacPermissionStatus\?/, "native Mac Context status items should decode permission status for degradation display");
+assert.match(source, /drawMacContextActivity/, "native overlay should render a dedicated Mac Context HUD surface instead of only generic text");
+assert.match(source, /macContextRenderedNotchOutput/, "native smoke contract should expose rendered Mac Context app, window, permission, and degradation text");
 assert.match(source, /case "Mac Context":\n\s*return "macContext"/, "native overlay should infer Mac Context as a routed generic activity");
 assert.match(source, /case "macContext": return "macwindow"/, "native generic Mac Context HUD should render with a macwindow glyph");
 assert.match(source, /var remainingSeconds: Double/, "native TimerInfo should expose remaining timer duration for compact and expanded timer surfaces");
