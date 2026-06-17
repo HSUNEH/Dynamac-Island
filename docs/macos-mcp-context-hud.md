@@ -146,6 +146,8 @@ Degradation semantics:
 
 `src/mac-context-main-comparison.js` is the runnable comparison module for this experimental branch. It uses a stable main baseline that has no Mac Context status source, summarizes the experimental `dynamac.macContext.statusSource` payload, and fails if the branch stops reporting the expected read-only fields: `activeApp`, `activeWindow`, `uiTreeContext`, `permissionStatus`, `degradationState`, and `statusSource`. The comparison test also passes a frozen routed HUD snapshot into the module and verifies that running the comparison reports the Mac Context HUD display without mutating HUD state. Run it with `npm run test:mac-context-main-comparison`.
 
+`src/mac-context-permission-burden-comparison.js` is the runnable permission-burden comparison module. It compares the same required macOS permission keys for main and the experimental branch: `accessibility` and `screenRecording`. Main is recorded as `notRequired` for both because it has no Mac Context HUD contract. The experimental branch must still report normalized statuses (`granted`, `denied`, or `unknown`) for both permissions, with Accessibility marked as required only for active-window/UI-tree enrichment and Screen Recording reported without being required by this MVP. Run it with `npm run test:mac-context-permission-burden-comparison`.
+
 ## Verification
 
 Relevant commands:
@@ -154,6 +156,7 @@ Relevant commands:
 npm run test:mac-context-provider
 npm run test:mac-context-status-only
 npm run test:mac-context-main-comparison
+npm run test:mac-context-permission-burden-comparison
 npm run test:mac-context-status-command
 npm run test:mac-activity-status
 npm run test:activity-router
