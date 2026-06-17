@@ -161,12 +161,36 @@ const fullContext = collectMacContextProvider({
   accessibilityPermission: true,
   screenRecordingPermission: true
 });
+assert.deepEqual(Object.keys(fullContext), [
+  "activeApp",
+  "activeWindow",
+  "uiTreeContext",
+  "acquisitionStatus",
+  "permissionStatus",
+  "degradationReasons",
+  "degradationState",
+  "statusSource",
+  "source"
+], "read-only mac context provider should expose a stable contract shape");
 assert.equal(fullContext.source, "local-macos-context-provider");
 assert.deepEqual(fullContext.activeApp, { name: "Arc", bundleIdentifier: "company.thebrowser.Browser", pid: 4242 });
 assert.equal(fullContext.activeWindow, "Dynamac Island · macOS-MCP notes");
+assert.deepEqual(fullContext.acquisitionStatus.activeWindow, {
+  status: "available",
+  available: true,
+  degraded: false,
+  value: "Dynamac Island · macOS-MCP notes",
+  diagnostic: ""
+}, "active window acquisition should carry an observable available status object");
 assert.equal(fullContext.permissionStatus.accessibility.status, "granted");
+assert.equal(fullContext.permissionStatus.accessibility.available, true);
 assert.equal(fullContext.permissionStatus.screenRecording.status, "granted");
+assert.equal(fullContext.permissionStatus.screenRecording.available, true);
 assert.equal(fullContext.uiTreeContext.available, true);
+assert.deepEqual(fullContext.uiTreeContext.nodes, [
+  { role: "application", title: "Arc" },
+  { role: "window", title: "Dynamac Island · macOS-MCP notes" }
+], "UI tree context should stay a summarized read-only app/window node list");
 assert.match(fullContext.degradationState, /Full read-only active app\/window context available/);
 assert.deepEqual(macContextDegradationReasons(fullContext.activeApp, fullContext.activeWindow, fullContext.permissionStatus, fullContext.uiTreeContext), [], "full context should have no degradation reasons");
 
@@ -184,6 +208,19 @@ const degradedContext = collectMacContextProvider({
   accessibilityPermission: false,
   screenRecordingPermission: false
 });
+assert.deepEqual(degradedContext.acquisitionStatus.activeWindow, {
+  status: "unavailable",
+  available: false,
+  degraded: true,
+  value: "",
+  reason: "empty",
+  requiredPermission: "accessibility",
+  diagnostic: "Front window title is empty or unavailable."
+}, "empty active window data should be represented as a degraded acquisition contract");
+assert.deepEqual(degradedContext.permissionStatus, {
+  accessibility: { status: "denied", diagnostic: "fixture", available: false },
+  screenRecording: { status: "denied", diagnostic: "fixture", available: false }
+}, "permission contract should expose denied Accessibility and Screen Recording states with availability booleans");
 assert.equal(degradedContext.uiTreeContext.available, false, "UI tree should not be claimed without Accessibility permission");
 assert.match(degradedContext.degradationState, /Front window title unavailable/);
 assert.match(degradedContext.degradationState, /Accessibility denied; front window title and UI tree are reduced/);
