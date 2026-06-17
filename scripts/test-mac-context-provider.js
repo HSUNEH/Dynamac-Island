@@ -2,10 +2,12 @@
 
 const assert = require("node:assert");
 const {
+  classifyMacAcquisitionFailure,
   collectActiveWindowContext,
   collectMacPermissionStatus,
   collectMacContextProvider,
   invokePermissionProbe,
+  macContextAcquisitionDegradationReasons,
   macContextDegradationReasons,
   macContextProviderToActivity,
   normalizeActiveApplicationInfo,
@@ -95,6 +97,52 @@ assert.deepEqual(collectActiveWindowContext({
     diagnostic: "Operation not permitted: Accessibility permission is required"
   }
 }, "active window acquisition should surface permission-denied degradation instead of only an empty title");
+
+const toolUnavailableAcquisition = normalizeAcquisitionResult("activeWindow", {
+  ok: false,
+  stdout: "",
+  stderr: "",
+  error: "spawn osascript ENOENT"
+}, {
+  requiredPermission: "accessibility",
+  emptyDiagnostic: "Front window title is empty or unavailable."
+});
+assert.deepEqual(toolUnavailableAcquisition, {
+  status: "degraded",
+  available: false,
+  degraded: true,
+  value: "",
+  reason: "toolUnavailable",
+  requiredPermission: "accessibility",
+  diagnostic: "spawn osascript ENOENT"
+}, "tool-unavailable acquisition responses should become an explicit degraded status object");
+assert.equal(classifyMacAcquisitionFailure({ ok: false, error: "spawn osascript ENOENT" }), "toolUnavailable");
+assert.deepEqual(macContextAcquisitionDegradationReasons({ activeWindow: toolUnavailableAcquisition }), [
+  "Active window acquisition tool unavailable (spawn osascript ENOENT); HUD is using active app plus degraded window context only."
+], "tool-unavailable acquisition should produce a visible degraded HUD reason");
+
+const mcpUnreachableAcquisition = normalizeAcquisitionResult("activeWindow", {
+  ok: false,
+  stdout: "",
+  stderr: "MCP server unreachable: ECONNREFUSED 127.0.0.1:3123",
+  error: ""
+}, {
+  requiredPermission: "accessibility",
+  emptyDiagnostic: "Front window title is empty or unavailable."
+});
+assert.deepEqual(mcpUnreachableAcquisition, {
+  status: "degraded",
+  available: false,
+  degraded: true,
+  value: "",
+  reason: "mcpUnreachable",
+  requiredPermission: "accessibility",
+  diagnostic: "MCP server unreachable: ECONNREFUSED 127.0.0.1:3123"
+}, "MCP-unreachable acquisition responses should become an explicit degraded status object");
+assert.equal(classifyMacAcquisitionFailure({ ok: false, stderr: "MCP transport closed before response" }), "mcpUnreachable");
+assert.deepEqual(macContextAcquisitionDegradationReasons({ activeWindow: mcpUnreachableAcquisition }), [
+  "macOS-MCP active window acquisition unreachable (MCP server unreachable: ECONNREFUSED 127.0.0.1:3123); HUD is using local fallback context and degraded window status only."
+], "MCP-unreachable acquisition should produce a visible degraded HUD reason");
 
 const injectedPermissionStatus = collectMacPermissionStatus({
   permissionProbes: {

@@ -108,6 +108,42 @@ function macAcquisitionPermissionDenied(text) {
   ].some((needle) => normalized.includes(needle));
 }
 
+function macAcquisitionMcpUnreachable(text) {
+  const normalized = String(text || "").toLowerCase();
+  return [
+    "mcp server unreachable",
+    "mcp unreachable",
+    "failed to connect to mcp",
+    "mcp connection refused",
+    "mcp transport closed",
+    "connection refused",
+    "econnrefused",
+    "socket hang up",
+    "connect timeout"
+  ].some((needle) => normalized.includes(needle));
+}
+
+function macAcquisitionToolUnavailable(text) {
+  const normalized = String(text || "").toLowerCase();
+  return [
+    "enoent",
+    "not found",
+    "no such file or directory",
+    "command not found",
+    "osascript missing",
+    "swift missing",
+    "tool unavailable"
+  ].some((needle) => normalized.includes(needle));
+}
+
+function classifyMacAcquisitionFailure(result) {
+  const failureText = `${result?.stderr || ""} ${result?.error || ""}`;
+  if (macAcquisitionPermissionDenied(failureText)) return "permissionDenied";
+  if (macAcquisitionMcpUnreachable(failureText)) return "mcpUnreachable";
+  if (macAcquisitionToolUnavailable(failureText)) return "toolUnavailable";
+  return "toolUnavailable";
+}
+
 function normalizeAcquisitionResult(name, result, options = {}) {
   const requiredPermission = options.requiredPermission || "";
   const emptyDiagnostic = options.emptyDiagnostic || `${name} returned no value.`;
@@ -124,13 +160,13 @@ function normalizeAcquisitionResult(name, result, options = {}) {
     return { status: "available", available: true, degraded: false, value: stdout, diagnostic: "" };
   }
 
-  if (macAcquisitionPermissionDenied(`${result?.stderr || ""} ${result?.error || ""}`)) {
+  if (!result?.ok) {
     return {
       status: "degraded",
       available: false,
       degraded: true,
       value: "",
-      reason: "permissionDenied",
+      reason: classifyMacAcquisitionFailure(result),
       requiredPermission,
       diagnostic
     };
@@ -141,7 +177,7 @@ function normalizeAcquisitionResult(name, result, options = {}) {
     available: false,
     degraded: true,
     value: "",
-    reason: result?.ok ? "empty" : "commandUnavailable",
+    reason: "empty",
     requiredPermission,
     diagnostic
   };
@@ -273,6 +309,10 @@ function macContextAcquisitionDegradationReasons(acquisitionStatus = {}) {
   const activeWindow = acquisitionStatus.activeWindow;
   if (activeWindow?.reason === "permissionDenied") {
     reasons.push(`Active window acquisition permission denied${permissionDiagnosticSuffix(activeWindow)}; HUD is using active app plus degraded window context only.`);
+  } else if (activeWindow?.reason === "toolUnavailable") {
+    reasons.push(`Active window acquisition tool unavailable${permissionDiagnosticSuffix(activeWindow)}; HUD is using active app plus degraded window context only.`);
+  } else if (activeWindow?.reason === "mcpUnreachable") {
+    reasons.push(`macOS-MCP active window acquisition unreachable${permissionDiagnosticSuffix(activeWindow)}; HUD is using local fallback context and degraded window status only.`);
   }
   return reasons;
 }
@@ -432,6 +472,7 @@ function macContextProviderToActivity(providerContext) {
 
 module.exports = {
   buildUiTreeContext,
+  classifyMacAcquisitionFailure,
   collectActiveApplicationInfo,
   collectActiveWindowContext,
   collectActiveWindowResult,
@@ -441,6 +482,9 @@ module.exports = {
   collectMacPermissionStatus,
   defaultPermissionProbes,
   invokePermissionProbe,
+  macAcquisitionMcpUnreachable,
+  macAcquisitionPermissionDenied,
+  macAcquisitionToolUnavailable,
   macContextAcquisitionDegradationReasons,
   macContextActivityId,
   macContextDegradationReasons,
