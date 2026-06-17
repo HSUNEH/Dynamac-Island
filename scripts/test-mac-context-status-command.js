@@ -14,6 +14,21 @@ const {
 } = require("./mac-context-status");
 
 const repoRoot = path.join(__dirname, "..");
+const commandPath = path.join(repoRoot, "scripts", "mac-context-status.js");
+
+function runCommand(args) {
+  return childProcess.spawnSync(process.execPath, [commandPath, ...args], {
+    cwd: repoRoot,
+    encoding: "utf8"
+  });
+}
+
+function assertCommandFails(args, expectedError) {
+  const result = runCommand(args);
+  assert.notEqual(result.status, 0, `${args.join(" ")} should fail with a non-zero exit status`);
+  assert.equal(result.stdout, "", "invalid input should not emit a success JSON payload");
+  assert.match(result.stderr, expectedError);
+}
 
 assert.deepEqual(parseArgs(["--fixture", "fixture.json", "--pretty", "--now", "2026-06-17T00:00:00.000Z"]), {
   fixturePath: "fixture.json",
@@ -30,6 +45,12 @@ assert.deepEqual(parseArgs(["--fixture=fixture.json", "--status-only", "--now=20
   help: false
 });
 assert.throws(() => parseArgs(["--unknown"]), /Unknown argument/);
+assert.throws(() => parseArgs(["--fixture"]), /Missing value for --fixture/);
+assert.throws(() => parseArgs(["--fixture", "--pretty"]), /Missing value for --fixture/);
+assert.throws(() => parseArgs(["--fixture="]), /Missing value for --fixture/);
+assert.throws(() => parseArgs(["--now"]), /Missing value for --now/);
+assert.throws(() => parseArgs(["--now", "--status-only"]), /Missing value for --now/);
+assert.throws(() => parseArgs(["--now="]), /Missing value for --now/);
 
 assert.deepEqual(buildGenerationResult({
   activeApp: { name: "Arc", bundleIdentifier: "company.thebrowser.Browser", pid: 4242 },
@@ -52,6 +73,15 @@ assert.deepEqual(buildGenerationResult({
     degraded: false,
     state: "Full read-only active app/window context available.",
     reasons: [],
+    requiredSourcesUnavailable: false,
+    unavailableSources: [],
+    sourceAvailability: {
+      activeApplication: true,
+      activeWindow: true,
+      accessibilityPermission: true,
+      screenRecordingPermission: true,
+      uiTreeContext: true
+    },
     requiredPermissionsUnavailable: false,
     unavailablePermissions: [],
     activeContextUnavailable: false,
@@ -78,6 +108,19 @@ assert.equal(missingPermissionResult.status, "degraded");
 assert.equal(missingPermissionResult.success, false);
 assert.equal(missingPermissionResult.permissionsAvailable, false);
 assert.equal(missingPermissionResult.degradation.degraded, true);
+assert.equal(missingPermissionResult.degradation.requiredSourcesUnavailable, true);
+assert.deepEqual(missingPermissionResult.degradation.unavailableSources, [
+  "accessibilityPermission",
+  "screenRecordingPermission",
+  "uiTreeContext"
+]);
+assert.deepEqual(missingPermissionResult.degradation.sourceAvailability, {
+  activeApplication: true,
+  activeWindow: true,
+  accessibilityPermission: false,
+  screenRecordingPermission: false,
+  uiTreeContext: false
+});
 assert.equal(missingPermissionResult.degradation.requiredPermissionsUnavailable, true);
 assert.deepEqual(missingPermissionResult.degradation.unavailablePermissions, [
   { name: "accessibility", status: "denied", available: false, diagnostic: "preflight-denied" },
@@ -96,6 +139,36 @@ assert.deepEqual(requiredPermissionDegradations({
 }), [
   { name: "accessibility", status: "denied", available: false, diagnostic: "preflight-denied" }
 ], "permission degradations should identify each unavailable required macOS permission");
+
+const missingContextSourcesResult = buildGenerationResult({
+  activeApp: null,
+  activeWindow: "",
+  permissionStatus: {
+    accessibility: { status: "unknown", diagnostic: "swift missing", available: false },
+    screenRecording: { status: "unknown", diagnostic: "swift missing", available: false }
+  },
+  uiTreeContext: { available: false, summary: "reduced", nodes: [] },
+  degradationState: "Active application unavailable; showing Mac Context degraded state.; Front window title unavailable; Accessibility or System Events may be unavailable.; Accessibility status unknown (swift missing); front window title and UI tree are reduced until the local probe succeeds.; Screen Recording status unknown (swift missing); screenshot and screen-derived context stay disabled until the local probe succeeds.; UI tree summary unavailable; HUD is using the safest app/window-level context only."
+});
+assert.equal(missingContextSourcesResult.status, "degraded");
+assert.equal(missingContextSourcesResult.success, false);
+assert.equal(missingContextSourcesResult.activeContextAvailable, false);
+assert.equal(missingContextSourcesResult.degradation.activeContextUnavailable, true);
+assert.equal(missingContextSourcesResult.degradation.requiredSourcesUnavailable, true);
+assert.deepEqual(missingContextSourcesResult.degradation.unavailableSources, [
+  "activeApplication",
+  "activeWindow",
+  "accessibilityPermission",
+  "screenRecordingPermission",
+  "uiTreeContext"
+], "status generation should name every unavailable macOS context source");
+assert.deepEqual(missingContextSourcesResult.degradation.sourceAvailability, {
+  activeApplication: false,
+  activeWindow: false,
+  accessibilityPermission: false,
+  screenRecordingPermission: false,
+  uiTreeContext: false
+});
 
 const payload = buildMacContextStatusSource({
   now: "2026-06-17T00:00:00.000Z",
@@ -182,7 +255,7 @@ fs.writeFileSync(fixturePath, JSON.stringify({
   }
 }));
 const stdout = childProcess.execFileSync(process.execPath, [
-  path.join(repoRoot, "scripts", "mac-context-status.js"),
+  commandPath,
   "--fixture",
   fixturePath,
   "--now",
@@ -199,5 +272,12 @@ assert.equal(commandPayload.result.permissionsAvailable, true);
 assert.equal(commandPayload.permissionStatus.accessibility.status, "granted");
 assert.equal(commandPayload.degradationState, "Full read-only active app/window context available.");
 fs.unlinkSync(fixturePath);
+
+assertCommandFails(["--unknown"], /Unknown argument: --unknown/);
+assertCommandFails(["--fixture"], /Missing value for --fixture/);
+assertCommandFails(["--fixture", "--pretty"], /Missing value for --fixture/);
+assertCommandFails(["--fixture="], /Missing value for --fixture/);
+assertCommandFails(["--now=not-a-date"], /Invalid --now value: not-a-date/);
+assertCommandFails(["--fixture", path.join(os.tmpdir(), `missing-dynamac-context-${process.pid}.json`)], /ENOENT/);
 
 console.log("mac-context-status command tests passed");

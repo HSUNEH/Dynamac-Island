@@ -21,6 +21,11 @@ function usage() {
 
 function parseArgs(argv) {
   const args = { fixturePath: "", pretty: false, statusOnly: false, now: null, help: false };
+  const requireValue = (flag, index) => {
+    const value = argv[index + 1];
+    if (!value || value.startsWith("--")) throw new Error(`Missing value for ${flag}`);
+    return value;
+  };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--help" || arg === "-h") {
@@ -30,15 +35,17 @@ function parseArgs(argv) {
     } else if (arg === "--status-only") {
       args.statusOnly = true;
     } else if (arg === "--fixture") {
-      args.fixturePath = argv[index + 1] || "";
+      args.fixturePath = requireValue("--fixture", index);
       index += 1;
     } else if (arg.startsWith("--fixture=")) {
       args.fixturePath = arg.slice("--fixture=".length);
+      if (!args.fixturePath) throw new Error("Missing value for --fixture");
     } else if (arg === "--now") {
-      args.now = argv[index + 1] || "";
+      args.now = requireValue("--now", index);
       index += 1;
     } else if (arg.startsWith("--now=")) {
       args.now = arg.slice("--now=".length);
+      if (!args.now) throw new Error("Missing value for --now");
     } else {
       throw new Error(`Unknown argument: ${arg}`);
     }
@@ -76,8 +83,20 @@ function splitDegradationReasons(degradationState) {
 
 function buildStructuredDegradation(context, success) {
   const unavailablePermissions = requiredPermissionDegradations(context?.permissionStatus);
-  const activeContextUnavailable = !Boolean(context?.activeApp?.name && context?.activeWindow);
+  const activeApplicationAvailable = Boolean(context?.activeApp?.name);
+  const activeWindowAvailable = Boolean(context?.activeWindow);
+  const activeContextUnavailable = !Boolean(activeApplicationAvailable && activeWindowAvailable);
   const uiTreeUnavailable = context?.uiTreeContext?.available !== true;
+  const sourceAvailability = {
+    activeApplication: activeApplicationAvailable,
+    activeWindow: activeWindowAvailable,
+    accessibilityPermission: context?.permissionStatus?.accessibility?.available === true,
+    screenRecordingPermission: context?.permissionStatus?.screenRecording?.available === true,
+    uiTreeContext: !uiTreeUnavailable
+  };
+  const unavailableSources = Object.entries(sourceAvailability)
+    .filter(([, available]) => !available)
+    .map(([name]) => name);
   const reasons = Array.isArray(context?.degradationReasons)
     ? context.degradationReasons.filter((reason) => typeof reason === "string" && reason.trim()).map((reason) => reason.trim())
     : splitDegradationReasons(context?.degradationState);
@@ -86,6 +105,9 @@ function buildStructuredDegradation(context, success) {
     degraded: !success,
     state: context?.degradationState || (success ? "Full read-only active app/window context available." : "Mac Context status generated with reduced capability."),
     reasons,
+    requiredSourcesUnavailable: unavailableSources.length > 0,
+    unavailableSources,
+    sourceAvailability,
     requiredPermissionsUnavailable: unavailablePermissions.length > 0,
     unavailablePermissions,
     activeContextUnavailable,
