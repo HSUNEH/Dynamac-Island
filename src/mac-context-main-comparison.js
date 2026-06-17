@@ -80,6 +80,61 @@ function summarizeMacContextHudState(hudState) {
   };
 }
 
+function firstMacContextHudActivity(hudState) {
+  const rankedActivities = Array.isArray(hudState?.rankedActivities) ? hudState.rankedActivities : [];
+  return rankedActivities.find((activity) => activity?.activityType === "macContext") || null;
+}
+
+function compareUnavailableMacContextHudReliability(payload, options = {}) {
+  const experimental = summarizeExperimentalMacContextStatus(payload);
+  const hudDisplay = summarizeMacContextHudState(options.hudState);
+  const compactSurface = objectStatus(options.hudState?.compactSurface) ? options.hudState.compactSurface : {};
+  const macContextActivity = firstMacContextHudActivity(options.hudState);
+  const degradation = objectStatus(payload?.result?.degradation) ? payload.result.degradation : {};
+  const degradationState = experimental.degradationState || macContextActivity?.status?.degradationState || macContextActivity?.status?.detail || "";
+  const activeContextUnavailable = degradation.activeContextUnavailable === true || !experimental.activeApp.available || !experimental.activeWindow.available;
+  const activityState = macContextActivity?.status?.state || "";
+  const activityTask = macContextActivity?.status?.task || "";
+  const compactLabel = compactSurface.label || hudDisplay.compactLabel || "";
+  const regressionRisks = [];
+
+  if (!experimental.macContextStatusSource) regressionRisks.push("missing macContext status-source kind");
+  if (!activeContextUnavailable) regressionRisks.push("unavailable Mac Context fixture did not report active context unavailable");
+  if (payload?.result?.status !== "degraded") regressionRisks.push("unavailable Mac Context must return degraded status instead of success/crash");
+  if (!degradationState || degradationState === "Full read-only active app/window context available.") regressionRisks.push("degraded Mac Context HUD must carry user-visible degradation text");
+  if (!hudDisplay.compactIsMacContext || !hudDisplay.displaysMacContext) regressionRisks.push("degraded Mac Context must still route into the HUD compact surface");
+  if (!compactLabel) regressionRisks.push("degraded Mac Context HUD compact surface must include a non-empty label");
+  if (!macContextActivity) regressionRisks.push("degraded Mac Context must remain present in ranked HUD activities");
+  if (macContextActivity && !["warning", "error"].includes(activityState)) regressionRisks.push("degraded Mac Context HUD activity must use warning or error state");
+  if (macContextActivity && !activityTask) regressionRisks.push("degraded Mac Context HUD activity must include task text");
+
+  return {
+    schemaVersion: 1,
+    kind: "dynamac.macContext.unavailableReliabilityComparison",
+    experimental,
+    hudDisplay,
+    unavailableContext: {
+      activeContextUnavailable,
+      unavailableSources: Array.isArray(degradation.unavailableSources) ? [...degradation.unavailableSources] : [],
+      degradationState,
+      activityState,
+      activityTask,
+      compactLabel
+    },
+    result: {
+      ok: regressionRisks.length === 0,
+      handlesUnavailableMacContext: activeContextUnavailable && payload?.result?.status === "degraded",
+      validDegradedHudOutput: hudDisplay.compactIsMacContext && hudDisplay.displaysMacContext && Boolean(compactLabel) && Boolean(degradationState),
+      regressionRisks
+    },
+    comparisonAgainstMain: {
+      reliability: regressionRisks.length
+        ? `unavailable Mac Context degraded-HUD reliability failed: ${regressionRisks.join("; ")}`
+        : "unavailable Mac Context is handled without crashing and remains visible as degraded HUD output"
+    }
+  };
+}
+
 function compareMacContextAgainstMain(payload, options = {}) {
   const mainBaseline = options.mainBaseline || MAIN_BASELINE;
   const experimental = summarizeExperimentalMacContextStatus(payload);
@@ -128,6 +183,7 @@ module.exports = {
   EXPECTED_EXPERIMENTAL_READ_ONLY_FIELDS,
   MAIN_BASELINE,
   compareMacContextAgainstMain,
+  compareUnavailableMacContextHudReliability,
   summarizeMacContextHudState,
   summarizeExperimentalMacContextStatus
 };
