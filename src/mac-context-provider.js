@@ -243,13 +243,15 @@ function collectMacContextProvider(options = {}) {
   const permissionStatus = collectMacPermissionStatus(options);
   const activeWindow = collectActiveWindowTitle(options);
   const uiTreeContext = buildUiTreeContext(activeApp, activeWindow, permissionStatus, options);
-  const degradationState = macContextDegradationState(activeApp, activeWindow, permissionStatus, uiTreeContext);
+  const degradationReasons = macContextDegradationReasons(activeApp, activeWindow, permissionStatus, uiTreeContext);
+  const degradationState = degradationReasons.length ? degradationReasons.join("; ") : "Full read-only active app/window context available.";
 
   return {
     activeApp,
     activeWindow,
     uiTreeContext,
     permissionStatus,
+    degradationReasons,
     degradationState,
     statusSource: options.statusSource || "scripts/write-mac-activity-status.js",
     source: "local-macos-context-provider"
@@ -258,6 +260,7 @@ function collectMacContextProvider(options = {}) {
 
 function collectMacContextStatusOnly(options = {}) {
   const permissionStatus = collectMacPermissionStatus(options);
+  const degradationReasons = macPermissionStatusDegradationReasons(permissionStatus);
   return {
     activeApp: null,
     activeWindow: "",
@@ -267,7 +270,8 @@ function collectMacContextStatusOnly(options = {}) {
       nodes: []
     },
     permissionStatus,
-    degradationState: macPermissionStatusDegradationState(permissionStatus),
+    degradationReasons,
+    degradationState: degradationReasons.length ? degradationReasons.join("; ") : "Permission preflight passed; active app/window retrieval has not been invoked by this status-only API.",
     statusSource: options.statusSource || "src/mac-context-provider.js#collectMacContextStatusOnly",
     source: "local-macos-context-status-only"
   };

@@ -8,6 +8,7 @@ const path = require("node:path");
 const {
   buildGenerationResult,
   buildMacContextStatusSource,
+  requiredPermissionDegradations,
   parseArgs,
   STATUS_SOURCE
 } = require("./mac-context-status");
@@ -46,8 +47,55 @@ assert.deepEqual(buildGenerationResult({
   message: "Full read-only active app/window context available.",
   activeContextAvailable: true,
   permissionsAvailable: true,
-  uiTreeAvailable: true
+  uiTreeAvailable: true,
+  degradation: {
+    degraded: false,
+    state: "Full read-only active app/window context available.",
+    reasons: [],
+    requiredPermissionsUnavailable: false,
+    unavailablePermissions: [],
+    activeContextUnavailable: false,
+    uiTreeUnavailable: false
+  }
 }, "status generation should expose structured success when app/window data and permissions are available");
+
+const missingPermissionResult = buildGenerationResult({
+  activeApp: { name: "Finder", bundleIdentifier: "com.apple.finder", pid: 101 },
+  activeWindow: "Downloads",
+  permissionStatus: {
+    accessibility: { status: "denied", diagnostic: "preflight-denied", available: false },
+    screenRecording: { status: "unknown", diagnostic: "CG preflight unavailable", available: false }
+  },
+  uiTreeContext: { available: false, summary: "reduced", nodes: [] },
+  degradationReasons: [
+    "Accessibility denied; active window title and UI tree context will stay reduced until permission is granted in System Settings.",
+    "Screen Recording status unknown (CG preflight unavailable); screenshot and screen-derived context stay disabled until the local probe succeeds.",
+    "UI tree summary unavailable; HUD is using the safest app/window-level context only."
+  ],
+  degradationState: "Accessibility denied; active window title and UI tree context will stay reduced until permission is granted in System Settings.; Screen Recording status unknown (CG preflight unavailable); screenshot and screen-derived context stay disabled until the local probe succeeds.; UI tree summary unavailable; HUD is using the safest app/window-level context only."
+});
+assert.equal(missingPermissionResult.status, "degraded");
+assert.equal(missingPermissionResult.success, false);
+assert.equal(missingPermissionResult.permissionsAvailable, false);
+assert.equal(missingPermissionResult.degradation.degraded, true);
+assert.equal(missingPermissionResult.degradation.requiredPermissionsUnavailable, true);
+assert.deepEqual(missingPermissionResult.degradation.unavailablePermissions, [
+  { name: "accessibility", status: "denied", available: false, diagnostic: "preflight-denied" },
+  { name: "screenRecording", status: "unknown", available: false, diagnostic: "CG preflight unavailable" }
+]);
+assert.equal(missingPermissionResult.degradation.activeContextUnavailable, false);
+assert.equal(missingPermissionResult.degradation.uiTreeUnavailable, true);
+assert.deepEqual(missingPermissionResult.degradation.reasons, [
+  "Accessibility denied; active window title and UI tree context will stay reduced until permission is granted in System Settings.",
+  "Screen Recording status unknown (CG preflight unavailable); screenshot and screen-derived context stay disabled until the local probe succeeds.",
+  "UI tree summary unavailable; HUD is using the safest app/window-level context only."
+], "required macOS permission failures should produce machine-readable degradation reasons");
+assert.deepEqual(requiredPermissionDegradations({
+  accessibility: { status: "denied", diagnostic: "preflight-denied", available: false },
+  screenRecording: { status: "granted", diagnostic: "fixture", available: true }
+}), [
+  { name: "accessibility", status: "denied", available: false, diagnostic: "preflight-denied" }
+], "permission degradations should identify each unavailable required macOS permission");
 
 const payload = buildMacContextStatusSource({
   now: "2026-06-17T00:00:00.000Z",
@@ -73,6 +121,10 @@ assert.equal(payload.result.success, false);
 assert.equal(payload.result.activeContextAvailable, true);
 assert.equal(payload.result.permissionsAvailable, false);
 assert.equal(payload.result.uiTreeAvailable, true);
+assert.equal(payload.result.degradation.requiredPermissionsUnavailable, true);
+assert.deepEqual(payload.result.degradation.unavailablePermissions, [
+  { name: "screenRecording", status: "denied", available: false, diagnostic: "fixture" }
+]);
 assert.equal(payload.statusSource, STATUS_SOURCE);
 assert.equal(payload.source, "local-macos-context-provider");
 assert.deepEqual(payload.activeApp, { name: "Arc", bundleIdentifier: "company.thebrowser.Browser", pid: 4242 });
@@ -108,6 +160,10 @@ assert.equal(statusOnlyPayload.result.ok, true);
 assert.equal(statusOnlyPayload.result.status, "degraded");
 assert.equal(statusOnlyPayload.result.success, false);
 assert.equal(statusOnlyPayload.result.activeContextAvailable, false);
+assert.equal(statusOnlyPayload.result.degradation.requiredPermissionsUnavailable, true);
+assert.deepEqual(statusOnlyPayload.result.degradation.unavailablePermissions, [
+  { name: "accessibility", status: "unknown", available: false, diagnostic: "AX probe unavailable" }
+]);
 assert.equal(statusOnlyPayload.activeApp, null);
 assert.equal(statusOnlyPayload.activeWindow, "");
 assert.equal(statusOnlyPayload.uiTreeContext.available, false);

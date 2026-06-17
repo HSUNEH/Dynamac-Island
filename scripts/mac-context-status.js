@@ -52,6 +52,47 @@ function readFixture(fixturePath) {
   return JSON.parse(fs.readFileSync(absolutePath, "utf8"));
 }
 
+function requiredPermissionDegradations(permissionStatus = {}) {
+  return [
+    ["accessibility", permissionStatus.accessibility],
+    ["screenRecording", permissionStatus.screenRecording]
+  ]
+    .map(([name, status]) => ({
+      name,
+      status: status?.status || "unknown",
+      available: status?.available === true,
+      diagnostic: status?.diagnostic || ""
+    }))
+    .filter((permission) => !permission.available);
+}
+
+function splitDegradationReasons(degradationState) {
+  const text = String(degradationState || "").trim();
+  if (!text) return [];
+  if (text === "Full read-only active app/window context available.") return [];
+  if (text === "Permission preflight passed; active app/window retrieval has not been invoked by this status-only API.") return [];
+  return text.split("; ").map((reason) => reason.trim()).filter(Boolean);
+}
+
+function buildStructuredDegradation(context, success) {
+  const unavailablePermissions = requiredPermissionDegradations(context?.permissionStatus);
+  const activeContextUnavailable = !Boolean(context?.activeApp?.name && context?.activeWindow);
+  const uiTreeUnavailable = context?.uiTreeContext?.available !== true;
+  const reasons = Array.isArray(context?.degradationReasons)
+    ? context.degradationReasons.filter((reason) => typeof reason === "string" && reason.trim()).map((reason) => reason.trim())
+    : splitDegradationReasons(context?.degradationState);
+
+  return {
+    degraded: !success,
+    state: context?.degradationState || (success ? "Full read-only active app/window context available." : "Mac Context status generated with reduced capability."),
+    reasons,
+    requiredPermissionsUnavailable: unavailablePermissions.length > 0,
+    unavailablePermissions,
+    activeContextUnavailable,
+    uiTreeUnavailable
+  };
+}
+
 function buildGenerationResult(context, options = {}) {
   const hasActiveContext = Boolean(context?.activeApp?.name && context?.activeWindow);
   const permissionsAvailable = Boolean(
@@ -67,7 +108,8 @@ function buildGenerationResult(context, options = {}) {
     message: context?.degradationState || (success ? "Full read-only active app/window context available." : "Mac Context status generated with reduced capability."),
     activeContextAvailable: hasActiveContext,
     permissionsAvailable,
-    uiTreeAvailable
+    uiTreeAvailable,
+    degradation: buildStructuredDegradation(context, success)
   };
 }
 
@@ -125,7 +167,10 @@ if (require.main === module) {
 module.exports = {
   buildGenerationResult,
   buildMacContextStatusSource,
+  buildStructuredDegradation,
   parseArgs,
+  requiredPermissionDegradations,
   readFixture,
+  splitDegradationReasons,
   STATUS_SOURCE
 };
