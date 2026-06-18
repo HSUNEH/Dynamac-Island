@@ -2,6 +2,7 @@
 
 const assert = require("node:assert");
 const {
+  activeWindowSwiftAxScript,
   classifyMacAcquisitionFailure,
   collectActiveWindowContext,
   collectMacPermissionStatus,
@@ -97,6 +98,26 @@ assert.deepEqual(collectActiveWindowContext({
     diagnostic: "Operation not permitted: Accessibility permission is required"
   }
 }, "active window acquisition should surface permission-denied degradation instead of only an empty title");
+
+const swiftAxScript = activeWindowSwiftAxScript();
+assert.match(swiftAxScript, /AXIsProcessTrusted\(\)/, "default active-window acquisition should preflight Accessibility through Swift AX");
+assert.match(swiftAxScript, /AXUIElementCopyAttributeValue/, "default active-window acquisition should use AX APIs instead of System Events UI scripting");
+assert.doesNotMatch(swiftAxScript, /System Events/, "default active-window Swift path should not depend on System Events AppleScript");
+assert.deepEqual(collectActiveWindowContext({}, {
+  accessibility: { status: "denied", diagnostic: "fixture", available: false },
+  screenRecording: { status: "granted", diagnostic: "fixture", available: true }
+}), {
+  title: "",
+  status: {
+    status: "degraded",
+    available: false,
+    degraded: true,
+    value: "",
+    reason: "permissionDenied",
+    requiredPermission: "accessibility",
+    diagnostic: "Accessibility permission denied; skipped active window AX acquisition before invoking macOS automation."
+  }
+}, "denied Accessibility preflight should skip active-window probes instead of invoking a hanging automation path");
 
 const toolUnavailableAcquisition = normalizeAcquisitionResult("activeWindow", {
   ok: false,

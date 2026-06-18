@@ -236,10 +236,32 @@ function collectMacPermissionStatus(options = {}) {
   };
 }
 
-function collectActiveWindowResult(options = {}) {
-  if (options.activeWindowTitle !== undefined) return String(options.activeWindowTitle || "").trim();
-  if (options.activeWindowResult !== undefined) return options.activeWindowResult;
-  return runCommandResult("osascript", [
+function activeWindowSwiftAxScript() {
+  return [
+    "import AppKit",
+    "import ApplicationServices",
+    "guard AXIsProcessTrusted() else { FileHandle.standardError.write(Data(\"Accessibility permission is not granted.\".utf8)); exit(2) }",
+    "guard let frontApp = NSWorkspace.shared.frontmostApplication else { FileHandle.standardError.write(Data(\"No frontmost application available.\".utf8)); exit(3) }",
+    "let appElement = AXUIElementCreateApplication(frontApp.processIdentifier)",
+    "var focusedWindow: CFTypeRef?",
+    "let focusedResult = AXUIElementCopyAttributeValue(appElement, kAXFocusedWindowAttribute as CFString, &focusedWindow)",
+    "var windowElement: AXUIElement? = nil",
+    "if focusedResult == .success, let focused = focusedWindow {",
+    "  windowElement = (focused as! AXUIElement)",
+    "} else {",
+    "  var windowsValue: CFTypeRef?",
+    "  let windowsResult = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsValue)",
+    "  if windowsResult == .success, let windows = windowsValue as? [AXUIElement], let first = windows.first { windowElement = first }",
+    "}",
+    "guard let window = windowElement else { exit(0) }",
+    "var titleValue: CFTypeRef?",
+    "let titleResult = AXUIElementCopyAttributeValue(window, kAXTitleAttribute as CFString, &titleValue)",
+    "if titleResult == .success, let title = titleValue as? String { print(title) }"
+  ].join("\n");
+}
+
+function activeWindowAppleScriptArgs() {
+  return [
     "-e",
     "tell application \"System Events\"",
     "-e",
@@ -260,11 +282,30 @@ function collectActiveWindowResult(options = {}) {
     "end tell",
     "-e",
     "end tell"
-  ], { timeout: 700 });
+  ];
 }
 
-function collectActiveWindowContext(options = {}) {
-  const result = collectActiveWindowResult(options);
+function collectActiveWindowResult(options = {}, permissionStatus = null) {
+  if (options.activeWindowTitle !== undefined) return String(options.activeWindowTitle || "").trim();
+  if (options.activeWindowResult !== undefined) return options.activeWindowResult;
+  if (permissionStatus?.accessibility?.status === "denied") {
+    return {
+      ok: false,
+      stdout: "",
+      stderr: "Accessibility permission denied; skipped active window AX acquisition before invoking macOS automation.",
+      error: ""
+    };
+  }
+
+  const swiftResult = runCommandResult("swift", ["-e", activeWindowSwiftAxScript()], { timeout: 1500 });
+  if (swiftResult.ok && String(swiftResult.stdout || "").trim()) return swiftResult;
+  if (!options.enableActiveWindowAppleScriptFallback) return swiftResult;
+
+  return runCommandResult("osascript", activeWindowAppleScriptArgs(), { timeout: 700 });
+}
+
+function collectActiveWindowContext(options = {}, permissionStatus = null) {
+  const result = collectActiveWindowResult(options, permissionStatus);
   const status = normalizeAcquisitionResult("activeWindow", result, {
     requiredPermission: "accessibility",
     emptyDiagnostic: "Front window title is empty or unavailable."
@@ -373,7 +414,7 @@ function macContextActivityId(activeApp, activeWindow) {
 function collectMacContextProvider(options = {}) {
   const activeApp = collectActiveApplicationInfo(options);
   const permissionStatus = collectMacPermissionStatus(options);
-  const activeWindowContext = collectActiveWindowContext(options);
+  const activeWindowContext = collectActiveWindowContext(options, permissionStatus);
   const activeWindow = activeWindowContext.title;
   const uiTreeContext = buildUiTreeContext(activeApp, activeWindow, permissionStatus, options);
   const acquisitionStatus = {
@@ -491,6 +532,8 @@ function macContextProviderToActivity(providerContext) {
 
 module.exports = {
   buildUiTreeContext,
+  activeWindowAppleScriptArgs,
+  activeWindowSwiftAxScript,
   classifyMacAcquisitionFailure,
   collectActiveApplicationInfo,
   collectActiveWindowContext,
