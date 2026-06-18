@@ -241,7 +241,25 @@ function collectActiveWindowResult(options = {}) {
   if (options.activeWindowResult !== undefined) return options.activeWindowResult;
   return runCommandResult("osascript", [
     "-e",
-    "tell application \"System Events\" to tell (first application process whose frontmost is true) to if exists front window then get name of front window else return \"\""
+    "tell application \"System Events\"",
+    "-e",
+    "set frontApp to first application process whose frontmost is true",
+    "-e",
+    "tell frontApp",
+    "-e",
+    "if exists front window then",
+    "-e",
+    "return name of front window",
+    "-e",
+    "else",
+    "-e",
+    "return \"\"",
+    "-e",
+    "end if",
+    "-e",
+    "end tell",
+    "-e",
+    "end tell"
   ], { timeout: 700 });
 }
 
