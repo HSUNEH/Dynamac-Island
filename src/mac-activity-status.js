@@ -387,12 +387,27 @@ function youtubePageProbeJavaScript() {
     const finite = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
     const meta = (selector) => document.querySelector(selector)?.content || '';
     const text = (selector) => document.querySelector(selector)?.textContent?.replace(/\\s+/g, ' ').trim() || '';
+    const videoIdFromUrl = (url) => {
+      const value = String(url || '');
+      const watch = value.match(/[?&]v=([A-Za-z0-9_-]{6,})/);
+      if (watch) return watch[1];
+      const short = value.match(/youtu\\.be\\/([A-Za-z0-9_-]{6,})/);
+      if (short) return short[1];
+      const shorts = value.match(/youtube\\.com\\/shorts\\/([A-Za-z0-9_-]{6,})/);
+      return shorts ? shorts[1] : '';
+    };
+    const thumbnailForUrl = (url) => {
+      const id = videoIdFromUrl(url);
+      return id ? 'https://img.youtube.com/vi/' + id + '/hqdefault.jpg' : '';
+    };
     const player = document.getElementById('movie_player');
     const videos = Array.from(document.querySelectorAll('video'));
     const video = document.querySelector('#movie_player video.video-stream') || document.querySelector('video.html5-main-video') || videos.find((item) => finite(item.duration) > 0) || videos[0] || null;
     const title = text('h1 yt-formatted-string') || meta('meta[property="og:title"]') || document.title.replace(/ - YouTube$/, '').trim();
     const artist = text('#owner #channel-name a') || text('#text.ytd-channel-name') || text('ytd-channel-name a') || 'YouTube';
-    const artworkUrl = meta('meta[property="og:image"]');
+    const pageUrl = location.href;
+    const urlThumbnail = thumbnailForUrl(pageUrl);
+    const artworkUrl = urlThumbnail || meta('meta[property="og:image"]');
     const durationSeconds = finite(player?.getDuration?.()) || finite(video?.duration);
     const positionSeconds = finite(player?.getCurrentTime?.()) || finite(video?.currentTime);
     const playerState = Number(player?.getPlayerState?.());
@@ -556,7 +571,7 @@ function parseDelimitedMedia(raw) {
         title: payload.title || "YouTube",
         artist: payload.artist || "YouTube",
         album: payload.album || "YouTube",
-        artworkUrl: payload.artworkUrl || youtubeThumbnailUrl(pageUrl),
+        artworkUrl: youtubeArtworkUrl(pageUrl, payload.artworkUrl),
         durationSeconds: Number(payload.durationSeconds),
         positionSeconds: Number(payload.positionSeconds),
         playbackState: payload.playbackState || "unknown",
@@ -608,7 +623,7 @@ function normalizeMediaInfo(info) {
     title: info.title || "Unknown title",
     artist: info.artist || "",
     album: info.album || "",
-    artworkUrl: info.artworkUrl || youtubeThumbnailUrl(info.pageUrl || "") || "",
+    artworkUrl: info.source === "youtube" ? youtubeArtworkUrl(info.pageUrl || "", info.artworkUrl || "") : (info.artworkUrl || youtubeThumbnailUrl(info.pageUrl || "") || ""),
     durationSeconds: Number.isFinite(Number(info.durationSeconds)) ? Number(info.durationSeconds) : 0,
     positionSeconds: Number.isFinite(Number(info.positionSeconds)) ? Number(info.positionSeconds) : 0,
     playbackState: info.playbackState || "unknown",
@@ -643,6 +658,10 @@ function youtubeVideoId(url) {
 function youtubeThumbnailUrl(url) {
   const id = youtubeVideoId(url);
   return id ? `https://img.youtube.com/vi/${id}/hqdefault.jpg` : "";
+}
+
+function youtubeArtworkUrl(pageUrl, candidateArtworkUrl = "") {
+  return youtubeThumbnailUrl(pageUrl) || candidateArtworkUrl || "";
 }
 
 function mediaStatusFromInfo(info, candidates = []) {
@@ -1160,5 +1179,6 @@ module.exports = {
   parsePmsetBattery,
   stabilizeMediaProgress,
   writeMacActivityStatusSnapshot,
+  youtubeArtworkUrl,
   youtubeThumbnailUrl
 };
