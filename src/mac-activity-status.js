@@ -4,6 +4,13 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { buildActivityRouterSnapshot } = require("./activity-router");
 const {
+  applyBatteryObservation,
+  batteryHudToNativeStatus,
+  batteryObservationToNativeStatus,
+  createBatteryHudState,
+  parseBatteryObservationFromPmset
+} = require("./battery-hud-status");
+const {
   applyClipboardRead,
   classifyClipboardText: classifyClipboardActivityText,
   createClipboardActivityState
@@ -38,6 +45,7 @@ let defaultVolumeHudState = createVolumeHudState();
 let defaultBrightnessHudState = createBrightnessHudState();
 let defaultVolumeSystemObservation = null;
 let defaultBrightnessSystemObservation = null;
+let defaultBatteryHudState = createBatteryHudState();
 
 function runCommand(command, args, options = {}) {
   try {
@@ -93,32 +101,37 @@ function formatDuration(seconds) {
 }
 
 function parsePmsetBattery(output) {
-  const percentMatch = output.match(/(\d+)%/);
-  const stateMatch = output.match(/;\s*([^;]+);/);
-  if (!percentMatch) return null;
-
-  const percent = Number(percentMatch[1]);
-  const rawState = stateMatch ? stateMatch[1].trim().toLowerCase() : "unknown";
-  const charging = rawState === "charging" || rawState === "charged" || rawState.includes("finishing charge") || output.toLowerCase().includes("'ac power'");
-  const state = percent <= 20 && !charging ? "warning" : "running";
-  const label = charging ? "Charging" : "Battery";
-
-  return {
-    agent: "Battery",
-    state,
-    task: `${label} ${percent}%`,
-    detail: output.split("\n").map((line) => line.replace(/\s+/g, " ").trim()).filter(Boolean).join(" ")
-  };
+  const observation = parseBatteryObservationFromPmset(output);
+  return observation ? batteryObservationToNativeStatus(observation) : null;
 }
 
 function collectBatteryStatus(options = {}) {
   const output = options.pmsetOutput ?? runCommand("pmset", ["-g", "batt"]);
-  return parsePmsetBattery(output) || {
-    agent: "Battery",
-    state: "idle",
-    task: "Battery unavailable",
-    detail: "Battery state is unavailable on this Mac or display session."
-  };
+  const observation = options.batteryObservation ?? parseBatteryObservationFromPmset(output);
+  if (!observation) {
+    return {
+      agent: "Battery",
+      activityType: "battery",
+      state: "idle",
+      task: "Battery unavailable",
+      detail: "Battery state is unavailable on this Mac or display session.",
+      metadata: { rawBatteryTextVisible: false, batteryDisplayMode: "unavailable" },
+      persisted: false
+    };
+  }
+  const state = options.batteryHudState || defaultBatteryHudState;
+  const result = applyBatteryObservation(state, observation, {
+    now: options.now,
+    transientMs: options.batteryTransientMs,
+    displayMode: options.batteryDisplayMode,
+    source: options.batterySource || "pmset-battery"
+  });
+  if (options.batteryHudState) {
+    Object.assign(options.batteryHudState, result.state);
+  } else {
+    defaultBatteryHudState = result.state;
+  }
+  return result.active ? batteryHudToNativeStatus(result.active, observation) : batteryObservationToNativeStatus(observation);
 }
 
 function parseSystemVolumeSettings(output) {
@@ -402,12 +415,27 @@ function youtubePageProbeJavaScript() {
     const finite = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
     const meta = (selector) => document.querySelector(selector)?.content || '';
     const text = (selector) => document.querySelector(selector)?.textContent?.replace(/\\s+/g, ' ').trim() || '';
+    const videoIdFromUrl = (url) => {
+      const value = String(url || '');
+      const watch = value.match(/[?&]v=([A-Za-z0-9_-]{6,})/);
+      if (watch) return watch[1];
+      const short = value.match(/youtu\\.be\\/([A-Za-z0-9_-]{6,})/);
+      if (short) return short[1];
+      const shorts = value.match(/youtube\\.com\\/shorts\\/([A-Za-z0-9_-]{6,})/);
+      return shorts ? shorts[1] : '';
+    };
+    const thumbnailForUrl = (url) => {
+      const id = videoIdFromUrl(url);
+      return id ? 'https://img.youtube.com/vi/' + id + '/hqdefault.jpg' : '';
+    };
     const player = document.getElementById('movie_player');
     const videos = Array.from(document.querySelectorAll('video'));
     const video = document.querySelector('#movie_player video.video-stream') || document.querySelector('video.html5-main-video') || videos.find((item) => finite(item.duration) > 0) || videos[0] || null;
     const title = text('h1 yt-formatted-string') || meta('meta[property="og:title"]') || document.title.replace(/ - YouTube$/, '').trim();
     const artist = text('#owner #channel-name a') || text('#text.ytd-channel-name') || text('ytd-channel-name a') || 'YouTube';
-    const artworkUrl = meta('meta[property="og:image"]');
+    const pageUrl = location.href;
+    const urlThumbnail = thumbnailForUrl(pageUrl);
+    const artworkUrl = urlThumbnail || meta('meta[property="og:image"]');
     const durationSeconds = finite(player?.getDuration?.()) || finite(video?.duration);
     const positionSeconds = finite(player?.getCurrentTime?.()) || finite(video?.currentTime);
     const playerState = Number(player?.getPlayerState?.());
@@ -571,7 +599,7 @@ function parseDelimitedMedia(raw) {
         title: payload.title || "YouTube",
         artist: payload.artist || "YouTube",
         album: payload.album || "YouTube",
-        artworkUrl: payload.artworkUrl || youtubeThumbnailUrl(pageUrl),
+        artworkUrl: youtubeArtworkUrl(pageUrl, payload.artworkUrl),
         durationSeconds: Number(payload.durationSeconds),
         positionSeconds: Number(payload.positionSeconds),
         playbackState: payload.playbackState || "unknown",
@@ -623,7 +651,7 @@ function normalizeMediaInfo(info) {
     title: info.title || "Unknown title",
     artist: info.artist || "",
     album: info.album || "",
-    artworkUrl: info.artworkUrl || youtubeThumbnailUrl(info.pageUrl || "") || "",
+    artworkUrl: info.source === "youtube" ? youtubeArtworkUrl(info.pageUrl || "", info.artworkUrl || "") : (info.artworkUrl || youtubeThumbnailUrl(info.pageUrl || "") || ""),
     durationSeconds: Number.isFinite(Number(info.durationSeconds)) ? Number(info.durationSeconds) : 0,
     positionSeconds: Number.isFinite(Number(info.positionSeconds)) ? Number(info.positionSeconds) : 0,
     playbackState: info.playbackState || "unknown",
@@ -658,6 +686,10 @@ function youtubeVideoId(url) {
 function youtubeThumbnailUrl(url) {
   const id = youtubeVideoId(url);
   return id ? `https://img.youtube.com/vi/${id}/hqdefault.jpg` : "";
+}
+
+function youtubeArtworkUrl(pageUrl, candidateArtworkUrl = "") {
+  return youtubeThumbnailUrl(pageUrl) || candidateArtworkUrl || "";
 }
 
 function mediaStatusFromInfo(info, candidates = []) {
@@ -1167,6 +1199,7 @@ module.exports = {
   SAFARI_YOUTUBE_BROWSERS,
   classifyClipboardText,
   collectBatteryStatus,
+  createBatteryHudState,
   collectBrightnessHudStatus,
   collectChangedSystemBrightnessInput,
   collectChangedSystemVolumeInput,
@@ -1180,10 +1213,12 @@ module.exports = {
   collectMediaCandidates,
   collectMediaStatus,
   formatDuration,
+  parseBatteryObservationFromPmset,
   parseDelimitedMedia,
   parseMediaRemoteNowPlaying,
   parsePmsetBattery,
   stabilizeMediaProgress,
   writeMacActivityStatusSnapshot,
+  youtubeArtworkUrl,
   youtubeThumbnailUrl
 };

@@ -5,7 +5,7 @@ const { spawnSync } = require("node:child_process");
 const arch = process.env.DYNAMAC_PACKAGE_ARCH || process.arch;
 const normalizedArch = arch === "x64" ? "x64" : arch === "arm64" ? "arm64" : arch;
 const appName = "Dynamac Island";
-const iconPath = "assets/app-icon";
+const iconPath = "assets/app-icon.icns";
 
 const args = [
   "electron-packager",

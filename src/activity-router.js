@@ -72,7 +72,7 @@ function activityIdForStatus(status, index) {
 
 function embeddedActivityForStatus(status) {
   if (!status || typeof status !== "object") return null;
-  const candidates = [status.activity, status.volumeHud, status.brightnessHud, status.clipboardActivity, status.macContext, status.shelfActivity, status.dropActivity];
+  const candidates = [status.activity, status.volumeHud, status.brightnessHud, status.clipboardActivity, status.macContext, status.shelfActivity, status.dropActivity, status.batteryHud];
   return candidates.find((candidate) => candidate && typeof candidate === "object" && !Array.isArray(candidate)) || null;
 }
 
@@ -83,7 +83,7 @@ function isActivityExpired(activity, nowMs) {
 function isCompactEligibleActivity(activity) {
   if (activity.activityType === "clipboard") return activity.status?.state !== "idle";
   if (activity.activityType === "nowPlaying") return activity.status?.state === "running";
-  if (activity.activityType === "battery") return activity.status?.state === "running";
+  if (activity.activityType === "battery") return isBatteryActivityCompactEligible(activity);
   if (activity.activityType !== "timer") return true;
 
   return isTimerActivityCompactEligible(activity);
@@ -100,6 +100,11 @@ function timerModelForActivity(activity) {
   }
 
   return null;
+}
+
+function isBatteryActivityCompactEligible(activity) {
+  if (activity.status?.batteryHud && typeof activity.status.batteryHud === "object") return true;
+  return activity.status?.state === "running" || activity.status?.state === "warning";
 }
 
 function isTimerActivityCompactEligible(activity) {
@@ -198,11 +203,35 @@ function selectCompactActivity(statuses, options = {}) {
 
 function buildActivityRouterSnapshot(statuses, options = {}) {
   const rankedActivities = rankActivities(statuses, options);
-  const compactActivity = rankedActivities[0] || null;
+  let compactActivity = rankedActivities[0] || null;
+  const runningNowPlaying = rankedActivities.find((activity) => activity.activityType === "nowPlaying" && activity.status?.state === "running") || null;
+  const activeBattery = rankedActivities.find((activity) => activity.activityType === "battery" && activity.status?.batteryHud) || null;
+  const compactSecondarySurfaces = [];
+
+  if (runningNowPlaying && activeBattery && compactActivity?.activityType === "battery") {
+    compactActivity = runningNowPlaying;
+  }
+
+  if (runningNowPlaying && activeBattery && compactActivity?.activityType === "nowPlaying") {
+    compactSecondarySurfaces.push({
+      ...activeBattery.compactSurface,
+      activityId: activeBattery.activityId,
+      activityType: activeBattery.activityType,
+      priority: activeBattery.priority,
+      displayMode: "compactSecondary",
+      expiresAt: activeBattery.expiresAt
+    });
+  }
+
+  const primaryType = compactActivity?.activityType || "none";
+  const targetType = primaryType === "battery" ? "none" : primaryType;
   return {
     order: ["volume", "brightness", "clipboard", "shelf", "drop", "timer", "macContext", "nowPlaying", "battery", "futurePassive"],
     rankedActivities,
-    compactSurface: compactActivity ? compactActivity.compactSurface : null
+    compactSurface: compactActivity ? compactActivity.compactSurface : null,
+    compactSecondarySurfaces,
+    clickTargetActivity: targetType,
+    expandedTargetActivity: targetType
   };
 }
 
@@ -211,6 +240,7 @@ module.exports = {
   activityTypeForStatus,
   buildActivityRouterSnapshot,
   compareActivities,
+  isBatteryActivityCompactEligible,
   isTimerActivityCompactEligible,
   normalizeActivity,
   rankActivities,

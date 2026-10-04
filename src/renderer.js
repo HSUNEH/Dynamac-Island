@@ -94,7 +94,7 @@ function statusForRoutedCompactSurface(statuses, compactSurface) {
 
 function embeddedActivityForStatus(status) {
   if (!status || typeof status !== "object") return null;
-  const candidates = [status.activity, status.volumeHud, status.brightnessHud, status.clipboardActivity, status.shelfActivity, status.dropActivity];
+  const candidates = [status.activity, status.volumeHud, status.brightnessHud, status.clipboardActivity, status.shelfActivity, status.dropActivity, status.batteryHud];
   return candidates.find((candidate) => candidate && typeof candidate === "object" && !Array.isArray(candidate)) || null;
 }
 
