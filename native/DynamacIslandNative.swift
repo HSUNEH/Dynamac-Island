@@ -1839,6 +1839,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let size = shouldExpand ? NSSize(width: 520, height: 210) : compactLayout.totalSize
         let targetFrame = topCenteredRect(screen: screen, size: size)
 
+        let transitionDuration: TimeInterval = shouldExpand ? 0.32 : 0.26
+        let fadeDuration: TimeInterval = shouldExpand ? 0.16 : 0.10
+        let timing = shouldExpand
+            ? CAMediaTimingFunction(controlPoints: 0.18, 0.82, 0.22, 1.0)
+            : CAMediaTimingFunction(controlPoints: 0.30, 0.0, 0.20, 1.0)
+
         // Media surfaces can be expensive to draw because album artwork, text, progress,
         // and transport controls are composited every frame. During resize we draw only
         // the lightweight island shell, then fade the content back in after the panel
@@ -1851,24 +1857,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // destination, so an interrupted expand/collapse never leaves the panel stuck at an
         // intermediate size.
         NSAnimationContext.runAnimationGroup({ ctx in
-            ctx.duration = 0.24
-            ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.2, 0.0, 0.0, 1.0)
+            ctx.duration = transitionDuration
+            ctx.timingFunction = timing
             panel.animator().setFrame(targetFrame, display: true)
         }, completionHandler: { [weak self, weak islandView] in
             guard let self, let islandView, self.expansionGeneration == generation else { return }
             // Snap to the exact target in case the coalesced animation landed slightly off.
             panel.setFrame(targetFrame, display: true)
-            self.fadeContent(in: islandView)
+            self.fadeContent(in: islandView, duration: fadeDuration)
             if shouldExpand { self.scheduleAutoCollapse() }
         })
     }
 
-    private func fadeContent(in view: IslandView?) {
+    private func fadeContent(in view: IslandView?, duration: TimeInterval = 0.12) {
         guard let view else { return }
         contentFadeTimer?.invalidate()
         view.contentOpacity = 0
         let startedAt = Date()
-        let duration: TimeInterval = 0.12
+        let duration = max(duration, 0.05)
         contentFadeTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self, weak view] timer in
             guard let view else {
                 timer.invalidate()

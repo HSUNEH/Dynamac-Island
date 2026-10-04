@@ -8,6 +8,21 @@
   const meta = (selector) => document.querySelector(selector)?.content || "";
   const text = (selector) => document.querySelector(selector)?.textContent?.replace(/\s+/g, " ").trim() || "";
 
+  function videoIdFromUrl(url) {
+    const value = String(url || "");
+    const watch = value.match(/[?&]v=([A-Za-z0-9_-]{6,})/);
+    if (watch) return watch[1];
+    const short = value.match(/youtu\.be\/([A-Za-z0-9_-]{6,})/);
+    if (short) return short[1];
+    const shorts = value.match(/youtube\.com\/shorts\/([A-Za-z0-9_-]{6,})/);
+    return shorts ? shorts[1] : "";
+  }
+
+  function thumbnailForUrl(url) {
+    const id = videoIdFromUrl(url);
+    return id ? `https://img.youtube.com/vi/${id}/hqdefault.jpg` : "";
+  }
+
   function readPlayer() {
     const player = document.getElementById("movie_player");
     const videos = Array.from(document.querySelectorAll("video"));
@@ -29,7 +44,7 @@
       title: title || "YouTube",
       artist,
       album: "YouTube",
-      artworkUrl: meta('meta[property="og:image"]'),
+      artworkUrl: thumbnailForUrl(location.href) || meta('meta[property="og:image"]'),
       durationSeconds,
       positionSeconds,
       playbackState,

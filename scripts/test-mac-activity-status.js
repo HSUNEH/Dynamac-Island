@@ -181,7 +181,7 @@ assert.equal(youtubeJsonInfo.artist, "Channel");
 assert.equal(youtubeJsonInfo.durationSeconds, 1521);
 assert.equal(youtubeJsonInfo.positionSeconds, 8);
 assert.equal(youtubeJsonInfo.playbackState, "playing");
-assert.equal(youtubeJsonInfo.artworkUrl, "https://i.ytimg.com/vi/abcDEF_1234/hqdefault.jpg");
+assert.equal(youtubeJsonInfo.artworkUrl, "https://img.youtube.com/vi/abcDEF_1234/hqdefault.jpg");
 
 const arcMediaRemoteRaw = JSON.stringify({
   kMRMediaRemoteNowPlayingInfoClientBundleIdentifier: "company.thebrowser.Browser",
