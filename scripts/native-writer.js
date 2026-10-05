@@ -29,6 +29,8 @@ const artworkCacheDir = env.DYNAMAC_ARTWORK_CACHE_DIR || path.join(baseDir, "art
 const youtubeMediaFile = env.DYNAMAC_YOUTUBE_MEDIA_FILE || path.join(baseDir, "youtube-media.json");
 // Share the resolved bridge file with the spawned bridge server and the reader.
 env.DYNAMAC_YOUTUBE_MEDIA_FILE = youtubeMediaFile;
+// The native island writes dropped DynaDrop files next to the status snapshot.
+const shelfFile = env.DYNAMAC_SHELF_FILE || path.join(baseDir, "shelf.json");
 
 function acquireSingleInstanceLock() {
   fs.mkdirSync(path.dirname(lockPath), { recursive: true });
@@ -78,7 +80,8 @@ function refreshStatus({ log = false } = {}) {
       outputPath: statusFile,
       previousPayload: lastStatusPayload,
       artworkCacheDir,
-      youtubeBridgePath: youtubeMediaFile
+      youtubeBridgePath: youtubeMediaFile,
+      shelfFilePath: shelfFile
     });
     lastStatusPayload = result.payload;
     if (log) console.log(`Mac activity snapshot written: ${result.outputPath}`);

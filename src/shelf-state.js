@@ -4,11 +4,17 @@ const path = require("node:path");
 const DEFAULT_SOURCE = "local-dynadrop";
 const DEFAULT_TYPE = "application/octet-stream";
 const DEFAULT_PRIORITY = 400;
-const DEFERRED_REVEAL_EXECUTION = Object.freeze({
+const NATIVE_REVEAL_EXECUTION = Object.freeze({
+  canExecuteReveal: true,
+  canOpen: false,
+  executionState: "native",
+  executionDetail: "Finder reveal runs from the native island's expanded Shelf; opening files is deferred."
+});
+const UNAVAILABLE_REVEAL_EXECUTION = Object.freeze({
   canExecuteReveal: false,
   canOpen: false,
-  executionState: "deferred",
-  executionDetail: "Finder reveal/open execution is deferred until a safe app-mode native pattern is implemented."
+  executionState: "unavailable",
+  executionDetail: "Finder reveal needs a validated existing local file path; opening files is deferred."
 });
 
 function finiteTimestamp(value, fallback = Date.now(), fieldName = "timestamp") {
@@ -77,7 +83,7 @@ function buildShelfRevealStatus(filePath, options = {}) {
     return {
       state: "unavailable",
       canReveal: false,
-      ...DEFERRED_REVEAL_EXECUTION,
+      ...UNAVAILABLE_REVEAL_EXECUTION,
       revealReadyPath: "",
       reason: "no-validated-path",
       detail: "No validated shelf file path is available for reveal.",
@@ -91,10 +97,10 @@ function buildShelfRevealStatus(filePath, options = {}) {
     return {
       state: "ready",
       canReveal: true,
-      ...DEFERRED_REVEAL_EXECUTION,
+      ...NATIVE_REVEAL_EXECUTION,
       revealReadyPath: resolvedPath,
       reason: "",
-      detail: "Validated local file path is reveal-ready; Finder reveal/open execution is deferred.",
+      detail: "Validated local file path is reveal-ready; reveal it in Finder from the expanded Shelf.",
       updatedAt,
       persisted: false
     };
@@ -103,7 +109,7 @@ function buildShelfRevealStatus(filePath, options = {}) {
     return {
       state: "unavailable",
       canReveal: false,
-      ...DEFERRED_REVEAL_EXECUTION,
+      ...UNAVAILABLE_REVEAL_EXECUTION,
       revealReadyPath: "",
       reason: shelfErrorCodeForMessage(message),
       detail: message,
@@ -303,10 +309,11 @@ function shelfActivityToNativeStatus(activity) {
     task: activity.status?.label || activity.compactSurface?.label || "Shelf ready",
     updatedAt,
     detail: revealStatus.state === "ready"
-      ? "Local shelf metadata is reveal-ready; native drag capture and Finder reveal/open execution are deferred."
-      : "Local shelf metadata is unavailable for reveal; native drag capture and Finder reveal/open execution are deferred.",
+      ? "Dropped files are ready; reveal them in Finder from the expanded Shelf."
+      : "Dropped files are unavailable for Finder reveal.",
     revealReadyPath: revealStatus.revealReadyPath,
     revealStatus,
+    shelfFiles: (activity.metadata?.files || []).map((file) => ({ path: file.path, name: file.name })),
     metadata: { ...activity.metadata },
     shelfActivity: activity,
     persisted: false

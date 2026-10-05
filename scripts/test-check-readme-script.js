@@ -64,18 +64,18 @@ assert.match(
 );
 
 const missingDynaDropDeferredNativeDragResult = runChecker(
-  readme.replace("Deferred: native drag-to-island capture", "")
+  readme.replace("Deferred: opening shelved files", "")
 );
 
 assert.notEqual(
   missingDynaDropDeferredNativeDragResult.status,
   0,
-  `check-readme should fail when the DynaDrop native drag deferral is missing.\nstdout:\n${missingDynaDropDeferredNativeDragResult.stdout}\nstderr:\n${missingDynaDropDeferredNativeDragResult.stderr}`
+  `check-readme should fail when the DynaDrop file action deferral is missing.\nstdout:\n${missingDynaDropDeferredNativeDragResult.stdout}\nstderr:\n${missingDynaDropDeferredNativeDragResult.stderr}`
 );
 assert.match(
   missingDynaDropDeferredNativeDragResult.stderr,
-  /Missing DynaDrop deferred native drag capture/,
-  "check-readme should report the missing DynaDrop native drag deferral"
+  /Missing DynaDrop deferred file actions/,
+  "check-readme should report the missing DynaDrop file action deferral"
 );
 
 const missingDynaDropShelfSectionResult = runChecker(
@@ -231,7 +231,7 @@ assert.match(
 const mixedImplementedChecklistResult = runChecker(
   readme.replace(
     "#### Implemented behavior\n\n- Activity Router compact selection",
-    "#### Implemented behavior\n\n- Native drag-to-island capture and Finder reveal/open execution remain deferred.\n- Activity Router compact selection"
+    "#### Implemented behavior\n\n- DynaDrop file open execution and drag-out from the shelf remain deferred.\n- Activity Router compact selection"
   )
 );
 
@@ -284,8 +284,8 @@ assert.match(
 
 const completedDeferredChecklistResult = runChecker(
   readme.replace(
-    "- [ ] Native drag-to-island capture and Finder reveal/open execution remain deferred",
-    "- [x] Native drag-to-island capture and Finder reveal/open execution remain deferred"
+    "- [ ] DynaDrop file open execution and drag-out from the shelf remain deferred",
+    "- [x] DynaDrop file open execution and drag-out from the shelf remain deferred"
   )
 );
 
@@ -310,8 +310,8 @@ const expectedDeferredChecklistItems = [
     /Missing deferred native DynaKeys action launchers checklist/
   ],
   [
-    "Native drag-to-island capture and Finder reveal/open execution",
-    /Missing deferred native DynaDrop capture\/reveal checklist/
+    "DynaDrop file open execution and drag-out from the shelf",
+    /Missing deferred native DynaDrop open\/drag-out checklist/
   ],
   [
     "DynaDrop AirDrop/share-link/conversion/transcript/right-click actions",

@@ -121,7 +121,7 @@ const requiredSnippets = [
   ["invalid fixture command", "npm run check-status:invalid"],
   ["roadmap section", "## Roadmap"],
   ["DynaDrop/Shelf section", "### DynaDrop/Shelf Core Model"],
-  ["DynaDrop model boundary", "DynaDrop/Shelf MVP as deterministic local shelf state, not native drag capture"],
+  ["DynaDrop model boundary", "DynaDrop/Shelf MVP as deterministic local shelf state fed by native drag-to-island capture"],
   ["DynaDrop reveal-safe metadata", "stores only reveal-safe metadata in state"],
   ["DynaDrop no file contents", "File contents are never read into shelf state"],
   ["DynaDrop activity status fields", "stable activity fields (`activityId`, `activityType: \"shelf\""],
@@ -130,11 +130,11 @@ const requiredSnippets = [
   ["DynaDrop invalid fixture command", "npm run dynadrop:invalid-input-fixture"],
   ["DynaDrop invalid fixture non-zero", "intentionally feeds a blank dropped file path through the shelf recovery API"],
   ["DynaDrop invalid fixture test", "npm run test:dynadrop-invalid-input-fixture"],
-  ["DynaDrop deferred native drag capture", "Deferred: native drag-to-island capture"],
-  ["DynaDrop no implied drag UI", "UI that implies dragging already works"],
-  ["DynaDrop deferred Finder open", "Finder reveal/open execution are deferred"],
-  ["DynaDrop reveal no action contract", "Ready reveal status is intentionally not an action contract"],
-  ["DynaDrop no safe app-mode Finder pattern", "no safe app-mode Finder file reveal/open pattern"],
+  ["DynaDrop deferred file actions", "Deferred: opening shelved files"],
+  ["DynaDrop native shelf file", "persists dropped file paths to `shelf.json`"],
+  ["DynaDrop Finder reveal action", "**Reveal in Finder**"],
+  ["DynaDrop reveal action contract", "`canExecuteReveal: true`"],
+  ["DynaDrop native shelf tests", "`npm run test:native-shelf-drop`"],
   ["Activity Router section", "## Activity Router MVP"],
   ["Activity Router implementation boundary", "pure/testable JavaScript in `src/activity-router.js` rather than native event capture"],
   ["Activity Router DynaKeys priority", "DynaKeys-style transient volume/brightness HUD statuses"],
@@ -148,8 +148,8 @@ const requiredSnippets = [
   ["Activity Router transient expiry", "Transient activities with an expired `expiresAt` are removed from compact eligibility"],
   ["Activity Router payload shape", "generated Mac activity payload includes an `activityRouter` object with `rankedActivities` and the selected `compactSurface`"],
   ["Activity Router README validation", "Run `npm run check-readme` to validate that this README keeps documenting the Activity Router section"],
-  ["Activity Router drag boundary", "DynaDrop/Shelf does not claim native drag capture or Finder reveal/open execution"],
-  ["Activity Router no implied Finder actions", "must not imply drag-and-drop, Finder reveal, or file open works"],
+  ["Activity Router drag boundary", "DynaDrop/Shelf captures native file drops and reveals shelved files in Finder, but does not open files"],
+  ["Activity Router no implied file open", "the UI must not imply file open works"],
   ["DynaKeys HUD section", "### DynaKeys Volume/Brightness HUD Core Model"],
   ["DynaKeys HUD implementation", "first DynaKeys volume/brightness HUD slice as deterministic pure logic"],
   ["DynaKeys volume compact behavior", "volume changes render a `speaker.wave.2` or muted-speaker compact surface with a percentage label/progress"],
@@ -191,7 +191,7 @@ const implementedChecklistSnippets = [
 const deferredChecklistSnippets = [
   ["deferred native DynaKeys key capture checklist", "Private/global key hooks and global shortcut/action launchers"],
   ["deferred native DynaKeys action launchers checklist", "DynaKeys global shortcut/action launchers and direct compact-overlay native rendering"],
-  ["deferred native DynaDrop capture/reveal checklist", "Native drag-to-island capture and Finder reveal/open execution"],
+  ["deferred native DynaDrop open/drag-out checklist", "DynaDrop file open execution and drag-out from the shelf"],
   ["deferred native DynaDrop action checklist", "DynaDrop AirDrop/share-link/conversion/transcript/right-click actions"],
   ["deferred native DynaClip workflow checklist", "Clipboard history/paste automation/file handoff"],
   ["deferred native DynaClip companion checklist", "DynaClip Finder companion workflows, file shelf handoff, and quick handoff actions"]
@@ -239,7 +239,7 @@ for (const [label, snippet] of deferredChecklistSnippets) {
 const implementedSectionForbiddenSnippets = [
   "Private/global key hooks and global shortcut/action launchers",
   "DynaKeys global shortcut/action launchers and direct compact-overlay native rendering",
-  "Native drag-to-island capture and Finder reveal/open execution",
+  "DynaDrop file open execution and drag-out from the shelf",
   "DynaDrop AirDrop/share-link/conversion/transcript/right-click actions",
   "Clipboard history/paste automation/file handoff",
   "DynaClip Finder companion workflows, file shelf handoff, and quick handoff actions",
@@ -259,7 +259,8 @@ const deferredSectionForbiddenSnippets = [
   "Activity Router compact selection and rankedActivities are implemented",
   "DynaKeys local volume/brightness HUD status models, system-volume polling, optional brightness observer inputs, and HUD event replay store are implemented",
   "DynaClip transient clipboard classification/copied HUD/expanded preview is implemented",
-  "DynaDrop/Shelf local reveal-ready metadata model and invalid-input recovery are implemented"
+  "DynaDrop/Shelf local reveal-ready metadata model and invalid-input recovery are implemented",
+  "DynaDrop native drag-to-island capture and Finder reveal are implemented"
 ];
 
 for (const snippet of deferredSectionForbiddenSnippets) {

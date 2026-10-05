@@ -52,6 +52,12 @@ struct StatusItem: Decodable {
     var shelfActivity: RoutedActivityInfo?
     var dropActivity: RoutedActivityInfo?
     var batteryHud: RoutedActivityInfo?
+    var shelfFiles: [ShelfFileInfo]?
+}
+
+struct ShelfFileInfo: Decodable {
+    var path: String
+    var name: String?
 }
 
 struct RoutedActivityInfo: Decodable {
@@ -259,6 +265,12 @@ final class IslandView: NSView {
     var onMediaSeek: ((String, Double) -> Void)?
     var onOpenMediaSource: ((MediaInfo) -> Void)?
     var onExpandedInteraction: (() -> Void)?
+    var onShelfDrop: (([URL]) -> Bool)?
+    var onShelfReveal: (([String]) -> Void)?
+    var onShelfClear: (() -> Void)?
+    private(set) var isShelfDropTargeted = false {
+        didSet { needsDisplay = true }
+    }
     private var isDraggingProgress = false
     private var optimisticPlaybackState: String?
     private var optimisticPlaybackStateUntil = Date.distantPast
@@ -304,8 +316,56 @@ final class IslandView: NSView {
             onOpenMediaSource?(media)
             return
         }
+        if expanded, let shelf = expandedShelfStatus() {
+            if shelfRevealButtonRect().contains(location) {
+                onExpandedInteraction?()
+                onShelfReveal?((shelf.shelfFiles ?? []).map { $0.path })
+                return
+            }
+            if shelfClearButtonRect().contains(location) {
+                onShelfClear?()
+                return
+            }
+        }
         if !expanded && activityRouter?.clickTargetActivity == "none" { return }
         onToggle?()
+    }
+
+    // MARK: DynaDrop drag-to-island
+
+    // The shelf model only accepts regular files, so folders and missing paths are not droppable.
+    static func isRegularFile(_ url: URL) -> Bool {
+        (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
+    }
+
+    static func droppableFileURLs(from pasteboard: NSPasteboard) -> [URL] {
+        let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
+        return urls.filter(isRegularFile)
+    }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        guard !IslandView.droppableFileURLs(from: sender.draggingPasteboard).isEmpty else { return [] }
+        isShelfDropTargeted = true
+        return .copy
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        isShelfDropTargeted ? .copy : []
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        isShelfDropTargeted = false
+    }
+
+    override func draggingEnded(_ sender: NSDraggingInfo) {
+        isShelfDropTargeted = false
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        isShelfDropTargeted = false
+        let urls = IslandView.droppableFileURLs(from: sender.draggingPasteboard)
+        guard !urls.isEmpty else { return false }
+        return onShelfDrop?(urls) ?? false
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -337,6 +397,10 @@ final class IslandView: NSView {
             drawCompactSinglePill()
         }
 
+        if isShelfDropTargeted {
+            drawShelfDropTarget()
+            return
+        }
         drawContentWithOpacity()
         if !expanded { drawCompactSecondarySurfaces() }
     }
@@ -500,6 +564,8 @@ final class IslandView: NSView {
                 }
             } else if activityType == "macContext" {
                 drawMacContextActivity(routed)
+            } else if activityType == "shelf" && expanded {
+                drawExpandedShelf(routed)
             } else {
                 drawRoutedGenericActivity(routed, activityType: activityType)
             }
@@ -941,6 +1007,77 @@ final class IslandView: NSView {
         ]
         let rect = expanded ? bounds.insetBy(dx: 24, dy: max(36, expandedTopContentY())) : bounds.insetBy(dx: 8, dy: max(2, (bounds.height - 18) / 2))
         NSString(string: text).draw(in: rect, withAttributes: attrs)
+    }
+
+    private func expandedShelfStatus() -> StatusItem? {
+        guard routedCompactActivityType() == "shelf", let status = routedStatusForCompactSurface(),
+              !(status.shelfFiles ?? []).isEmpty else { return nil }
+        return status
+    }
+
+    private func shelfRevealButtonRect() -> NSRect {
+        NSRect(x: 28, y: bounds.maxY - 44, width: 148, height: 28)
+    }
+
+    private func shelfClearButtonRect() -> NSRect {
+        NSRect(x: 186, y: bounds.maxY - 44, width: 76, height: 28)
+    }
+
+    fileprivate func shelfRenderedFileNames(_ status: StatusItem) -> [String] {
+        (status.shelfFiles ?? []).map { $0.name ?? ($0.path as NSString).lastPathComponent }
+    }
+
+    private func drawExpandedShelf(_ status: StatusItem) {
+        let names = shelfRenderedFileNames(status)
+        let labelAttrs = expandedTextAttributes(size: 11, weight: .semibold, color: NSColor(calibratedWhite: 0.64, alpha: 1), letterSpacing: 0.8)
+        let titleAttrs = expandedTextAttributes(size: 19, weight: .semibold, color: .white, letterSpacing: -0.28)
+        let fileAttrs = expandedTextAttributes(size: 13, weight: .regular, color: NSColor(calibratedWhite: 0.78, alpha: 1), letterSpacing: -0.1)
+        let top = expandedTopContentY()
+        let width = bounds.width - 56
+
+        NSString(string: "SHELF").draw(in: NSRect(x: 28, y: top, width: width, height: 14), withAttributes: labelAttrs)
+        NSString(string: "\(names.count) file\(names.count == 1 ? "" : "s") ready").draw(in: NSRect(x: 28, y: top + 18, width: width, height: 26), withAttributes: titleAttrs)
+        let visible = Array(names.suffix(3))
+        var lines = visible
+        if names.count > visible.count { lines.insert("+\(names.count - visible.count) more", at: 0) }
+        for (index, line) in lines.enumerated() {
+            NSString(string: line).draw(in: NSRect(x: 28, y: top + 48 + CGFloat(index) * 17, width: width, height: 16), withAttributes: fileAttrs)
+        }
+
+        drawShelfButton("Reveal in Finder", rect: shelfRevealButtonRect(), prominent: true)
+        drawShelfButton("Clear", rect: shelfClearButtonRect(), prominent: false)
+    }
+
+    private func drawShelfButton(_ title: String, rect: NSRect, prominent: Bool) {
+        let path = NSBezierPath(roundedRect: rect, xRadius: rect.height / 2, yRadius: rect.height / 2)
+        NSColor.white.withAlphaComponent(prominent ? 0.18 : 0.08).setFill()
+        path.fill()
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 12, weight: .semibold),
+            .foregroundColor: NSColor.white.withAlphaComponent(prominent ? 0.95 : 0.7),
+            .paragraphStyle: paragraph
+        ]
+        NSString(string: title).draw(in: rect.insetBy(dx: 6, dy: 6), withAttributes: attrs)
+    }
+
+    private func drawShelfDropTarget() {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        paragraph.lineBreakMode = .byTruncatingTail
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: expanded ? 15 : 11, weight: .semibold),
+            .foregroundColor: NSColor.systemBlue,
+            .paragraphStyle: paragraph
+        ]
+        if !expanded && compactLayout.usesHardwareNotchCutout {
+            NSString(string: "⇣").draw(in: compactLayout.leftWingRect(in: bounds).insetBy(dx: 6, dy: 7), withAttributes: attrs)
+            NSString(string: "Shelf").draw(in: compactLayout.rightWingRect(in: bounds).insetBy(dx: 3, dy: 7), withAttributes: attrs)
+        } else {
+            let rect = expanded ? bounds.insetBy(dx: 24, dy: max(36, expandedTopContentY())) : bounds.insetBy(dx: 8, dy: max(2, (bounds.height - 18) / 2))
+            NSString(string: "⇣ Drop to Shelf").draw(in: rect, withAttributes: attrs)
+        }
     }
 
     private func glyphForRoutedActivity(_ activityType: String) -> String {
@@ -1408,6 +1545,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var overlayEnabled = true
     private var statusFilePath = "status/status.json"
     private var statusRefreshSignalPath = ".build/status.refresh"
+    private var shelfFilePath = "status/shelf.json"
     private let overlayEnabledKey = "DynamacOverlayEnabled"
     private let hasLaunchedBeforeKey = "DynamacHasLaunchedBefore"
 
@@ -1419,9 +1557,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let isSmoke = env["DYNAMAC_NATIVE_SMOKE_TEST"] == "1"
         statusFilePath = resolveStatusFilePath()
         statusRefreshSignalPath = resolveStatusRefreshSignalPath()
+        shelfFilePath = resolveShelfFilePath()
         overlayEnabled = (UserDefaults.standard.object(forKey: overlayEnabledKey) as? Bool) ?? true
 
         createPanel()
+        if isSmoke, let smokeDrops = env["DYNAMAC_NATIVE_SMOKE_DROP_PATHS"], !smokeDrops.isEmpty {
+            // Drag-and-drop cannot be scripted headlessly; this feeds the same persistence path.
+            let urls = smokeDrops.split(separator: "\n").map { URL(fileURLWithPath: String($0)) }
+            print("DYNAMAC_SHELF_DROP accepted=\(addFilesToShelf(urls) ? "true" : "false") shelfFile=\(shelfFilePath)")
+        }
         loadStatus()
         dumpNativeStatusForSmokeIfRequested()
         startStatusRefresh()
@@ -1600,6 +1744,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         var childEnv = ProcessInfo.processInfo.environment
         childEnv["DYNAMAC_STATUS_FILE"] = statusFilePath
         childEnv["DYNAMAC_STATUS_REFRESH_SIGNAL"] = statusRefreshSignalPath
+        childEnv["DYNAMAC_SHELF_FILE"] = shelfFilePath
         // GUI apps launched from Finder inherit a minimal PATH; make sure Homebrew tools the
         // writer shells out to (nowplaying-cli) and node's own children remain resolvable.
         let extraPath = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
@@ -1686,6 +1831,77 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return (appSupportDirectory() as NSString).appendingPathComponent("status.refresh")
         }
         return ".build/status.refresh"
+    }
+
+    private func resolveShelfFilePath() -> String {
+        let env = ProcessInfo.processInfo.environment
+        if let explicit = env["DYNAMAC_SHELF_FILE"], !explicit.isEmpty { return explicit }
+        return ((statusFilePath as NSString).deletingLastPathComponent as NSString).appendingPathComponent("shelf.json")
+    }
+
+    // MARK: - DynaDrop shelf file
+
+    // Native is the only writer of the shelf file: {"version":1,"items":[{"path","droppedAt"}]}.
+    // The status writer reads it and publishes a validated Shelf status.
+    private struct ShelfFileItem: Codable {
+        var path: String
+        var droppedAt: Double
+    }
+
+    private struct ShelfFile: Codable {
+        var version = 1
+        var items: [ShelfFileItem] = []
+    }
+
+    private func readShelfFile() -> ShelfFile {
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: shelfFilePath)),
+              let shelf = try? JSONDecoder().decode(ShelfFile.self, from: data) else { return ShelfFile() }
+        return shelf
+    }
+
+    private func writeShelfFile(_ shelf: ShelfFile) -> Bool {
+        let url = URL(fileURLWithPath: shelfFilePath)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        guard let data = try? encoder.encode(shelf) else { return false }
+        do {
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try data.write(to: url, options: .atomic)
+        } catch {
+            NSLog("Dynamac: failed to write shelf file: \(error)")
+            return false
+        }
+        requestStatusSnapshotRefresh()
+        return true
+    }
+
+    @discardableResult
+    private func addFilesToShelf(_ urls: [URL]) -> Bool {
+        var shelf = readShelfFile()
+        let droppedAt = (Date().timeIntervalSince1970 * 1000).rounded()
+        var known = Set(shelf.items.map { $0.path })
+        var added = false
+        for url in urls {
+            let path = url.standardizedFileURL.path
+            guard !known.contains(path), IslandView.isRegularFile(url) else { continue }
+            known.insert(path)
+            shelf.items.append(ShelfFileItem(path: path, droppedAt: droppedAt))
+            added = true
+        }
+        // Re-dropping files that are already shelved is still an accepted drop.
+        guard added else { return urls.contains { known.contains($0.standardizedFileURL.path) } }
+        return writeShelfFile(shelf)
+    }
+
+    private func revealShelfFiles(_ paths: [String]) {
+        let urls = paths.filter { FileManager.default.fileExists(atPath: $0) }.map { URL(fileURLWithPath: $0) }
+        guard !urls.isEmpty else { return }
+        NSWorkspace.shared.activateFileViewerSelecting(urls)
+    }
+
+    private func clearShelf() {
+        _ = writeShelfFile(ShelfFile())
+        setExpanded(false)
     }
 
     private func appSupportDirectory() -> String {
@@ -1780,6 +1996,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         view.onMediaSeek = { [weak self] source, seconds in self?.performMediaSeek(source: source, seconds: seconds) }
         view.onOpenMediaSource = { [weak self] media in self?.openMediaSource(media) }
         view.onExpandedInteraction = { [weak self] in self?.scheduleAutoCollapse() }
+        view.onShelfDrop = { [weak self] urls in self?.addFilesToShelf(urls) ?? false }
+        view.onShelfReveal = { [weak self] paths in self?.revealShelfFiles(paths) }
+        view.onShelfClear = { [weak self] in self?.clearShelf() }
+        view.registerForDraggedTypes([.fileURL])
         panel.contentView = view
         panel.orderFrontRegardless()
 
@@ -2356,6 +2576,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 "activeWindow=\(nativeSmokeDumpValue(status.activeWindow ?? ""))",
                 "permissionAccessibility=\(status.permissionStatus?.accessibility?.status ?? "")",
                 "permissionScreenRecording=\(status.permissionStatus?.screenRecording?.status ?? "")",
+                "shelfFiles=\(nativeSmokeDumpValue(islandView?.shelfRenderedFileNames(status).joined(separator: "|") ?? ""))",
                 "renderedCompactText=\(nativeSmokeDumpValue(macContextOutput?.compactText ?? routedGenericOutput?.compactText ?? ""))",
                 "renderedExpandedText=\(nativeSmokeDumpValue(macContextOutput.map { "\($0.expandedTitle)\n\($0.expandedSubtitle)\n\($0.permissionLine)\n\($0.degradationText)" } ?? routedGenericOutput?.expandedText ?? ""))"
             ].joined(separator: " "))

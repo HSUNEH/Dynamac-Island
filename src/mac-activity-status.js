@@ -38,6 +38,7 @@ const {
   macContextProviderToActivity,
   parseActiveApplicationText
 } = require("./mac-context-provider");
+const { collectShelfStatus } = require("./shelf-file");
 const { collectTimerActivityStatus } = require("./timer-activity-source");
 
 let defaultClipboardActivityState = createClipboardActivityState();
@@ -1128,6 +1129,7 @@ function buildMacActivityStatusPayload(options = {}) {
     collectTimerStatus(options),
     collectMediaStatus(options),
     collectClipboardStatus(options),
+    collectShelfStatus(options),
     collectBatteryStatus(options)
   ].filter(Boolean).map((status) => ({
     ...status,
