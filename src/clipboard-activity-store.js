@@ -8,7 +8,8 @@ let memoryState = createClipboardActivityState();
 function cloneState(state) {
   return createClipboardActivityState({
     lastSignature: state.lastSignature,
-    active: state.active ? JSON.parse(JSON.stringify(state.active)) : null
+    active: state.active ? JSON.parse(JSON.stringify(state.active)) : null,
+    history: state.history
   });
 }
 

@@ -1,4 +1,5 @@
 import AppKit
+import CryptoKit
 import QuartzCore
 import ServiceManagement
 
@@ -52,6 +53,62 @@ struct StatusItem: Decodable {
     var shelfActivity: RoutedActivityInfo?
     var dropActivity: RoutedActivityInfo?
     var batteryHud: RoutedActivityInfo?
+    var clipboardHistory: [ClipboardHistoryEntry]?
+}
+
+struct ClipboardHistoryEntry: Decodable {
+    var signature: String
+    var preview: String
+    var classification: String?
+}
+
+/// Keeps full text for clips this process has seen on the pasteboard, keyed by the same
+/// SHA-1 signature the status writer uses. Memory only: the status file carries previews,
+/// so restoring a row needs the text captured here. Password-manager clips marked
+/// concealed/transient are remembered only by signature so their rows can be hidden.
+final class ClipboardPasteboardCache {
+    private static let limit = 20
+    private static let concealedTypes = [
+        NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType"),
+        NSPasteboard.PasteboardType("org.nspasteboard.TransientType")
+    ]
+    private var lastChangeCount = -1
+    private var texts: [String: String] = [:]
+    private var order: [String] = []
+    private(set) var concealedSignatures = Set<String>()
+
+    static func signature(for text: String) -> String {
+        let normalized = text.replacingOccurrences(of: "\0", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return Insecure.SHA1.hash(data: Data(normalized.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
+
+    func sample(_ pasteboard: NSPasteboard = .general) {
+        guard pasteboard.changeCount != lastChangeCount else { return }
+        lastChangeCount = pasteboard.changeCount
+        guard let text = pasteboard.string(forType: .string) else { return }
+        let signature = Self.signature(for: text)
+        if pasteboard.types?.contains(where: { Self.concealedTypes.contains($0) }) == true {
+            concealedSignatures.insert(signature)
+            return
+        }
+        texts[signature] = text
+        order.removeAll { $0 == signature }
+        order.append(signature)
+        if order.count > Self.limit {
+            texts.removeValue(forKey: order.removeFirst())
+        }
+    }
+
+    func canRestore(_ signature: String) -> Bool {
+        texts[signature] != nil
+    }
+
+    @discardableResult
+    func restore(_ signature: String, to pasteboard: NSPasteboard = .general) -> Bool {
+        guard let text = texts[signature] else { return false }
+        pasteboard.clearContents()
+        return pasteboard.setString(text, forType: .string)
+    }
 }
 
 struct RoutedActivityInfo: Decodable {
@@ -260,6 +317,7 @@ final class IslandView: NSView {
     var onOpenMediaSource: ((MediaInfo) -> Void)?
     var onExpandedInteraction: (() -> Void)?
     private var isDraggingProgress = false
+    private let clipboardCache = ClipboardPasteboardCache()
     private var optimisticPlaybackState: String?
     private var optimisticPlaybackStateUntil = Date.distantPast
     private var artworkCache: [String: NSImage] = [:]
@@ -286,6 +344,13 @@ final class IslandView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         let location = convert(event.locationInWindow, from: nil)
+        if expanded, let entry = clipboardHistoryEntry(at: location) {
+            if clipboardCache.restore(entry.signature) {
+                clipboardCache.sample()
+            }
+            onExpandedInteraction?()
+            return
+        }
         if expanded, let media = nowPlayingMedia(), let seekSeconds = mediaSeekSecond(at: location, media: media) {
             isDraggingProgress = true
             applyOptimisticSeek(seconds: seekSeconds)
@@ -500,6 +565,8 @@ final class IslandView: NSView {
                 }
             } else if activityType == "macContext" {
                 drawMacContextActivity(routed)
+            } else if activityType == "clipboard" && expanded {
+                drawExpandedClipboard(routed)
             } else {
                 drawRoutedGenericActivity(routed, activityType: activityType)
             }
@@ -752,6 +819,7 @@ final class IslandView: NSView {
     }
 
     func replaceStatusPayload(_ payload: StatusPayload) {
+        clipboardCache.sample()
         activityRouter = payload.activityRouter
         replaceStatuses(payload.statuses)
     }
@@ -907,6 +975,43 @@ final class IslandView: NSView {
         NSString(string: rendered.expandedSubtitle).draw(in: NSRect(x: content.minX, y: content.minY + 56, width: content.width, height: 22), withAttributes: subtitleAttrs)
         NSString(string: rendered.permissionLine).draw(in: NSRect(x: content.minX, y: content.minY + 86, width: content.width, height: 18), withAttributes: diagnosticAttrs)
         NSString(string: rendered.degradationText).draw(in: NSRect(x: content.minX, y: content.minY + 110, width: content.width, height: 42), withAttributes: diagnosticAttrs)
+    }
+
+    /// Earlier clips shown under the current one; the newest entry is the routed copy itself.
+    fileprivate func visibleClipboardHistory() -> [ClipboardHistoryEntry] {
+        guard routedCompactActivityType() == "clipboard", let history = routedStatusForCompactSurface()?.clipboardHistory else { return [] }
+        return Array(history.dropFirst().filter { !clipboardCache.concealedSignatures.contains($0.signature) }.prefix(4))
+    }
+
+    private func clipboardHistoryRowRect(index: Int) -> NSRect {
+        let content = bounds.insetBy(dx: 28, dy: 0)
+        return NSRect(x: content.minX - 8, y: expandedTopContentY() + 52 + CGFloat(index) * 24, width: content.width + 16, height: 22)
+    }
+
+    private func clipboardHistoryEntry(at location: NSPoint) -> ClipboardHistoryEntry? {
+        for (index, entry) in visibleClipboardHistory().enumerated() where clipboardHistoryRowRect(index: index).contains(location) {
+            return entry
+        }
+        return nil
+    }
+
+    private func drawExpandedClipboard(_ status: StatusItem) {
+        let labelAttrs = expandedTextAttributes(size: 11, weight: .semibold, color: NSColor(calibratedWhite: 0.64, alpha: 1), letterSpacing: 0.8)
+        let titleAttrs = expandedTextAttributes(size: 17, weight: .semibold, color: .white, letterSpacing: -0.2)
+        let content = bounds.insetBy(dx: 28, dy: 0)
+        let top = expandedTopContentY()
+
+        NSString(string: (activityRouter?.compactSurface?.label ?? status.task).uppercased()).draw(in: NSRect(x: content.minX, y: top, width: content.width, height: 14), withAttributes: labelAttrs)
+        NSString(string: status.detail ?? status.task).draw(in: NSRect(x: content.minX, y: top + 20, width: content.width, height: 24), withAttributes: titleAttrs)
+
+        for (index, entry) in visibleClipboardHistory().enumerated() {
+            let row = clipboardHistoryRowRect(index: index)
+            let restorable = clipboardCache.canRestore(entry.signature)
+            NSColor.white.withAlphaComponent(restorable ? 0.08 : 0.03).setFill()
+            NSBezierPath(roundedRect: row, xRadius: 7, yRadius: 7).fill()
+            let rowAttrs = expandedTextAttributes(size: 13, weight: .regular, color: NSColor(calibratedWhite: restorable ? 0.86 : 0.45, alpha: 1), letterSpacing: -0.1)
+            NSString(string: entry.preview).draw(in: row.insetBy(dx: 8, dy: 3), withAttributes: rowAttrs)
+        }
     }
 
     private func drawCompactSecondarySurfaces() {
@@ -2357,6 +2462,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 "permissionAccessibility=\(status.permissionStatus?.accessibility?.status ?? "")",
                 "permissionScreenRecording=\(status.permissionStatus?.screenRecording?.status ?? "")",
                 "renderedCompactText=\(nativeSmokeDumpValue(macContextOutput?.compactText ?? routedGenericOutput?.compactText ?? ""))",
+                "renderedClipboardHistory=\(nativeSmokeDumpValue(islandView?.visibleClipboardHistory().map(\.preview).joined(separator: "\n") ?? ""))",
                 "renderedExpandedText=\(nativeSmokeDumpValue(macContextOutput.map { "\($0.expandedTitle)\n\($0.expandedSubtitle)\n\($0.permissionLine)\n\($0.degradationText)" } ?? routedGenericOutput?.expandedText ?? ""))"
             ].joined(separator: " "))
             return

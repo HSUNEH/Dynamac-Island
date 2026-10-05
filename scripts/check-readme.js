@@ -171,9 +171,9 @@ const requiredSnippets = [
   ["DynaClip compact copied HUD", "recent copied plain text shows a compact `Copied` HUD with the classification glyph and a sanitized preview"],
   ["DynaClip expanded preview", "expanded state shows a bounded preview with character count/classification details"],
   ["DynaClip non-persistence", "clipboard text is not written to persistent history across restarts"],
-  ["DynaClip runnable tests", "`npm run test:clipboard-activity`, `npm run test:clipboard-activity-store`, `npm run test:clipboard-preview-ui`, `npm run test:clipboard-duplicate-filter`, and `npm run test:mac-activity-status`"],
+  ["DynaClip runnable tests", "`npm run test:clipboard-activity`, `npm run test:clipboard-activity-store`, `npm run test:clipboard-preview-ui`, `npm run test:clipboard-duplicate-filter`, `npm run test:clipboard-history`, `npm run test:native-clipboard-history`, and `npm run test:mac-activity-status`"],
   ["DynaClip README validation", "Run `npm run check-readme` to validate that this README keeps documenting the DynaClip section"],
-  ["DynaClip deferred boundaries", "Deferred: clipboard history, cross-restart clipboard persistence, Finder companion workflows, file shelf handoff, paste automation, and quick handoff actions are not implemented by this slice"],
+  ["DynaClip deferred boundaries", "Deferred: cross-restart clipboard persistence, Finder companion workflows, file shelf handoff, auto-paste keystrokes into the frontmost app, and quick handoff actions are not implemented by this slice"],
   ["DynamicLake priority checklist section", "## DynamicLake Priority Checklist"],
   ["DynamicLake checklist separation statement", "The implemented checklist and deferred native macOS checklist are intentionally separate"],
   ["DynamicLake implemented checklist heading", "#### Implemented behavior"],
@@ -193,7 +193,7 @@ const deferredChecklistSnippets = [
   ["deferred native DynaKeys action launchers checklist", "DynaKeys global shortcut/action launchers and direct compact-overlay native rendering"],
   ["deferred native DynaDrop capture/reveal checklist", "Native drag-to-island capture and Finder reveal/open execution"],
   ["deferred native DynaDrop action checklist", "DynaDrop AirDrop/share-link/conversion/transcript/right-click actions"],
-  ["deferred native DynaClip workflow checklist", "Clipboard history/paste automation/file handoff"],
+  ["deferred native DynaClip workflow checklist", "Clipboard auto-paste keystrokes/file handoff"],
   ["deferred native DynaClip companion checklist", "DynaClip Finder companion workflows, file shelf handoff, and quick handoff actions"]
 ];
 
@@ -241,7 +241,7 @@ const implementedSectionForbiddenSnippets = [
   "DynaKeys global shortcut/action launchers and direct compact-overlay native rendering",
   "Native drag-to-island capture and Finder reveal/open execution",
   "DynaDrop AirDrop/share-link/conversion/transcript/right-click actions",
-  "Clipboard history/paste automation/file handoff",
+  "Clipboard auto-paste keystrokes/file handoff",
   "DynaClip Finder companion workflows, file shelf handoff, and quick handoff actions",
   "Deferred:"
 ];
