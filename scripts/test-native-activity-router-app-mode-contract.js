@@ -927,15 +927,15 @@ const macContextPayload = {
     {
       agent: "Now Playing",
       activityType: "nowPlaying",
-      state: "running",
+      state: "paused",
       task: "Background Song",
-      detail: "Now Playing should stay below Mac Context in this router fixture.",
+      detail: "Paused Now Playing is not compact-eligible, so Mac Context is the only routed activity.",
       updatedAt: "2026-06-15T00:00:10.000Z",
       media: {
         source: "spotify",
         title: "Background Song",
         artist: "Artist",
-        playbackState: "playing"
+        playbackState: "paused"
       }
     }
   ],
@@ -944,22 +944,15 @@ const macContextPayload = {
       {
         activityId: "mac-context-native-router-winner",
         activityType: "macContext",
-        priority: 250,
+        priority: 50,
         createdAt: 1781481609000,
         updatedAt: 1781481609000
-      },
-      {
-        activityId: "background-now-playing",
-        activityType: "nowPlaying",
-        priority: 200,
-        createdAt: 1781481610000,
-        updatedAt: 1781481610000
       }
     ],
     compactSurface: {
       activityId: "mac-context-native-router-winner",
       activityType: "macContext",
-      priority: 250,
+      priority: 50,
       label: "Arc",
       glyph: "macwindow"
     }
@@ -978,7 +971,7 @@ assert.match(macContextCompactOutput, /permissionAccessibility=granted/, "native
 assert.match(macContextCompactOutput, /permissionScreenRecording=denied/, "native HUD dump should expose Screen Recording degradation status");
 assert.match(macContextCompactOutput, /renderedCompactText=⚠ Arc/, "compact Mac Context HUD should visibly show warning permission/degradation status with the active app");
 assert.match(macContextCompactOutput, /renderedExpandedText=Arc · Dynamac Island · macOS-MCP notes\\nDynamac Island · macOS-MCP notes\\nAX granted · Screen denied\\nScreen Recording denied; screenshot and screen-derived context stay disabled\./, "expanded Mac Context HUD should visibly show app, window, permission, and degradation status");
-assert.doesNotMatch(macContextCompactOutput, /presentation=media/, "background media must not override routed Mac Context context/degradation display");
+assert.doesNotMatch(macContextCompactOutput, /presentation=media/, "paused media must not override routed Mac Context context/degradation display");
 
 const macContextExpandedOutput = runNative({
   DYNAMAC_START_EXPANDED: "1",

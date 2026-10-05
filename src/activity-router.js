@@ -7,9 +7,9 @@ const ACTIVITY_PRIORITIES = Object.freeze({
   shelf: 400,
   drop: 400,
   timer: 300,
-  macContext: 250,
   nowPlaying: 200,
   battery: 100,
+  macContext: 50,
   futurePassive: 0
 });
 
@@ -226,7 +226,7 @@ function buildActivityRouterSnapshot(statuses, options = {}) {
   const primaryType = compactActivity?.activityType || "none";
   const targetType = primaryType === "battery" ? "none" : primaryType;
   return {
-    order: ["volume", "brightness", "clipboard", "shelf", "drop", "timer", "macContext", "nowPlaying", "battery", "futurePassive"],
+    order: ["volume", "brightness", "clipboard", "shelf", "drop", "timer", "nowPlaying", "battery", "macContext", "futurePassive"],
     rankedActivities,
     compactSurface: compactActivity ? compactActivity.compactSurface : null,
     compactSecondarySurfaces,

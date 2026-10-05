@@ -623,7 +623,7 @@ assert.equal(payload.statuses[2].task, "Link copied · 21 chars");
 assert.equal(payload.statuses[3].task, "Charging 82%");
 assert.equal(payload.statuses.every((status) => status.updatedAt === "2026-06-11T09:00:00.000Z"), true);
 assert.equal(payload.activityRouter.compactSurface.activityType, "clipboard");
-assert.deepEqual(payload.activityRouter.rankedActivities.map((activity) => activity.activityType), ["clipboard", "macContext", "nowPlaying", "battery"]);
+assert.deepEqual(payload.activityRouter.rankedActivities.map((activity) => activity.activityType), ["clipboard", "nowPlaying", "battery", "macContext"]);
 
 const payloadWithBrightnessHud = buildMacActivityStatusPayload({
   now: new Date("2026-06-11T09:00:01.000Z"),
@@ -644,7 +644,7 @@ assert.equal(payloadWithBrightnessHud.statuses[0].brightnessHud.activityType, "b
 assert.equal(payloadWithBrightnessHud.statuses[0].brightnessHud.status.level, 73);
 assert.equal(payloadWithBrightnessHud.statuses[0].brightnessHud.metadata.displayName, "Studio Display");
 assert.equal(payloadWithBrightnessHud.activityRouter.compactSurface.activityType, "brightness");
-assert.deepEqual(payloadWithBrightnessHud.activityRouter.rankedActivities.map((activity) => activity.activityType), ["brightness", "clipboard", "macContext", "nowPlaying", "battery"]);
+assert.deepEqual(payloadWithBrightnessHud.activityRouter.rankedActivities.map((activity) => activity.activityType), ["brightness", "clipboard", "nowPlaying", "battery", "macContext"]);
 
 const payloadWithOverlappingHuds = buildMacActivityStatusPayload({
   now: new Date("2026-06-11T09:00:01.000Z"),
@@ -669,7 +669,7 @@ const payloadWithOverlappingHuds = buildMacActivityStatusPayload({
 assert.deepEqual(payloadWithOverlappingHuds.statuses.map((status) => status.agent), ["Volume", "Brightness", "Mac Context", "Now Playing", "Clipboard", "Battery"]);
 assert.deepEqual(
   payloadWithOverlappingHuds.activityRouter.rankedActivities.map((activity) => activity.activityType),
-  ["brightness", "clipboard", "macContext", "nowPlaying", "battery"],
+  ["brightness", "clipboard", "nowPlaying", "battery", "macContext"],
   "router should collapse simultaneous volume/brightness statuses to one compact HUD lane"
 );
 assert.equal(payloadWithOverlappingHuds.activityRouter.compactSurface.activityType, "brightness");

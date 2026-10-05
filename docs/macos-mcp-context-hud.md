@@ -93,7 +93,7 @@ DYNAMAC_DISABLE_MAC_CONTEXT_HUD=1 npm run status:write
 
 ## HUD display behavior
 
-`src/activity-router.js` maps `Mac Context` to the `macContext` activity type. It ranks below transient clipboard/HUD events, shelf/drop, and active timers, but above Now Playing/battery so the active context can surface in compact HUD mode when no higher-priority immediate HUD or live activity is active.
+`src/activity-router.js` maps `Mac Context` to the `macContext` activity type. It ranks below transient clipboard/HUD events, shelf/drop, and active timers, and below Now Playing and battery milestones. The active app/window is always present, so it only surfaces in compact HUD mode when nothing else (including music) is active.
 
 Consumption flow:
 

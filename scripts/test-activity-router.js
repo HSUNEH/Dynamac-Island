@@ -170,10 +170,10 @@ assert.equal(ACTIVITY_PRIORITIES.volume > ACTIVITY_PRIORITIES.clipboard, true);
 assert.equal(ACTIVITY_PRIORITIES.clipboard > ACTIVITY_PRIORITIES.shelf, true);
 assert.equal(ACTIVITY_PRIORITIES.shelf, ACTIVITY_PRIORITIES.drop);
 assert.equal(ACTIVITY_PRIORITIES.shelf > ACTIVITY_PRIORITIES.timer, true);
-assert.equal(ACTIVITY_PRIORITIES.timer > ACTIVITY_PRIORITIES.macContext, true);
-assert.equal(ACTIVITY_PRIORITIES.macContext > ACTIVITY_PRIORITIES.nowPlaying, true);
+assert.equal(ACTIVITY_PRIORITIES.timer > ACTIVITY_PRIORITIES.nowPlaying, true);
 assert.equal(ACTIVITY_PRIORITIES.nowPlaying > ACTIVITY_PRIORITIES.battery, true);
-assert.equal(ACTIVITY_PRIORITIES.battery > ACTIVITY_PRIORITIES.futurePassive, true);
+assert.equal(ACTIVITY_PRIORITIES.battery > ACTIVITY_PRIORITIES.macContext, true, "always-present Mac Context should not hide Now Playing or transient battery HUDs");
+assert.equal(ACTIVITY_PRIORITIES.macContext > ACTIVITY_PRIORITIES.futurePassive, true);
 
 const routedTimerState = createTimerState();
 startTimer(routedTimerState, parseTimerDuration("5m"), {
@@ -801,16 +801,16 @@ assert.deepEqual(ranked.map((activity) => activity.activityType), [
   "shelf",
   "drop",
   "timer",
-  "macContext",
   "nowPlaying",
   "battery",
+  "macContext",
   "futurePassive"
 ]);
-assert.deepEqual(ranked.map((activity) => activity.priority), [600, 500, 400, 400, 300, 250, 200, 100, 0]);
+assert.deepEqual(ranked.map((activity) => activity.priority), [600, 500, 400, 400, 300, 200, 100, 50, 0]);
 assert.equal(ranked[0].compactSurface.label, "Volume 42%");
 assert.equal(ranked[2].revealReadyPath, "/Users/st/Desktop/demo.pdf");
 assert.equal(ranked[3].compactSurface.priority, ACTIVITY_PRIORITIES.drop);
-assert.equal(ranked[5].activityId, "mac-context-fixture");
+assert.equal(ranked[7].activityId, "mac-context-fixture");
 assert.equal(ranked[4].persisted, false);
 assert.equal(selectCompactActivity(statuses, { now }).activityType, "volume");
 
@@ -900,7 +900,7 @@ assert.equal(rankedClipboardStatus.persisted, false);
 
 const snapshot = buildActivityRouterSnapshot(statuses, { now });
 assert.equal(snapshot.compactSurface.activityType, "volume");
-assert.deepEqual(snapshot.order, ["volume", "brightness", "clipboard", "shelf", "drop", "timer", "macContext", "nowPlaying", "battery", "futurePassive"]);
+assert.deepEqual(snapshot.order, ["volume", "brightness", "clipboard", "shelf", "drop", "timer", "nowPlaying", "battery", "macContext", "futurePassive"]);
 
 const expiredHudRanksBelowClipboard = rankActivities([
   { agent: "Volume", task: "Volume 10%", expiresAt: "2026-06-15T08:59:59.000Z", updatedAt: "2026-06-15T08:59:59.000Z" },
