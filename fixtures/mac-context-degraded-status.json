@@ -1,0 +1,42 @@
+{
+  "statuses": [
+    {
+      "agent": "Mac Context",
+      "activityId": "mac-context-degraded-fixture",
+      "activityType": "macContext",
+      "state": "warning",
+      "task": "Arc · window degraded",
+      "detail": "Accessibility denied; front window title and UI tree are reduced until permission is granted in System Settings. Screen Recording status unknown (probe unavailable); screenshot and screen-derived context stay disabled until the local probe succeeds.",
+      "updatedAt": "2026-06-17T00:01:00.000Z",
+      "activeApp": "Arc",
+      "activeWindow": "",
+      "degradationState": "Accessibility denied; front window title and UI tree are reduced until permission is granted in System Settings. Screen Recording status unknown (probe unavailable); screenshot and screen-derived context stay disabled until the local probe succeeds.",
+      "statusSource": "scripts/write-mac-activity-status.js",
+      "permissionStatus": {
+        "accessibility": {
+          "status": "denied",
+          "diagnostic": "preflight-denied",
+          "available": false
+        },
+        "screenRecording": {
+          "status": "unknown",
+          "diagnostic": "probe unavailable",
+          "available": false
+        }
+      },
+      "macContext": {
+        "activityId": "mac-context-degraded-fixture",
+        "activityType": "macContext"
+      }
+    }
+  ],
+  "activityRouter": {
+    "compactSurface": {
+      "activityId": "mac-context-degraded-fixture",
+      "activityType": "macContext",
+      "priority": 250,
+      "glyph": "macwindow",
+      "label": "Arc"
+    }
+  }
+}

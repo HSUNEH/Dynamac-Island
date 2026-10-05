@@ -30,6 +30,14 @@ const {
   recordBrightnessHudEvent,
   recordVolumeHudEvent
 } = require("./hud-event-store");
+const {
+  collectActiveApplicationInfo,
+  collectActiveWindowTitle,
+  collectMacContextProvider,
+  collectMacPermissionStatus,
+  macContextProviderToActivity,
+  parseActiveApplicationText
+} = require("./mac-context-provider");
 const { collectTimerActivityStatus } = require("./timer-activity-source");
 
 let defaultClipboardActivityState = createClipboardActivityState();
@@ -54,6 +62,26 @@ function runCommand(command, args, options = {}) {
     }).trim();
   } catch (_error) {
     return "";
+  }
+}
+
+function runCommandResult(command, args, options = {}) {
+  try {
+    const stdout = childProcess.execFileSync(command, args, {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: 1800,
+      killSignal: "SIGKILL",
+      ...options
+    });
+    return { ok: true, stdout: stdout.trim(), stderr: "", error: "" };
+  } catch (error) {
+    return {
+      ok: false,
+      stdout: String(error.stdout || "").trim(),
+      stderr: String(error.stderr || "").trim(),
+      error: error.message || String(error)
+    };
   }
 }
 
@@ -1079,6 +1107,12 @@ function collectMediaStatus(options = {}) {
   return mediaStatusFromInfo(selected, candidates);
 }
 
+function collectMacContextStatus(options = {}) {
+  if (options.macContextStatus !== undefined) return options.macContextStatus;
+  if (options.enableMacContext === false || process.env.DYNAMAC_DISABLE_MAC_CONTEXT_HUD === "1") return null;
+  return macContextProviderToActivity(collectMacContextProvider(options));
+}
+
 function buildMacActivityStatusPayload(options = {}) {
   const now = options.now || new Date();
   const hudEventStorePath = options.hudEventStorePath || process.env.DYNAMAC_HUD_EVENT_STORE || "";
@@ -1090,6 +1124,7 @@ function buildMacActivityStatusPayload(options = {}) {
   const statuses = [
     collectVolumeHudStatus({ ...options, hudEventStorePath, hudReplayState }),
     collectBrightnessHudStatus({ ...options, hudEventStorePath, hudReplayState }),
+    collectMacContextStatus(options),
     collectTimerStatus(options),
     collectMediaStatus(options),
     collectClipboardStatus(options),
@@ -1153,6 +1188,7 @@ function writeMacActivityStatusSnapshot(options = {}) {
 
 module.exports = {
   runCommand,
+  runCommandResult,
   selectFirstPlayingMediaCandidate,
   buildMacActivityStatusPayload,
   arcSpaceYouTubeTabsScript,
@@ -1168,6 +1204,10 @@ module.exports = {
   collectChangedSystemBrightnessInput,
   collectChangedSystemVolumeInput,
   collectClipboardStatus,
+  collectActiveApplicationInfo,
+  collectActiveWindowTitle,
+  collectMacContextStatus,
+  collectMacPermissionStatus,
   collectTimerStatus,
   collectVolumeHudStatus,
   collectMediaCandidates,

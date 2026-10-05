@@ -130,6 +130,7 @@ const payload = buildMacActivityStatusPayload({
   now: new Date("2026-06-15T09:00:30.000Z"),
   timerState: activeTimerState,
   timerSource: "fixture-timer-source",
+  enableMacContext: false,
   mediaInfo: {
     source: "spotify",
     title: "Background Song",

@@ -11,6 +11,7 @@ const {
 const { applyBrightnessHudInputChange, brightnessHudToNativeStatus, createBrightnessHudState } = require("../src/brightness-hud-status");
 const { applyVolumeHudInputChange, createVolumeHudState, volumeHudToNativeStatus } = require("../src/volume-hud-status");
 const { buildClipboardStatusFromText } = require("../src/clipboard-activity");
+const { macContextProviderToActivity } = require("../src/mac-context-provider");
 const { collectTimerActivityStatus } = require("../src/timer-activity-source");
 const { parseTimerDuration } = require("../src/timer-duration");
 const { createTimerState, startTimer } = require("../src/timer-state");
@@ -41,6 +42,10 @@ const brightnessConflictCandidates = [
   {
     label: "clipboard",
     status: candidateStatus("clipboard", 900, { agent: "Clipboard" })
+  },
+  {
+    label: "mac context",
+    status: candidateStatus("macContext", 900, { agent: "Mac Context" })
   },
   {
     label: "shelf",
@@ -127,6 +132,15 @@ const statuses = [
     updatedAt: "2026-06-15T08:59:55.000Z"
   },
   {
+    agent: "Mac Context",
+    state: "running",
+    task: "Arc · Dynamac Island",
+    detail: "Full read-only active app/window context available.",
+    activityType: "macContext",
+    macContext: { activityType: "macContext", activityId: "mac-context-fixture" },
+    updatedAt: "2026-06-15T08:59:54.500Z"
+  },
+  {
     agent: "Brightness",
     state: "running",
     task: "Brightness 64%",
@@ -158,7 +172,8 @@ assert.equal(ACTIVITY_PRIORITIES.shelf, ACTIVITY_PRIORITIES.drop);
 assert.equal(ACTIVITY_PRIORITIES.shelf > ACTIVITY_PRIORITIES.timer, true);
 assert.equal(ACTIVITY_PRIORITIES.timer > ACTIVITY_PRIORITIES.nowPlaying, true);
 assert.equal(ACTIVITY_PRIORITIES.nowPlaying > ACTIVITY_PRIORITIES.battery, true);
-assert.equal(ACTIVITY_PRIORITIES.battery > ACTIVITY_PRIORITIES.futurePassive, true);
+assert.equal(ACTIVITY_PRIORITIES.battery > ACTIVITY_PRIORITIES.macContext, true, "always-present Mac Context should not hide Now Playing or transient battery HUDs");
+assert.equal(ACTIVITY_PRIORITIES.macContext > ACTIVITY_PRIORITIES.futurePassive, true);
 
 const routedTimerState = createTimerState();
 startTimer(routedTimerState, parseTimerDuration("5m"), {
@@ -473,6 +488,7 @@ assert.deepEqual(
 
 assert.equal(activityTypeForStatus({ agent: "DynaKeys Volume" }), "volume");
 assert.equal(activityTypeForStatus({ agent: "DynaClip" }), "clipboard");
+assert.equal(activityTypeForStatus({ agent: "Mac Context" }), "macContext");
 assert.equal(activityTypeForStatus({ agent: "DynaDrop" }), "drop");
 assert.equal(activityTypeForStatus({ agent: "Unknown Future Provider" }), "futurePassive");
 
@@ -772,6 +788,12 @@ assert.deepEqual(
   ["clipboard", "battery", "futurePassive"]
 );
 
+const idleClipboardDoesNotHideMacContext = rankActivities([
+  candidateStatus("macContext", 0, { agent: "Mac Context", task: "Arc · Dynamac", detail: "Context available" }),
+  { agent: "Clipboard", state: "idle", task: "Clipboard empty", detail: "No text clipboard.", updatedAt: now.toISOString() }
+], { now });
+assert.deepEqual(idleClipboardDoesNotHideMacContext.map((activity) => activity.activityType), ["macContext"]);
+
 const ranked = rankActivities(statuses, { now });
 assert.deepEqual(ranked.map((activity) => activity.activityType), [
   "volume",
@@ -781,12 +803,14 @@ assert.deepEqual(ranked.map((activity) => activity.activityType), [
   "timer",
   "nowPlaying",
   "battery",
+  "macContext",
   "futurePassive"
 ]);
-assert.deepEqual(ranked.map((activity) => activity.priority), [600, 500, 400, 400, 300, 200, 100, 0]);
+assert.deepEqual(ranked.map((activity) => activity.priority), [600, 500, 400, 400, 300, 200, 100, 50, 0]);
 assert.equal(ranked[0].compactSurface.label, "Volume 42%");
 assert.equal(ranked[2].revealReadyPath, "/Users/st/Desktop/demo.pdf");
 assert.equal(ranked[3].compactSurface.priority, ACTIVITY_PRIORITIES.drop);
+assert.equal(ranked[7].activityId, "mac-context-fixture");
 assert.equal(ranked[4].persisted, false);
 assert.equal(selectCompactActivity(statuses, { now }).activityType, "volume");
 
@@ -876,7 +900,7 @@ assert.equal(rankedClipboardStatus.persisted, false);
 
 const snapshot = buildActivityRouterSnapshot(statuses, { now });
 assert.equal(snapshot.compactSurface.activityType, "volume");
-assert.deepEqual(snapshot.order, ["volume", "brightness", "clipboard", "shelf", "drop", "timer", "nowPlaying", "battery", "futurePassive"]);
+assert.deepEqual(snapshot.order, ["volume", "brightness", "clipboard", "shelf", "drop", "timer", "nowPlaying", "battery", "macContext", "futurePassive"]);
 
 const expiredHudRanksBelowClipboard = rankActivities([
   { agent: "Volume", task: "Volume 10%", expiresAt: "2026-06-15T08:59:59.000Z", updatedAt: "2026-06-15T08:59:59.000Z" },
@@ -937,6 +961,38 @@ assert.deepEqual(
   "same-priority router ties should prefer the most recently updated activity"
 );
 assert.equal(selectCompactActivity(samePriorityShelfDropCandidates, { now })?.activityId, "newer-drop");
+
+const macContextSourceOutput = macContextProviderToActivity({
+  activeApp: { name: "Arc", bundleIdentifier: "company.thebrowser.Browser", pid: 4242 },
+  activeWindow: "Dynamac Island · macOS-MCP notes",
+  permissionStatus: {
+    accessibility: { status: "granted", diagnostic: "AX trusted for read-only window title lookup." },
+    screenRecording: { status: "denied", diagnostic: "Screen Recording denied; UI tree screenshots unavailable." }
+  },
+  uiTreeContext: {
+    available: true,
+    summary: "Front window for Arc: Dynamac Island · macOS-MCP notes",
+    nodes: [{ role: "application", title: "Arc" }, { role: "window", title: "Dynamac Island · macOS-MCP notes" }]
+  },
+  degradationState: "Screen Recording denied; UI tree screenshots unavailable.",
+  statusSource: "scripts/mac-context-status.js --fixture arc-window.json"
+});
+const macContextHudSnapshot = buildActivityRouterSnapshot([macContextSourceOutput], { now });
+const macContextHudState = macContextHudSnapshot.rankedActivities[0];
+assert.equal(macContextHudState.activityType, "macContext", "Mac Context source output should be consumed as a HUD activity");
+assert.equal(macContextHudSnapshot.compactSurface.activityType, "macContext", "single Mac Context activity should drive the compact Dynamic Island surface");
+assert.equal(macContextHudState.status.activeApp, macContextSourceOutput.activeApp, "active app must map unchanged into the HUD state payload");
+assert.equal(macContextHudState.status.activeWindow, macContextSourceOutput.activeWindow, "active window must map unchanged into the HUD state payload");
+assert.equal(macContextHudState.status.statusSource, macContextSourceOutput.statusSource, "status source must map unchanged into the HUD state payload");
+assert.deepEqual(macContextHudState.status.permissionStatus, macContextSourceOutput.permissionStatus, "permission status must map unchanged into the HUD state payload");
+assert.equal(macContextHudState.status.degradationState, macContextSourceOutput.degradationState, "degradation status must map unchanged into the HUD state payload");
+assert.deepEqual(macContextHudState.status.uiTreeContext, macContextSourceOutput.uiTreeContext, "UI tree summary must map unchanged into the HUD state payload");
+assert.equal(macContextHudState.source, macContextSourceOutput.source, "HUD activity source should preserve the local macOS context writer source");
+assert.equal(macContextHudState.compactSurface.glyph, macContextSourceOutput.macContext.compactSurface.glyph, "compact HUD glyph should come from source output unchanged");
+assert.equal(macContextHudState.compactSurface.label, macContextSourceOutput.macContext.compactSurface.label, "compact HUD label should come from active app source output unchanged");
+assert.equal(macContextHudState.expandedSurface.title, macContextSourceOutput.macContext.expandedSurface.title, "expanded HUD title should come from active app/window source output unchanged");
+assert.deepEqual(macContextHudState.metadata.permissionStatus, macContextSourceOutput.permissionStatus, "HUD metadata should preserve source permission details");
+assert.equal(macContextHudState.metadata.statusSource, macContextSourceOutput.statusSource, "HUD metadata should preserve source status command details");
 
 
 const tieBrokenByUpdatedAtThenCreatedAtThenId = rankActivities([

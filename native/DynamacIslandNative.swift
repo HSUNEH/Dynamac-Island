@@ -38,11 +38,17 @@ struct StatusItem: Decodable {
     var task: String
     var detail: String?
     var updatedAt: String?
+    var activeApp: String?
+    var activeWindow: String?
+    var degradationState: String?
+    var statusSource: String?
+    var permissionStatus: MacPermissionStatus?
     var media: MediaInfo?
     var timer: TimerInfo?
     var volumeHud: RoutedActivityInfo?
     var brightnessHud: RoutedActivityInfo?
     var clipboardActivity: RoutedActivityInfo?
+    var macContext: RoutedActivityInfo?
     var shelfActivity: RoutedActivityInfo?
     var dropActivity: RoutedActivityInfo?
     var batteryHud: RoutedActivityInfo?
@@ -51,6 +57,17 @@ struct StatusItem: Decodable {
 struct RoutedActivityInfo: Decodable {
     var activityId: String?
     var activityType: String?
+}
+
+struct MacPermissionStatus: Decodable {
+    var accessibility: MacPermissionDiagnostic?
+    var screenRecording: MacPermissionDiagnostic?
+}
+
+struct MacPermissionDiagnostic: Decodable {
+    var status: String?
+    var diagnostic: String?
+    var available: Bool?
 }
 
 struct TimerInfo: Decodable {
@@ -82,6 +99,14 @@ struct TimerRenderedNotchOutput {
 struct RoutedGenericActivityRenderedOutput {
     var compactText: String
     var expandedText: String
+}
+
+struct MacContextRenderedNotchOutput {
+    var compactText: String
+    var expandedTitle: String
+    var expandedSubtitle: String
+    var permissionLine: String
+    var degradationText: String
 }
 
 struct MediaInfo: Decodable {
@@ -473,6 +498,8 @@ final class IslandView: NSView {
                 } else {
                     drawCompactNowPlaying(media)
                 }
+            } else if activityType == "macContext" {
+                drawMacContextActivity(routed)
             } else {
                 drawRoutedGenericActivity(routed, activityType: activityType)
             }
@@ -546,6 +573,9 @@ final class IslandView: NSView {
         if let clipboardType = status.clipboardActivity?.activityType?.trimmingCharacters(in: .whitespacesAndNewlines), !clipboardType.isEmpty {
             return clipboardType
         }
+        if let macContextType = status.macContext?.activityType?.trimmingCharacters(in: .whitespacesAndNewlines), !macContextType.isEmpty {
+            return macContextType
+        }
         if let shelfType = status.shelfActivity?.activityType?.trimmingCharacters(in: .whitespacesAndNewlines), !shelfType.isEmpty {
             return shelfType
         }
@@ -559,6 +589,8 @@ final class IslandView: NSView {
             return "brightness"
         case "Clipboard", "DynaClip":
             return "clipboard"
+        case "Mac Context":
+            return "macContext"
         case "DynaShelf", "Shelf":
             return "shelf"
         case "DynaDrop", "Drop":
@@ -591,6 +623,9 @@ final class IslandView: NSView {
         }
         if let clipboardActivityId = status.clipboardActivity?.activityId, !clipboardActivityId.isEmpty {
             ids.insert(clipboardActivityId)
+        }
+        if let macContextActivityId = status.macContext?.activityId, !macContextActivityId.isEmpty {
+            ids.insert(macContextActivityId)
         }
         if let shelfActivityId = status.shelfActivity?.activityId, !shelfActivityId.isEmpty {
             ids.insert(shelfActivityId)
@@ -809,6 +844,71 @@ final class IslandView: NSView {
         )
     }
 
+    fileprivate func macContextRenderedNotchOutput(status: StatusItem) -> MacContextRenderedNotchOutput {
+        let app = trimmedOrFallback(status.activeApp, fallback: activityRouter?.compactSurface?.label ?? status.task)
+        let window = trimmedOrFallback(status.activeWindow, fallback: "Window unavailable")
+        let degradation = trimmedOrFallback(status.degradationState, fallback: status.detail ?? "Mac context degradation status unavailable.")
+        let accessibility = trimmedOrFallback(status.permissionStatus?.accessibility?.status, fallback: "unknown")
+        let screenRecording = trimmedOrFallback(status.permissionStatus?.screenRecording?.status, fallback: "unknown")
+        let subtitle = status.activeWindow?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? window : degradation
+        let compactPrefix = status.state == "running" ? "▣" : "⚠"
+
+        return MacContextRenderedNotchOutput(
+            compactText: "\(compactPrefix) \(app)",
+            expandedTitle: "\(app) · \(window)",
+            expandedSubtitle: subtitle,
+            permissionLine: "AX \(accessibility) · Screen \(screenRecording)",
+            degradationText: degradation
+        )
+    }
+
+    private func trimmedOrFallback(_ value: String?, fallback: String) -> String {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? fallback : trimmed
+    }
+
+    private func drawMacContextActivity(_ status: StatusItem) {
+        let rendered = macContextRenderedNotchOutput(status: status)
+        if expanded {
+            drawExpandedMacContext(rendered)
+        } else {
+            drawCompactMacContext(rendered)
+        }
+    }
+
+    private func drawCompactMacContext(_ rendered: MacContextRenderedNotchOutput) {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        paragraph.lineBreakMode = .byTruncatingTail
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: compactLayout.usesHardwareNotchCutout ? 10 : 12, weight: .semibold),
+            .foregroundColor: NSColor.white.withAlphaComponent(0.94),
+            .paragraphStyle: paragraph
+        ]
+
+        if compactLayout.usesHardwareNotchCutout {
+            let parts = rendered.compactText.split(separator: " ", maxSplits: 1).map(String.init)
+            NSString(string: parts.first ?? "▣").draw(in: compactLayout.leftWingRect(in: bounds).insetBy(dx: 7, dy: 7), withAttributes: attrs)
+            NSString(string: parts.count > 1 ? parts[1] : "").draw(in: compactLayout.rightWingRect(in: bounds).insetBy(dx: 4, dy: 7), withAttributes: attrs)
+        } else {
+            NSString(string: rendered.compactText).draw(in: bounds.insetBy(dx: 10, dy: 8), withAttributes: attrs)
+        }
+    }
+
+    private func drawExpandedMacContext(_ rendered: MacContextRenderedNotchOutput) {
+        let labelAttrs = expandedTextAttributes(size: 11, weight: .semibold, color: NSColor(calibratedWhite: 0.64, alpha: 1), letterSpacing: 0.8)
+        let titleAttrs = expandedTextAttributes(size: 21, weight: .semibold, color: .white, letterSpacing: -0.28)
+        let subtitleAttrs = expandedTextAttributes(size: 15, weight: .regular, color: NSColor(calibratedWhite: 0.72, alpha: 1), letterSpacing: -0.2)
+        let diagnosticAttrs = expandedTextAttributes(size: 12, weight: .regular, color: NSColor(calibratedWhite: 0.58, alpha: 1), letterSpacing: -0.1)
+        let content = bounds.insetBy(dx: 28, dy: max(32, expandedTopContentY()))
+
+        NSString(string: "MAC CONTEXT").draw(in: NSRect(x: content.minX, y: content.minY, width: content.width, height: 14), withAttributes: labelAttrs)
+        NSString(string: rendered.expandedTitle).draw(in: NSRect(x: content.minX, y: content.minY + 22, width: content.width, height: 28), withAttributes: titleAttrs)
+        NSString(string: rendered.expandedSubtitle).draw(in: NSRect(x: content.minX, y: content.minY + 56, width: content.width, height: 22), withAttributes: subtitleAttrs)
+        NSString(string: rendered.permissionLine).draw(in: NSRect(x: content.minX, y: content.minY + 86, width: content.width, height: 18), withAttributes: diagnosticAttrs)
+        NSString(string: rendered.degradationText).draw(in: NSRect(x: content.minX, y: content.minY + 110, width: content.width, height: 42), withAttributes: diagnosticAttrs)
+    }
+
     private func drawCompactSecondarySurfaces() {
         guard let surfaces = activityRouter?.compactSecondarySurfaces, !surfaces.isEmpty else { return }
         let attrs: [NSAttributedString.Key: Any] = [
@@ -848,6 +948,7 @@ final class IslandView: NSView {
         case "volume": return "speaker"
         case "brightness": return "sun.max"
         case "clipboard": return "doc.on.clipboard"
+        case "macContext": return "macwindow"
         case "shelf", "drop": return "tray"
         case "battery": return "battery.100"
         default: return "circle"
@@ -2236,6 +2337,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let compactSurface = routedCompactSurface,
            let status = routedStatus,
            let routedType {
+            let routedGenericOutput = islandView?.routedGenericActivityRenderedOutput(status: status, activityType: routedType)
+            let macContextOutput = routedType == "macContext" ? islandView?.macContextRenderedNotchOutput(status: status) : nil
             print([
                 "DYNAMAC_STATUS_DUMP active=activityRouter",
                 "presentation=\(presentation)",
@@ -2249,8 +2352,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 "agent=\(status.agent)",
                 "statusState=\(status.state)",
                 "task=\(status.task)",
-                "renderedCompactText=\(nativeSmokeDumpValue(islandView?.routedGenericActivityRenderedOutput(status: status, activityType: routedType).compactText ?? ""))",
-                "renderedExpandedText=\(nativeSmokeDumpValue(islandView?.routedGenericActivityRenderedOutput(status: status, activityType: routedType).expandedText ?? ""))"
+                "activeApp=\(nativeSmokeDumpValue(status.activeApp ?? ""))",
+                "activeWindow=\(nativeSmokeDumpValue(status.activeWindow ?? ""))",
+                "permissionAccessibility=\(status.permissionStatus?.accessibility?.status ?? "")",
+                "permissionScreenRecording=\(status.permissionStatus?.screenRecording?.status ?? "")",
+                "renderedCompactText=\(nativeSmokeDumpValue(macContextOutput?.compactText ?? routedGenericOutput?.compactText ?? ""))",
+                "renderedExpandedText=\(nativeSmokeDumpValue(macContextOutput.map { "\($0.expandedTitle)\n\($0.expandedSubtitle)\n\($0.permissionLine)\n\($0.degradationText)" } ?? routedGenericOutput?.expandedText ?? ""))"
             ].joined(separator: " "))
             return
         }
