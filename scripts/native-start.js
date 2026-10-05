@@ -34,6 +34,8 @@ const inherited = { ...loadCalibrationEnv(), ...process.env };
 inherited.DYNAMAC_STATUS_FILE = inherited.DYNAMAC_STATUS_FILE || path.join(repoRoot, ".build/status.json");
 inherited.DYNAMAC_STATUS_REFRESH_SIGNAL = inherited.DYNAMAC_STATUS_REFRESH_SIGNAL || path.join(repoRoot, ".build/status.refresh");
 inherited.DYNAMAC_HUD_EVENT_STORE = inherited.DYNAMAC_HUD_EVENT_STORE || path.join(repoRoot, ".build/hud-events.json");
+// The native island writes dropped DynaDrop files here; the writer turns them into a Shelf status.
+inherited.DYNAMAC_SHELF_FILE = inherited.DYNAMAC_SHELF_FILE || path.join(path.dirname(inherited.DYNAMAC_STATUS_FILE), "shelf.json");
 const lockPath = inherited.DYNAMAC_STATUS_LOCK || `${inherited.DYNAMAC_STATUS_FILE}.lock`;
 
 function acquireSingleInstanceLock() {
@@ -84,7 +86,8 @@ function refreshStatus({ log = false } = {}) {
     const result = writeMacActivityStatusSnapshot({
       outputPath: inherited.DYNAMAC_STATUS_FILE,
       previousPayload: lastStatusPayload,
-      hudEventStorePath: inherited.DYNAMAC_HUD_EVENT_STORE
+      hudEventStorePath: inherited.DYNAMAC_HUD_EVENT_STORE,
+      shelfFilePath: inherited.DYNAMAC_SHELF_FILE
     });
     lastStatusPayload = result.payload;
     if (log) console.log(`Mac activity snapshot written: ${result.outputPath}`);
