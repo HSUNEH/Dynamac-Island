@@ -318,7 +318,7 @@ const expectedDeferredChecklistItems = [
     /Missing deferred native DynaDrop action checklist/
   ],
   [
-    "Clipboard history/paste automation/file handoff",
+    "Clipboard auto-paste keystrokes/file handoff",
     /Missing deferred native DynaClip workflow checklist/
   ],
   [

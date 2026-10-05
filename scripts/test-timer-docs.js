@@ -57,7 +57,7 @@ assert.notEqual(
 assertIncludes(deferredSection, "deferred feature set", "out of scope for the Timer MVP");
 assertIncludes(deferredSection, "DynaDrop deferred", "DynaDrop-style file drop");
 assertIncludes(deferredSection, "DynaDrop out of scope", "right-click actions are out of scope");
-assertIncludes(deferredSection, "DynaClip deferred", "DynaClip-style clipboard history");
+assertIncludes(deferredSection, "DynaClip deferred", "DynaClip-style cross-restart clipboard persistence");
 assertIncludes(deferredSection, "DynaClip out of scope", "quick handoff workflows are out of scope beyond the tested short-lived local clipboard activity/status model");
 assertIncludes(deferredSection, "DynaKeys deferred", "DynaKeys-style keyboard shortcuts");
 assertIncludes(deferredSection, "DynaKeys out of scope", "action launchers are out of scope");

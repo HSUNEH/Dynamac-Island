@@ -4,6 +4,7 @@ const path = require("node:path");
 const DEFAULT_RECENCY_MS = 5000;
 const DEFAULT_SOURCE = "local-clipboard";
 const PREVIEW_MAX_LENGTH = 120;
+const HISTORY_LIMIT = 10;
 
 function finiteTimestamp(value, fallback = Date.now()) {
   const timestamp = value instanceof Date ? value.getTime() : Number(value);
@@ -259,8 +260,29 @@ function buildClipboardCopiedHudActivity(copyEvent, options = {}) {
 function createClipboardActivityState(seed = {}) {
   return {
     lastSignature: typeof seed.lastSignature === "string" ? seed.lastSignature : "",
-    active: seed.active || null
+    active: seed.active || null,
+    history: Array.isArray(seed.history) ? seed.history.slice(0, HISTORY_LIMIT).map((entry) => ({ ...entry })) : []
   };
+}
+
+// History entries carry only the bounded preview and a content signature, never the
+// full clipboard text, so the status file never holds more than the copied HUD does.
+function buildClipboardHistoryEntry(activity) {
+  return {
+    signature: activity.metadata.copyEvent.contentSignature,
+    preview: activity.status.preview,
+    classification: activity.status.classification,
+    characterCount: activity.status.characterCount,
+    copiedAt: activity.createdAt
+  };
+}
+
+function pushClipboardHistory(history, entry) {
+  return [entry, ...history.filter((existing) => existing.signature !== entry.signature)].slice(0, HISTORY_LIMIT);
+}
+
+function withClipboardHistory(status, history) {
+  return history.length > 0 ? { ...status, clipboardHistory: history.map((entry) => ({ ...entry })) } : status;
 }
 
 function isPlainTextRead(read) {
@@ -394,7 +416,7 @@ function evaluateClipboardRead(state = createClipboardActivityState(), read = {}
   if (!text) {
     const emptySignature = textSignature("");
     return {
-      state: createClipboardActivityState({ lastSignature: emptySignature, active: null }),
+      state: createClipboardActivityState({ lastSignature: emptySignature, active: null, history: previous.history }),
       status: unavailableClipboardStatus(nowMs, "No text clipboard content was found.")
     };
   }
@@ -406,19 +428,19 @@ function evaluateClipboardRead(state = createClipboardActivityState(), read = {}
   if (!changed) {
     if (isActiveClipboardActivityCurrent(previous.active, nowMs)) {
       return {
-        state: createClipboardActivityState({ lastSignature: signature, active: previous.active }),
+        state: createClipboardActivityState({ lastSignature: signature, active: previous.active, history: previous.history }),
         status: clipboardActivityToNativeStatus(previous.active)
       };
     }
     return {
-      state: createClipboardActivityState({ lastSignature: signature, active: null }),
+      state: createClipboardActivityState({ lastSignature: signature, active: null, history: previous.history }),
       status: expiredClipboardStatus(nowMs, previous.active)
     };
   }
 
   if (!recent) {
     return {
-      state: createClipboardActivityState({ lastSignature: signature, active: null }),
+      state: createClipboardActivityState({ lastSignature: signature, active: null, history: previous.history }),
       status: inactiveClipboardStatus(nowMs, "Clipboard text is older than the recent-change window.")
     };
   }
@@ -434,7 +456,7 @@ function evaluateClipboardRead(state = createClipboardActivityState(), read = {}
   });
 
   return {
-    state: createClipboardActivityState({ lastSignature: signature, active: activity }),
+    state: createClipboardActivityState({ lastSignature: signature, active: activity, history: pushClipboardHistory(previous.history, buildClipboardHistoryEntry(activity)) }),
     status: clipboardActivityToNativeStatus(activity)
   };
 }
@@ -443,7 +465,8 @@ function applyClipboardRead(state = createClipboardActivityState(), read = {}, o
   const nowMs = finiteTimestamp(options.now ?? read?.observedAt, Date.now());
   const previous = createClipboardActivityState(state);
   try {
-    return evaluateClipboardRead(previous, read, options);
+    const result = evaluateClipboardRead(previous, read, options);
+    return { state: result.state, status: withClipboardHistory(result.status, result.state.history) };
   } catch (error) {
     return {
       state: createClipboardActivityState({ ...previous, active: null }),
@@ -465,6 +488,7 @@ function buildClipboardStatusFromText(text, options = {}) {
 
 module.exports = {
   DEFAULT_RECENCY_MS,
+  HISTORY_LIMIT,
   applyClipboardRead,
   buildClipboardCopyEvent,
   buildClipboardCopiedHudActivity,

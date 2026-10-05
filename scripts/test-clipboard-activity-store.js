@@ -85,7 +85,7 @@ function withPersistenceApisBlocked(callback) {
 const now = 1718323200000;
 
 const initial = store.createClipboardActivityStore();
-assert.deepEqual(initial, { lastSignature: "", active: null }, "in-memory clipboard store should start empty");
+assert.deepEqual(initial, { lastSignature: "", active: null, history: [] }, "in-memory clipboard store should start empty");
 assert.deepEqual(store.readClipboardActivityStore(), initial, "read should return the current in-memory clipboard state");
 
 const created = store.createClipboardActivity({
@@ -141,13 +141,13 @@ assert.equal(replacement.status.activityType, "clipboard", "changed clipboard st
 assert.equal(replacement.state.lastSignature, replacementSignature, "store should keep only the latest clipboard signature");
 assert.notEqual(replacement.state.active.activityId, created.state.active.activityId, "changed clipboard store updates should replace the previous transient activity");
 assert.equal(replacement.state.active.status.preview, "Clipboard replacement text", "store active activity should reflect only the latest copied preview");
-assert.equal(serializedReplacementState.includes(textSignature("Clipboard store text")), false, "store state must not retain older clipboard fingerprints as history");
-assert.equal(serializedReplacementState.includes("Clipboard store text"), false, "store state must not retain older clipboard previews after replacement");
-assert.equal(Array.isArray(replacement.state.history), false, "store should not expose clipboard history");
+assert.equal(serializedReplacementState.includes(textSignature("Clipboard store text")), true, "store state should keep older clipboard fingerprints in bounded in-memory history");
+assert.equal(serializedReplacementState.includes("\"plainText\""), false, "store state must not retain raw clipboard text fields");
+assert.deepEqual(replacement.state.history.map((entry) => entry.preview), ["Clipboard replacement text", "Clipboard store text"], "store history should keep previews newest first");
 assert.equal(Array.isArray(replacement.state.activities), false, "store should not expose accumulated clipboard activity lists");
 
 const cleared = store.clearClipboardActivityStore();
-assert.deepEqual(cleared, { lastSignature: "", active: null }, "clear should reset clipboard store memory");
+assert.deepEqual(cleared, { lastSignature: "", active: null, history: [] }, "clear should reset clipboard store memory");
 assert.deepEqual(store.readClipboardActivityStore(), cleared, "read after clear should show no retained clipboard activity");
 
 const afterClear = store.createClipboardActivity({
@@ -185,6 +185,6 @@ store.clearClipboardActivityStore();
 const modulePath = require.resolve("../src/clipboard-activity-store");
 delete require.cache[modulePath];
 const reloadedStore = require("../src/clipboard-activity-store");
-assert.deepEqual(reloadedStore.readClipboardActivityStore(), { lastSignature: "", active: null }, "module reload should not recover clipboard history from disk or restart state");
+assert.deepEqual(reloadedStore.readClipboardActivityStore(), { lastSignature: "", active: null, history: [] }, "module reload should not recover clipboard history from disk or restart state");
 
 console.log("Clipboard activity in-memory store test passed.");
